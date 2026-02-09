@@ -857,91 +857,155 @@ export default function OsszesitesPage() {
                 const safeName = (emailClientName || "Ügyfél").trim()
                 const safeUntil = (emailOfferUntil || "").trim()
 
-                const highlightKeys: RowKey[] = ["netEndBalance", "netEndBalanceWithTax", "endBalanceHufCurrent", "endBalanceEUR500"]
+                const FONT = "Calibri, Arial, Helvetica, sans-serif"
+                const BLUE = "#2F5597"
+                const ORANGE = "#ED7D31"
+                const ORANGE_DARK = "#C55A11"
+                const ORANGE_DARKER = "#8a4b12"
+                const BORDER = "#c9c9c9"
 
-                const tableRows = sections.flatMap((section) => section.rows).map((row) => {
-                  const label = getLabel(row.key, row.defaultLabel)
-                  const valueText = row.isNumeric
-                    ? formatValue(
-                        getValue(row.key) as number,
-                        row.showCurrency !== false,
-                        row.suffix || "",
-                        row.valueCurrency,
-                        row.displayCurrency,
-                      )
-                    : String(getValue(row.key))
-                  const isHighlight = Boolean(row.isHighlight) || highlightKeys.includes(row.key)
-                  return { label, valueText, isHighlight }
-                })
+                const esc = (value: string) =>
+                  value
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#39;")
 
-                const orange = "#f28c28"
-                const blue = "#1d4ed8"
-                const darkOrange = "#8a4b12"
+                const spanOrange = (text: string) =>
+                  `<span style="display:inline-block; background:${ORANGE}; color:#ffffff; font-weight:700; padding:2px 8px;">${esc(text)}</span>`
+
+                const heading = (text: string) =>
+                  `<div style="margin: 34px 0 12px 0;"><span style="display:inline-block; background:${ORANGE}; color:#ffffff; font-weight:700; padding:6px 12px; font-family:${FONT}; font-size:22px;">${esc(text)}</span></div>`
+
+                const p = (text: string, bold = false) =>
+                  `<div style="color:${BLUE}; font-family:${FONT}; font-size:18px; line-height:1.35; ${bold ? "font-weight:700;" : "font-weight:600;"} margin: 0 0 6px 0;">${text}</div>`
+
+                const pSpacer = (h = 14) => `<div style="height:${h}px; line-height:${h}px;">&nbsp;</div>`
+
+                const getText = (key: RowKey) => String(getValue(key) ?? "")
+                const getMoney = (key: RowKey) =>
+                  formatValue(getValue(key) as number, true, "", undefined, data.displayCurrency)
+                const getMoneyOrBlank = (key: RowKey) => {
+                  const v = getValue(key)
+                  if (v === undefined || v === null || v === "") return ""
+                  return typeof v === "number" ? formatValue(v, true, "", undefined, data.displayCurrency) : String(v)
+                }
+
+                const cellBase = `border:1px solid ${BORDER}; padding:7px 10px; font-family:${FONT}; font-size:16px; line-height:1.2;`
+                const cellLabel = `${cellBase} color:#000000; font-weight:600;`
+                const cellValue = `${cellBase} color:${BLUE}; font-weight:700; text-align:left; white-space:nowrap;`
+
+                const tableRow = (label: string, valueText: string) => `
+                  <tr>
+                    <td style="${cellLabel}">${esc(label)}</td>
+                    <td style="${cellValue}">${esc(valueText)}</td>
+                  </tr>
+                `
+
+                const spacerRow = () => `
+                  <tr>
+                    <td style="${cellBase} background:#ffffff; height:16px;">&nbsp;</td>
+                    <td style="${cellBase} background:#ffffff; height:16px;">&nbsp;</td>
+                  </tr>
+                `
+
+                const highlightRow = (label: string, valueText: string) => `
+                  <tr>
+                    <td style="${cellBase} background:${ORANGE_DARK}; color:#ffffff; font-weight:700; font-size:18px;">${esc(
+                      label,
+                    )}</td>
+                    <td style="${cellBase} background:${ORANGE_DARKER}; color:#ffffff; font-weight:700; font-size:18px; text-align:left; white-space:nowrap;">${esc(
+                      valueText,
+                    )}</td>
+                  </tr>
+                `
+
+                const productName = getText("accountName")
+                const goal = getText("accountGoal")
+                const monthly = getMoney("monthlyPayment")
+                const yearly = getMoney("yearlyPayment")
+                const years = formatValue(getValue("years") as number, false, " év", undefined, data.displayCurrency)
+                const total = getMoney("totalContributions")
+                const strategy = getText("strategy")
+                const annualYield = getText("annualYield")
+                const expectedReturn = getMoney("totalReturn")
+                const expectedBalance = getMoney("endBalance")
+                const totalBonus = data.productHasBonus ? getMoneyOrBlank("totalBonus") : ""
+                const finalNet = getMoney("endBalance")
 
                 const summaryTableHtml = `
-                  <table cellspacing="0" cellpadding="0" style="border-collapse:collapse; font-family: Arial, Helvetica, sans-serif; font-size: 14px; width: 520px; margin: 16px 0;">
+                  <table cellspacing="0" cellpadding="0" style="border-collapse:collapse; width:760px; margin: 18px 0;">
                     <tbody>
-                      ${tableRows
-                        .map(({ label, valueText, isHighlight }) => {
-                          const rowBg = isHighlight ? orange : "#ffffff"
-                          const rowColor = isHighlight ? "#ffffff" : blue
-                          const fontWeight = isHighlight ? 700 : 600
-                          const valueBg = isHighlight ? darkOrange : "#ffffff"
-                          const valueColor = isHighlight ? "#ffffff" : blue
-
-                          return `
-                            <tr>
-                              <td style="border:1px solid #d1d5db; padding:6px 8px; background:${rowBg}; color:${rowColor}; font-weight:${fontWeight};">
-                                ${label}
-                              </td>
-                              <td style="border:1px solid #d1d5db; padding:6px 8px; background:${valueBg}; color:${valueColor}; font-weight:${fontWeight}; text-align:right; white-space:nowrap;">
-                                ${valueText}
-                              </td>
-                            </tr>
-                          `
-                        })
-                        .join("")}
+                      ${tableRow("Megtakarítási számla megnevezése", productName)}
+                      ${tableRow("Megtakarítási számla célja:", goal)}
+                      ${tableRow("Megtakarítási havi összeg:", monthly)}
+                      ${tableRow("Megtakarítási éves összeg:", yearly)}
+                      ${tableRow("Tervezett időtartam:", years)}
+                      ${spacerRow()}
+                      ${tableRow("Teljes befizetés:", total)}
+                      ${tableRow("Hozam stratégia:", strategy)}
+                      ${tableRow("Éves nettó hozam:", annualYield)}
+                      ${tableRow("Várható hozam:", expectedReturn)}
+                      ${tableRow("Megtakarítás számlán várható összeg:", expectedBalance)}
+                      ${
+                        totalBonus
+                          ? tableRow("Bónuszjóváírás tartam alatt összesen:", totalBonus)
+                          : ""
+                      }
+                      ${highlightRow("Teljes megtakarítás nettó értéke:", finalNet)}
                     </tbody>
                   </table>
                 `
 
-                const heading = (text: string) =>
-                  `<div style="margin: 18px 0 8px 0;"><span style="display:inline-block; background:${orange}; color:#ffffff; font-weight:700; padding:4px 8px; font-family: Arial, Helvetica, sans-serif;">${text}</span></div>`
-
-                const p = (text: string, bold = false) =>
-                  `<div style="color:${blue}; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.35; ${bold ? "font-weight:700;" : "font-weight:600;"} margin: 2px 0;">${text}</div>`
-
                 const html = `
-                  <div style="background:#ffffff; padding: 0; margin: 0;">
-                    ${p(`Kedves ${safeName}!`, true)}
-                    ${p("Telefonos megbeszélésünkre hivatkozva küldöm, Önnek a")}
-                    ${p("Tőkenövelés", true)}
-                    ${p("terméktájékoztatóját, valamint a megtakarítási tervezetet.")}
-                    <div style="height: 10px;"></div>
-                    ${p("Az alábbi ajánlat, Allianz prémium ügyfeleknek szóló konstrukció,", true)}
-                    ${p(safeUntil ? `mely ${safeUntil} - ig érhető el.` : "mely korlátozott ideig érhető el.", true)}
-                    ${summaryTableHtml}
+                  <div style="background:#ffffff; padding:0; margin:0;">
+                    <div style="padding-left: 40px;">
+                      <div style="font-family:${FONT}; color:${BLUE}; font-size:36px; font-style:italic; font-weight:700; margin: 0 0 18px 0;">
+                        ${esc(`Kedves ${safeName}!`)}
+                      </div>
+
+                      ${p(`Telefonos megbeszélésünkre hivatkozva küldöm, <span style="font-weight:700;">Önnek</span> a`)}
+                      ${p(`<span style="font-weight:700;">Tőkenövelés</span>`)}
+                      ${p("terméktájékoztatóját, valamint a megtakarítási tervezetet.")}
+
+                      ${pSpacer(18)}
+
+                      ${p(
+                        `Az alábbi ajánlat, Allianz prémium ügyfeleknek szóló konstrukció,`,
+                        true,
+                      )}
+                      ${p(
+                        `mely ${safeUntil ? spanOrange(safeUntil) : spanOrange("...")} <span style="font-weight:700;">- ig</span> érhető el.`,
+                        true,
+                      )}
+
+                      ${summaryTableHtml}
 
                     ${heading("Teljes költségmutató (TKM)")}
                     ${p("A biztosítók más és más költséggel dolgoznak,")}
                     ${p("ezt a mutatót az MNB hozta létre melynek célja,")}
                     ${p("hogy a megtakarító tudjon mérlegelni, hogy")}
                     ${p("melyik biztosítónál helyezi el a megtakarítását.")}
-                    <div style="height: 10px;"></div>
+                    ${pSpacer(16)}
                     ${p("Látszólag mindegy, hogy hol takarít meg ugyanis,")}
                     ${p("1-3 % különbség van a biztosítók TKM értékében,")}
                     ${p("azonban ez a százalékos különbség hosszútávon")}
                     ${p("Önnek milliós különbséget jelent.", true)}
 
                     ${heading("Díjmentes számlavezetés")}
-                    ${p("3.3 Euro a havi számlavezetési költség,")}
+                    ${p(
+                      data.displayCurrency === "HUF"
+                        ? "990 Ft a havi számlavezetési költség,"
+                        : "3.3 Euro a havi számlavezetési költség,",
+                    )}
                     ${p("melyet most az első évben elengedünk.", true)}
 
                     ${heading("Díjmentes eszközalap váltás")}
                     ${p("Piacon egyedülálló módon tudja a befektetését")}
                     ${p("kezelni, ugyanis limit nélkül tud a befektetési")}
                     ${p("alapok között váltani.", true)}
-                    <div style="height: 10px;"></div>
+                    ${pSpacer(16)}
                     ${p("Évente egyszer a megtakarítási évforduló")}
                     ${p("alkalmával kötelezően felkeresem és Velem,")}
                     ${p("mint megtakarítási szakértője támogatásával,")}
@@ -949,35 +1013,46 @@ export default function OsszesitesPage() {
                     ${p("Valamint segítek eligazodni a hozamok,")}
                     ${p("befektetési alapok között.", true)}
 
-                    <div style="height: 14px;"></div>
-                    ${p("Világgazdasági Részvény", true)}
-                    ${p("2024 01. - 2025 01. hozam: 33,6 % / év")}
-                    ${p("2020 01. - 2025 01. hozam: 106,80 % / 5év")}
-                    <div style="height: 10px;"></div>
-                    ${p("Ipari Nyersanyag Eszközalap", true)}
-                    ${p("2024 01. - 2025 01. hozam: 27,53 % / év")}
-                    ${p("2020 01. - 2025 01. hozam: 144,91 % / 5év")}
-                    <div style="height: 10px;"></div>
-                    ${p("Környezettudatos Részvény", true)}
-                    ${p("2024 01. - 2025 01. hozam: 27,01 % / év")}
-                    ${p("2020 01. - 2025 01. hozam: 89,02 % / 5év")}
+                    ${pSpacer(22)}
+                    ${p("<span style=\"font-weight:700;\">Világgazdasági Részvény</span>")}
+                    ${p(`2024 01. - 2025 01. hozam: ${spanOrange("33,6 % / év")}`)}
+                    ${p(`2020 01. - 2025 01. hozam: ${spanOrange("106,80 % / 5év")}`)}
+                    ${pSpacer(12)}
+                    ${p("<span style=\"font-weight:700;\">Ipari Nyersanyag Eszközalap</span>")}
+                    ${p(`2024 01. - 2025 01. hozam: ${spanOrange("27,53 % / év")}`)}
+                    ${p(`2020 01. - 2025 01. hozam: ${spanOrange("144,91 % / 5év")}`)}
+                    ${pSpacer(12)}
+                    ${p("<span style=\"font-weight:700;\">Környezettudatos Részvény</span>")}
+                    ${p(`2024 01. - 2025 01. hozam: ${spanOrange("27,01 % / év")}`)}
+                    ${p(`2020 01. - 2025 01. hozam: ${spanOrange("89,02 % / 5év")}`)}
+                    ${pSpacer(10)}
+                    <div style="font-family:${FONT}; font-size:12px; color:#000000; font-weight:700; margin-top: 6px;">
+                      forrás: profilline.hu - Ön is tudja ellenőrizni jelen megtakarítási hozamokat.
+                    </div>
 
                     ${heading("FIX Bónusz jóváírás a hozamokon felül")}
                     ${p("Minden évben kap bónusz jóváírást,")}
                     ${p("pontosan annyi százalékot,")}
                     ${p("ahányadik évben jár a megtakarítási")}
                     ${p("számlája a következőképpen:", true)}
-                    ${p("1. évben +1 % bónusz")}
-                    ${p("2. évben +2 % bónusz")}
-                    ${p("3. évben +3 % bónusz")}
-                    ${p("4. évben +4 % bónusz")}
+                    ${p(`1. évben ${spanOrange("+1 % bónusz")}`)}
+                    ${p(`2. évben ${spanOrange("+2 % bónusz")}`)}
+                    ${p(`3. évben ${spanOrange("+3 % bónusz")}`)}
+                    ${p(`4. évben ${spanOrange("+4 % bónusz")}`)}
                     ${p("..és így tovább egészen az utolsó megtakarítási évig bezárólag.")}
                     ${p("Megéri tovább tervezni", true)}
-                    ${p("ugyanis például a 10. évben már +10% jóváírást kap az éves megtakarításai után.", true)}
+                    ${p(
+                      `ugyanis például a 10. évben már ${spanOrange("+10% jóváírást")} kap az éves megtakarításai után.`,
+                      true,
+                    )}
 
-                    <div style="height: 14px;"></div>
+                    ${pSpacer(26)}
                     ${p("amennyiben a fent meghatározott promóciós időszakban")}
-                    ${p("indítja el megtakarítási számláját, 12 000 Euro összegre")}
+                    ${p(
+                      data.displayCurrency === "HUF"
+                        ? `indítja el megtakarítási számláját, <span style="font-weight:700;">3 000 000 Ft</span> összegre`
+                        : `indítja el megtakarítási számláját, <span style="font-weight:700;">12 000 Euro</span> összegre`,
+                    )}
                     ${p("biztosítjuk Önt közlekedési baleseti halál esetén,")}
                     ${p("melyet az Ön által megjelölt kedvezményezett fog kapni", true)}
 
@@ -998,12 +1073,13 @@ export default function OsszesitesPage() {
                     ${p("a megtakarítási számla összegét hagyatéki eljárás alá nem vonható,")}
                     ${p("8 napon belül a kedvezményezett számlájára a teljes összeg kiutalásra kerül", true)}
 
-                    <div style="height: 14px;"></div>
+                    ${pSpacer(26)}
                     ${p("A közös munkánk során én folyamatosan figyelemmel fogom kísérni befektetését és segíteni fogok Önnek,")}
                     ${p("hogy mindig a legkedvezőbb és az éppen aktuális élethelyzetéhez leginkább igazodó döntéseket tudja meghozni a pénzügyeit illetően.", true)}
                     ${p("Hiszem, hogy a folyamatos és rendszeres kommunikáció a siker alapja.", true)}
-                    <div style="height: 14px;"></div>
+                    ${pSpacer(22)}
                     ${p("További információért vagy bármilyen kérdés esetén keressen bizalommal:", true)}
+                    </div>
                   </div>
                 `.trim()
 
