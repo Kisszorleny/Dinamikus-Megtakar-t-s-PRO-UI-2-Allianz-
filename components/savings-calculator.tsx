@@ -188,6 +188,9 @@ function MobileYearCard({
   bonusPercentByYear,
   updateBonusPercent,
   yearlyViewMode, // Added prop
+  yearlyAccountView,
+  cumulativeByYear,
+  shouldApplyTaxCreditPenalty,
   isTaxBonusSeparateAccount, // Added prop
 }: {
   row: any
@@ -229,6 +232,9 @@ function MobileYearCard({
   bonusPercentByYear?: Record<number, number>
   updateBonusPercent?: (year: number, percent: number) => void
   yearlyViewMode?: "total" | "client" | "invested" | "taxBonus" // Added prop
+  yearlyAccountView?: "summary" | "main" | "eseti"
+  cumulativeByYear?: Record<number, any>
+  shouldApplyTaxCreditPenalty?: boolean
   isTaxBonusSeparateAccount?: boolean // Added prop
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -242,6 +248,9 @@ function MobileYearCard({
   const isPaymentModified = paymentByYear[row.year] !== undefined
   const isWithdrawalModified = withdrawalByYear[row.year] !== undefined
   const isTaxCreditLimited = currentTaxCreditLimit !== undefined
+  const isYearlyReadOnly = yearlyAccountView !== "main"
+  const isEsetiView = yearlyAccountView === "eseti"
+  const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
 
   let displayData = {
     endBalance: row.endBalance,
@@ -252,7 +261,7 @@ function MobileYearCard({
     wealthBonusForYear: row.wealthBonusForYear,
   }
 
-  if (yearlyViewMode === "client") {
+  if (effectiveYearlyViewMode === "client") {
     displayData = {
       endBalance: row.client.endBalance,
       interestForYear: row.client.interestForYear,
@@ -261,7 +270,7 @@ function MobileYearCard({
       plusCostForYear: row.client.plusCostForYear,
       wealthBonusForYear: row.client.wealthBonusForYear,
     }
-  } else if (yearlyViewMode === "invested") {
+  } else if (effectiveYearlyViewMode === "invested") {
     displayData = {
       endBalance: row.invested.endBalance,
       interestForYear: row.invested.interestForYear,
@@ -270,7 +279,7 @@ function MobileYearCard({
       plusCostForYear: row.invested.plusCostForYear,
       wealthBonusForYear: row.invested.wealthBonusForYear,
     }
-  } else if (yearlyViewMode === "taxBonus") {
+  } else if (effectiveYearlyViewMode === "taxBonus") {
     displayData = {
       endBalance: row.taxBonus.endBalance,
       interestForYear: row.taxBonus.interestForYear,
@@ -282,7 +291,31 @@ function MobileYearCard({
   }
   // </CHANGE>
 
-  const displayBalance = enableNetting && netData ? netData.netBalance : displayData.endBalance
+  if (isEsetiView) {
+    displayData = {
+      ...displayData,
+      costForYear: 0,
+      assetBasedCostForYear: 0,
+      plusCostForYear: 0,
+      bonusForYear: 0,
+      wealthBonusForYear: 0,
+    }
+  }
+
+  const cumulativeRow = cumulativeByYear?.[row.year] ?? row
+  const cumulativeCostsToDate =
+    (cumulativeRow.costForYear ?? 0) +
+    (cumulativeRow.assetBasedCostForYear ?? 0) +
+    (cumulativeRow.plusCostForYear ?? 0)
+  const cumulativeBonusesToDate = (cumulativeRow.bonusForYear ?? 0) + (cumulativeRow.wealthBonusForYear ?? 0)
+
+  let displayBalance = enableNetting && netData ? netData.netBalance : displayData.endBalance
+  if (isEsetiView) {
+    displayBalance = displayBalance + cumulativeCostsToDate - cumulativeBonusesToDate
+  }
+  if (shouldApplyTaxCreditPenalty) {
+    displayBalance = Math.max(0, displayBalance - (cumulativeRow.taxCreditForYear ?? 0) * 1.2)
+  }
   const applyRealValue = (value: number) => (getRealValueForYear ? getRealValueForYear(value, row.year) : value)
 
   const showBreakdown = isAccountSplitOpen || isRedemptionOpen
@@ -306,7 +339,9 @@ function MobileYearCard({
                     <div>Adójóváírás: {formatValue(applyRealValue(row.endingTaxBonusValue), displayCurrency)}</div>
                   )}
                   {/* </CHANGE> */}
-                  <div className="font-medium">Összesen: {formatValue(applyRealValue(row.endBalance), displayCurrency)}</div>
+                  <div className="font-medium">
+                    Összesen: {formatValue(applyRealValue(displayBalance), displayCurrency)}
+                  </div>
                   {isRedemptionOpen && row.surrenderCharge > 0 && (
                     <>
                       <div className="text-orange-600 dark:text-orange-400">
@@ -338,7 +373,7 @@ function MobileYearCard({
       </div>
 
       {/* Always visible: editable fields */}
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className={`grid grid-cols-2 gap-3 mb-3 ${isYearlyReadOnly ? "opacity-60 pointer-events-none" : ""}`}>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Indexálás (%)</Label>
           <Input
@@ -453,7 +488,11 @@ function MobileYearCard({
 
       {/* Expandable details */}
       {isExpanded && (
-        <div className="mt-4 pt-3 border-t space-y-2">
+        <div
+          className={`mt-4 pt-3 border-t space-y-2 ${
+            isYearlyReadOnly ? "opacity-60 pointer-events-none" : ""
+          }`}
+        >
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Összes befizetés</span>
             <span className="tabular-nums">
@@ -477,14 +516,14 @@ function MobileYearCard({
             inputs &&
             assetCostPercentByYear &&
             updateAssetCostPercent &&
-            !(isAccountSplitOpen && yearlyViewMode === "total") && (
+            !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Vagyon%</Label>
                 <div className="flex items-center gap-1">
                   <Input
                     type="number"
                     inputMode="decimal"
-                    value={assetCostPercentByYear[row.year] ?? inputs.assetBasedFeePercent}
+                    value={isEsetiView ? 0 : assetCostPercentByYear[row.year] ?? inputs.assetBasedFeePercent}
                     onChange={(e) => {
                       const val = Number(e.target.value)
                       if (!isNaN(val) && val >= 0 && val <= 100) {
@@ -507,7 +546,7 @@ function MobileYearCard({
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground tabular-nums">
-                  Összeg: {formatValue(applyRealValue(row.assetBasedCostForYear), displayCurrency)}
+                  Összeg: {formatValue(applyRealValue(isEsetiView ? 0 : row.assetBasedCostForYear), displayCurrency)}
                 </p>
               </div>
             )}
@@ -524,7 +563,7 @@ function MobileYearCard({
                       ? String(
                           Math.round(
                             convertForDisplay(
-                              plusCostByYear[row.year] ?? 0,
+                              isEsetiView ? 0 : plusCostByYear[row.year] ?? 0,
                               resultsCurrency,
                               displayCurrency,
                               eurToHufRate,
@@ -534,7 +573,7 @@ function MobileYearCard({
                       : formatNumber(
                           Math.round(
                             convertForDisplay(
-                              plusCostByYear[row.year] ?? 0,
+                              isEsetiView ? 0 : plusCostByYear[row.year] ?? 0,
                               resultsCurrency,
                               displayCurrency,
                               eurToHufRate,
@@ -574,7 +613,7 @@ function MobileYearCard({
                 <Input
                   type="number"
                   inputMode="decimal"
-                  value={bonusPercentByYear[row.year] ?? 0}
+                  value={isEsetiView ? 0 : bonusPercentByYear[row.year] ?? 0}
                   onChange={(e) => {
                     const val = Number(e.target.value)
                     if (!isNaN(val) && val >= 0 && val <= 100) {
@@ -670,6 +709,7 @@ export function SavingsCalculator() {
   }, [])
 
   const [yearlyViewMode, setYearlyViewMode] = useState<"total" | "client" | "invested" | "taxBonus">("total")
+  const [yearlyAccountView, setYearlyAccountView] = useState<"summary" | "main" | "eseti">("main")
   const [yearlyAggregationMode, setYearlyAggregationMode] = useState<"year" | "sum">("year")
   const [showCostBreakdown, setShowCostBreakdown] = useState(false)
   const [showBonusBreakdown, setShowBonusBreakdown] = useState(false)
@@ -2734,6 +2774,11 @@ export function SavingsCalculator() {
     setIsMounted(true)
   }, [])
 
+  const isYearlyReadOnly = yearlyAccountView !== "main"
+  const isYearlyMuted = yearlyAccountView === "summary"
+  const isEsetiView = yearlyAccountView === "eseti"
+  const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
+
   const canUseFundYield = Boolean(selectedProduct)
 
   useEffect(() => {
@@ -4289,38 +4334,42 @@ export function SavingsCalculator() {
                     <div className="flex items-center gap-1 border rounded-md p-1">
                       <Button
                         type="button"
-                        variant={yearlyViewMode === "total" ? "default" : "ghost"}
+                        variant={effectiveYearlyViewMode === "total" ? "default" : "ghost"}
                         size="sm"
                         onClick={() => setYearlyViewMode("total")}
                         className="h-7 text-xs px-2"
+                        disabled={isYearlyReadOnly}
                       >
                         Összesített
                       </Button>
                       <Button
                         type="button"
-                        variant={yearlyViewMode === "client" ? "default" : "ghost"}
+                        variant={effectiveYearlyViewMode === "client" ? "default" : "ghost"}
                         size="sm"
                         className="text-xs"
                         onClick={() => setYearlyViewMode("client")}
+                        disabled={isYearlyReadOnly}
                       >
                         Ügyfélérték számla
                       </Button>
                       <Button
                         type="button"
-                        variant={yearlyViewMode === "invested" ? "default" : "ghost"}
+                        variant={effectiveYearlyViewMode === "invested" ? "default" : "ghost"}
                         size="sm"
                         onClick={() => setYearlyViewMode("invested")}
                         className="h-7 text-xs px-2"
+                        disabled={isYearlyReadOnly}
                       >
                         Többletdíj számla
                       </Button>
                       {isTaxBonusSeparateAccount && (
                         <Button
                           type="button"
-                          variant={yearlyViewMode === "taxBonus" ? "default" : "ghost"}
+                          variant={effectiveYearlyViewMode === "taxBonus" ? "default" : "ghost"}
                           size="sm"
                           onClick={() => setYearlyViewMode("taxBonus")}
                           className="h-7 text-xs px-2"
+                          disabled={isYearlyReadOnly}
                         >
                           Adójóváírás számla
                         </Button>
@@ -4329,7 +4378,25 @@ export function SavingsCalculator() {
                   )}
                   {/* </CHANGE> */}
 
-                  <Select value={yearlyAggregationMode} onValueChange={(value) => setYearlyAggregationMode(value as "year" | "sum")}>
+                  <Select
+                    value={yearlyAccountView}
+                    onValueChange={(value) => setYearlyAccountView(value as "summary" | "main" | "eseti")}
+                  >
+                    <SelectTrigger className="h-9 w-32 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="summary">Összesített</SelectItem>
+                      <SelectItem value="main">Fő</SelectItem>
+                      <SelectItem value="eseti">Eseti</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={yearlyAggregationMode}
+                    onValueChange={(value) => setYearlyAggregationMode(value as "year" | "sum")}
+                    disabled={isYearlyReadOnly}
+                  >
                     <SelectTrigger className="h-9 w-28 text-xs">
                       <SelectValue />
                     </SelectTrigger>
@@ -4345,6 +4412,7 @@ export function SavingsCalculator() {
                     size="sm"
                     onClick={clearAllModifications}
                     disabled={
+                      isYearlyReadOnly ||
                       Object.keys(indexByYear).length === 0 &&
                       Object.keys(paymentByYear).length === 0 &&
                       Object.keys(withdrawalByYear).length === 0 &&
@@ -4367,7 +4435,7 @@ export function SavingsCalculator() {
               </CardHeader>
               <CardContent>
                 {/* Mobile view */}
-                <div className="md:hidden space-y-3">
+                <div className={`md:hidden space-y-3 ${isYearlyMuted ? "opacity-60" : ""}`}>
                   {adjustedResults.yearlyBreakdown.slice(0, visibleYears).map((row, index) => (
                     <MobileYearCard
                       key={row.year}
@@ -4401,7 +4469,10 @@ export function SavingsCalculator() {
                       updateAssetCostPercent={updateAssetCostPercent}
                       bonusPercentByYear={bonusPercentByYear}
                       updateBonusPercent={updateBonusPercent}
-                      yearlyViewMode={yearlyViewMode}
+                      yearlyViewMode={effectiveYearlyViewMode}
+                      yearlyAccountView={yearlyAccountView}
+                      cumulativeByYear={cumulativeByYear}
+                      shouldApplyTaxCreditPenalty={shouldApplyTaxCreditPenalty}
                       isTaxBonusSeparateAccount={isTaxBonusSeparateAccount}
                       getRealValueForYear={getRealValueForYear}
                       // </CHANGE>
@@ -4432,7 +4503,7 @@ export function SavingsCalculator() {
                 </div>
 
                 {/* Desktop table */}
-                <div className="hidden md:block overflow-x-auto">
+                <div className={`hidden md:block overflow-x-auto ${isYearlyMuted ? "opacity-60" : ""}`}>
                   <table className="w-full min-w-[1100px] text-sm yearly-breakdown-table yearly-breakdown-table--auto">
                     <colgroup>
                       <col style={{ width: "60px" }} />
@@ -4441,7 +4512,7 @@ export function SavingsCalculator() {
                       <col style={{ width: "100px" }} />
                       <col style={{ width: "100px" }} />
                       {showCostBreakdown && <col style={{ width: "110px" }} />}
-                      {showCostBreakdown && !(isAccountSplitOpen && yearlyViewMode === "total") && (
+                      {showCostBreakdown && !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
                         <col style={{ width: "90px" }} />
                       )}
                       {showCostBreakdown && <col style={{ width: "120px" }} />}
@@ -4473,7 +4544,7 @@ export function SavingsCalculator() {
                         {showCostBreakdown && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600">Admin. díj</th>
                         )}
-                        {showCostBreakdown && !(isAccountSplitOpen && yearlyViewMode === "total") && (
+                        {showCostBreakdown && !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600">Vagyon (%)</th>
                         )}
                         {showCostBreakdown && (
@@ -4522,7 +4593,7 @@ export function SavingsCalculator() {
                         </th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className={isYearlyReadOnly ? "pointer-events-none" : undefined}>
                       {adjustedResults.yearlyBreakdown.map((row, index) => {
                         const currentIndex = planIndex[row.year]
                         const currentPayment = row.yearlyPayment ?? planPayment[row.year] ?? 0
@@ -4569,7 +4640,7 @@ export function SavingsCalculator() {
                           wealthBonusForYear: sourceRow.wealthBonusForYear,
                         }
 
-                        if (yearlyViewMode === "client") {
+                        if (effectiveYearlyViewMode === "client") {
                           displayData = {
                             endBalance: sourceRow.client.endBalance,
                             interestForYear: sourceRow.client.interestForYear,
@@ -4579,7 +4650,7 @@ export function SavingsCalculator() {
                             bonusForYear: sourceRow.client.bonusForYear,
                             wealthBonusForYear: sourceRow.client.wealthBonusForYear,
                           }
-                        } else if (yearlyViewMode === "invested") {
+                        } else if (effectiveYearlyViewMode === "invested") {
                           displayData = {
                             endBalance: sourceRow.invested.endBalance,
                             interestForYear: sourceRow.invested.interestForYear,
@@ -4589,7 +4660,7 @@ export function SavingsCalculator() {
                             bonusForYear: sourceRow.invested.bonusForYear,
                             wealthBonusForYear: sourceRow.invested.wealthBonusForYear,
                           }
-                        } else if (yearlyViewMode === "taxBonus") {
+                        } else if (effectiveYearlyViewMode === "taxBonus") {
                           // Use taxBonus breakdown for taxBonus view mode
                           displayData = {
                             endBalance: sourceRow.taxBonus.endBalance,
@@ -4603,7 +4674,30 @@ export function SavingsCalculator() {
                           // </CHANGE>
                         }
 
-                        const displayBalance = enableNetting ? netData.netBalance : displayData.endBalance
+                        if (isEsetiView) {
+                          displayData = {
+                            ...displayData,
+                            costForYear: 0,
+                            assetBasedCostForYear: 0,
+                            plusCostForYear: 0,
+                            bonusForYear: 0,
+                            wealthBonusForYear: 0,
+                          }
+                        }
+
+                        const cumulativeRow = cumulativeByYear[row.year] ?? row
+                        const cumulativeCostsToDate =
+                          (cumulativeRow.costForYear ?? 0) +
+                          (cumulativeRow.assetBasedCostForYear ?? 0) +
+                          (cumulativeRow.plusCostForYear ?? 0)
+                        const cumulativeBonusesToDate =
+                          (cumulativeRow.bonusForYear ?? 0) + (cumulativeRow.wealthBonusForYear ?? 0)
+
+                        let displayBalance = enableNetting ? netData.netBalance : displayData.endBalance
+                        if (isEsetiView) {
+                          displayBalance = displayBalance + cumulativeCostsToDate - cumulativeBonusesToDate
+                        }
+
                         const taxCreditCumulativeForRow =
                           cumulativeByYear[row.year]?.taxCreditForYear ?? sourceRow.taxCreditForYear ?? 0
                         const taxCreditPenaltyForRow = shouldApplyTaxCreditPenalty ? taxCreditCumulativeForRow * 1.2 : 0
@@ -4689,28 +4783,35 @@ export function SavingsCalculator() {
                             {showCostBreakdown && (
                               <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap align-top text-red-600">
                                 <div className="flex items-center justify-end min-h-[44px]">
-                                  {formatValue(applyRealValueForYear(adminFeeDisplay), displayCurrency)}
+                                  {formatValue(
+                                    applyRealValueForYear(isEsetiView ? 0 : adminFeeDisplay),
+                                    displayCurrency,
+                                  )}
                                 </div>
                               </td>
                             )}
-                            {showCostBreakdown && !(isAccountSplitOpen && yearlyViewMode === "total") && (
+                            {showCostBreakdown && !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
                               <td className="py-2 px-3 text-right align-top">
                                 <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                   <Input
                                     type="text"
                                     inputMode="decimal"
                                     value={
-                                      editingFields[`assetCost-${row.year}`]
-                                        ? assetCostInputByYear[row.year] ?? ""
-                                        : (assetCostPercentByYear[row.year] ?? inputs.assetBasedFeePercent)
-                                            .toLocaleString("hu-HU", { maximumFractionDigits: 2 })
-                                            .replace(/\u00A0/g, " ")
+                                      isEsetiView
+                                        ? "0"
+                                        : editingFields[`assetCost-${row.year}`]
+                                          ? assetCostInputByYear[row.year] ?? ""
+                                          : (assetCostPercentByYear[row.year] ?? inputs.assetBasedFeePercent)
+                                              .toLocaleString("hu-HU", { maximumFractionDigits: 2 })
+                                              .replace(/\u00A0/g, " ")
                                     }
                                     onFocus={() => {
                                       setFieldEditing(`assetCost-${row.year}`, true)
                                       setAssetCostInputByYear((prev) => ({
                                         ...prev,
-                                        [row.year]: String(assetCostPercentByYear[row.year] ?? inputs.assetBasedFeePercent),
+                                        [row.year]: String(
+                                          isEsetiView ? 0 : assetCostPercentByYear[row.year] ?? inputs.assetBasedFeePercent,
+                                        ),
                                       }))
                                     }}
                                     onBlur={() => {
@@ -4737,9 +4838,11 @@ export function SavingsCalculator() {
                                   <p className="text-xs text-muted-foreground tabular-nums">
                                     {formatValue(
                                       applyRealValueForYear(
-                                        yearlyViewMode === "total"
-                                          ? sourceRow.assetBasedCostForYear
-                                          : displayData.assetBasedCostForYear,
+                                        isEsetiView
+                                          ? 0
+                                          : effectiveYearlyViewMode === "total"
+                                            ? sourceRow.assetBasedCostForYear
+                                            : displayData.assetBasedCostForYear,
                                       ),
                                       displayCurrency,
                                     )}
@@ -4759,7 +4862,7 @@ export function SavingsCalculator() {
                                         ? String(
                                             Math.round(
                                               convertForDisplay(
-                                                plusCostByYear[row.year] ?? 0,
+                                                isEsetiView ? 0 : plusCostByYear[row.year] ?? 0,
                                                 results.currency,
                                                 displayCurrency,
                                                 inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
@@ -4769,7 +4872,7 @@ export function SavingsCalculator() {
                                         : formatNumber(
                                             Math.round(
                                               convertForDisplay(
-                                                plusCostByYear[row.year] ?? 0,
+                                                isEsetiView ? 0 : plusCostByYear[row.year] ?? 0,
                                                 results.currency,
                                                 displayCurrency,
                                                 inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
@@ -4800,7 +4903,10 @@ export function SavingsCalculator() {
                             {showCostBreakdown && (
                               <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap align-top text-red-600">
                                 <div className="flex items-center justify-end min-h-[44px]">
-                                  {formatValue(applyRealValueForYear(acquisitionCostYear), displayCurrency)}
+                                  {formatValue(
+                                    applyRealValueForYear(isEsetiView ? 0 : acquisitionCostYear),
+                                    displayCurrency,
+                                  )}
                                 </div>
                               </td>
                             )}
@@ -4820,7 +4926,7 @@ export function SavingsCalculator() {
                                   <Input
                                     type="text"
                                     inputMode="decimal"
-                                    value={bonusPercentByYear[row.year] ?? 0}
+                                    value={isEsetiView ? 0 : bonusPercentByYear[row.year] ?? 0}
                                     onChange={(e) => {
                                       const val = parseNumber(e.target.value)
                                       if (!isNaN(val) && val >= 0 && val <= 100) {
