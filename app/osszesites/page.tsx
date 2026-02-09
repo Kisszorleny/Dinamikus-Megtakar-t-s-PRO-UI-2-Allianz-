@@ -4,10 +4,12 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Loader2, Table2, LayoutGrid, Mail } from "lucide-react"
+import { ArrowLeft, Loader2, Table2, LayoutGrid, Mail, Copy } from "lucide-react"
 import { useCalculatorData } from "@/lib/calculator-context"
 import { convertForDisplay } from "@/lib/currency-conversion"
 import { formatNumber, parseNumber } from "@/lib/format-number"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 // TODO: Replace with real calculation import when implementing business logic
 // import { calculateResultsDaily, type InputsDaily, type Currency } from "@/lib/engine/calculate-results-daily"
 type InputsDaily = any
@@ -58,6 +60,10 @@ export default function OsszesitesPage() {
   const [editingCell, setEditingCell] = useState<{ key: RowKey; type: "label" | "value" } | null>(null)
   const [editingText, setEditingText] = useState<string>("")
   const [isActivelyEditing, setIsActivelyEditing] = useState(false)
+
+  const [emailClientName, setEmailClientName] = useState("Viktor")
+  const [emailOfferUntil, setEmailOfferUntil] = useState("2026.02.14")
+  const [emailCopyStatus, setEmailCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
 
   const getProductLabel = (productValue: string): string => {
     const productMap: Record<string, string> = {
@@ -760,6 +766,232 @@ export default function OsszesitesPage() {
             <Mail className="w-4 h-4 mr-2" />
             E-mail küldése
           </Button>
+
+          <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-card px-3 py-2">
+            <div className="grid gap-1">
+              <Label className="text-xs text-muted-foreground" htmlFor="emailClientName">
+                Név (megszólítás)
+              </Label>
+              <Input
+                id="emailClientName"
+                value={emailClientName}
+                onChange={(e) => setEmailClientName(e.target.value)}
+                className="h-9 w-[180px]"
+                placeholder="pl. Viktor"
+              />
+            </div>
+            <div className="grid gap-1">
+              <Label className="text-xs text-muted-foreground" htmlFor="emailOfferUntil">
+                Ajánlat érvényes (YYYY.MM.DD)
+              </Label>
+              <Input
+                id="emailOfferUntil"
+                value={emailOfferUntil}
+                onChange={(e) => setEmailOfferUntil(e.target.value)}
+                className="h-9 w-[160px]"
+                placeholder="2026.02.14"
+              />
+            </div>
+            <Button
+              variant="default"
+              className="h-9"
+              onClick={async () => {
+                setEmailCopyStatus("idle")
+
+                const safeName = (emailClientName || "Ügyfél").trim()
+                const safeUntil = (emailOfferUntil || "").trim()
+
+                const highlightKeys: RowKey[] = ["netEndBalance", "netEndBalanceWithTax", "endBalanceHufCurrent", "endBalanceEUR500"]
+
+                const tableRows = sections.flatMap((section) => section.rows).map((row) => {
+                  const label = getLabel(row.key, row.defaultLabel)
+                  const valueText = row.isNumeric
+                    ? formatValue(
+                        getValue(row.key) as number,
+                        row.showCurrency !== false,
+                        row.suffix || "",
+                        row.valueCurrency,
+                        row.displayCurrency,
+                      )
+                    : String(getValue(row.key))
+                  const isHighlight = Boolean(row.isHighlight) || highlightKeys.includes(row.key)
+                  return { label, valueText, isHighlight }
+                })
+
+                const orange = "#f28c28"
+                const blue = "#1d4ed8"
+                const darkOrange = "#8a4b12"
+
+                const summaryTableHtml = `
+                  <table cellspacing="0" cellpadding="0" style="border-collapse:collapse; font-family: Arial, Helvetica, sans-serif; font-size: 14px; width: 520px; margin: 16px 0;">
+                    <tbody>
+                      ${tableRows
+                        .map(({ label, valueText, isHighlight }) => {
+                          const rowBg = isHighlight ? orange : "#ffffff"
+                          const rowColor = isHighlight ? "#ffffff" : blue
+                          const fontWeight = isHighlight ? 700 : 600
+                          const valueBg = isHighlight ? darkOrange : "#ffffff"
+                          const valueColor = isHighlight ? "#ffffff" : blue
+
+                          return `
+                            <tr>
+                              <td style="border:1px solid #d1d5db; padding:6px 8px; background:${rowBg}; color:${rowColor}; font-weight:${fontWeight};">
+                                ${label}
+                              </td>
+                              <td style="border:1px solid #d1d5db; padding:6px 8px; background:${valueBg}; color:${valueColor}; font-weight:${fontWeight}; text-align:right; white-space:nowrap;">
+                                ${valueText}
+                              </td>
+                            </tr>
+                          `
+                        })
+                        .join("")}
+                    </tbody>
+                  </table>
+                `
+
+                const heading = (text: string) =>
+                  `<div style="margin: 18px 0 8px 0;"><span style="display:inline-block; background:${orange}; color:#ffffff; font-weight:700; padding:4px 8px; font-family: Arial, Helvetica, sans-serif;">${text}</span></div>`
+
+                const p = (text: string, bold = false) =>
+                  `<div style="color:${blue}; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.35; ${bold ? "font-weight:700;" : "font-weight:600;"} margin: 2px 0;">${text}</div>`
+
+                const html = `
+                  <div style="background:#ffffff; padding: 0; margin: 0;">
+                    ${p(`Kedves ${safeName}!`, true)}
+                    ${p("Telefonos megbeszélésünkre hivatkozva küldöm, Önnek a")}
+                    ${p("Tőkenövelés", true)}
+                    ${p("terméktájékoztatóját, valamint a megtakarítási tervezetet.")}
+                    <div style="height: 10px;"></div>
+                    ${p("Az alábbi ajánlat, Allianz prémium ügyfeleknek szóló konstrukció,", true)}
+                    ${p(safeUntil ? `mely ${safeUntil} - ig érhető el.` : "mely korlátozott ideig érhető el.", true)}
+                    ${summaryTableHtml}
+
+                    ${heading("Teljes költségmutató (TKM)")}
+                    ${p("A biztosítók más és más költséggel dolgoznak,")}
+                    ${p("ezt a mutatót az MNB hozta létre melynek célja,")}
+                    ${p("hogy a megtakarító tudjon mérlegelni, hogy")}
+                    ${p("melyik biztosítónál helyezi el a megtakarítását.")}
+                    <div style="height: 10px;"></div>
+                    ${p("Látszólag mindegy, hogy hol takarít meg ugyanis,")}
+                    ${p("1-3 % különbség van a biztosítók TKM értékében,")}
+                    ${p("azonban ez a százalékos különbség hosszútávon")}
+                    ${p("Önnek milliós különbséget jelent.", true)}
+
+                    ${heading("Díjmentes számlavezetés")}
+                    ${p("3.3 Euro a havi számlavezetési költség,")}
+                    ${p("melyet most az első évben elengedünk.", true)}
+
+                    ${heading("Díjmentes eszközalap váltás")}
+                    ${p("Piacon egyedülálló módon tudja a befektetését")}
+                    ${p("kezelni, ugyanis limit nélkül tud a befektetési")}
+                    ${p("alapok között váltani.", true)}
+                    <div style="height: 10px;"></div>
+                    ${p("Évente egyszer a megtakarítási évforduló")}
+                    ${p("alkalmával kötelezően felkeresem és Velem,")}
+                    ${p("mint megtakarítási szakértője támogatásával,")}
+                    ${p("felülvizsgáljuk a megtakarítás számla értékét.")}
+                    ${p("Valamint segítek eligazodni a hozamok,")}
+                    ${p("befektetési alapok között.", true)}
+
+                    <div style="height: 14px;"></div>
+                    ${p("Világgazdasági Részvény", true)}
+                    ${p("2024 01. - 2025 01. hozam: 33,6 % / év")}
+                    ${p("2020 01. - 2025 01. hozam: 106,80 % / 5év")}
+                    <div style="height: 10px;"></div>
+                    ${p("Ipari Nyersanyag Eszközalap", true)}
+                    ${p("2024 01. - 2025 01. hozam: 27,53 % / év")}
+                    ${p("2020 01. - 2025 01. hozam: 144,91 % / 5év")}
+                    <div style="height: 10px;"></div>
+                    ${p("Környezettudatos Részvény", true)}
+                    ${p("2024 01. - 2025 01. hozam: 27,01 % / év")}
+                    ${p("2020 01. - 2025 01. hozam: 89,02 % / 5év")}
+
+                    ${heading("FIX Bónusz jóváírás a hozamokon felül")}
+                    ${p("Minden évben kap bónusz jóváírást,")}
+                    ${p("pontosan annyi százalékot,")}
+                    ${p("ahányadik évben jár a megtakarítási")}
+                    ${p("számlája a következőképpen:", true)}
+                    ${p("1. évben +1 % bónusz")}
+                    ${p("2. évben +2 % bónusz")}
+                    ${p("3. évben +3 % bónusz")}
+                    ${p("4. évben +4 % bónusz")}
+                    ${p("..és így tovább egészen az utolsó megtakarítási évig bezárólag.")}
+                    ${p("Megéri tovább tervezni", true)}
+                    ${p("ugyanis például a 10. évben már +10% jóváírást kap az éves megtakarításai után.", true)}
+
+                    <div style="height: 14px;"></div>
+                    ${p("amennyiben a fent meghatározott promóciós időszakban")}
+                    ${p("indítja el megtakarítási számláját, 12 000 Euro összegre")}
+                    ${p("biztosítjuk Önt közlekedési baleseti halál esetén,")}
+                    ${p("melyet az Ön által megjelölt kedvezményezett fog kapni", true)}
+
+                    ${heading("Biztonságos megtakarítási forma")}
+                    ${p("jogilag meghatározott formája nem teszi lehetővé,")}
+                    ${p("hogy az állam vagy a NAV inkasszálja az")}
+                    ${p("Ön által félretett összeget.", true)}
+                    ${p("Szociális hozzájárulási adó, valamint")}
+                    ${p("Kamatadó mentes a megtakarítása 10 év után.", true)}
+
+                    ${heading("Rugalmas")}
+                    ${p("amennyiben a megtakarítási időszak alatt szeretne a")}
+                    ${p("Bónusz számlájáról pénzt kivenni, erre van lehetősége")}
+                    ${p("akár már harmadik év után.", true)}
+
+                    ${heading("Örökölhető")}
+                    ${p("halál esetén az Ön által megjelölt kedvezményezett kapja")}
+                    ${p("a megtakarítási számla összegét hagyatéki eljárás alá nem vonható,")}
+                    ${p("8 napon belül a kedvezményezett számlájára a teljes összeg kiutalásra kerül", true)}
+
+                    <div style="height: 14px;"></div>
+                    ${p("A közös munkánk során én folyamatosan figyelemmel fogom kísérni befektetését és segíteni fogok Önnek,")}
+                    ${p("hogy mindig a legkedvezőbb és az éppen aktuális élethelyzetéhez leginkább igazodó döntéseket tudja meghozni a pénzügyeit illetően.", true)}
+                    ${p("Hiszem, hogy a folyamatos és rendszeres kommunikáció a siker alapja.", true)}
+                    <div style="height: 14px;"></div>
+                    ${p("További információért vagy bármilyen kérdés esetén keressen bizalommal:", true)}
+                  </div>
+                `.trim()
+
+                const subjectText = `Allianz ajánlat – ${safeName}`
+
+                const plain = [
+                  `Kedves ${safeName}!`,
+                  "",
+                  "A formázott sablont a kalkulátorban a „Formázott sablon másolása” gombbal tudod kimásolni.",
+                  "",
+                  `Megnyitás: ${window.location.origin}/osszesites`,
+                ].join("\n")
+
+                try {
+                  // Prefer rich HTML clipboard for Outlook paste
+                  const ClipboardItemCtor: any = (window as any).ClipboardItem
+                  if (ClipboardItemCtor && navigator.clipboard?.write) {
+                    const item = new ClipboardItemCtor({
+                      "text/html": new Blob([html], { type: "text/html" }),
+                      "text/plain": new Blob([plain], { type: "text/plain" }),
+                    })
+                    await navigator.clipboard.write([item])
+                  } else {
+                    await navigator.clipboard.writeText(plain)
+                  }
+
+                  setEmailCopyStatus("copied")
+
+                  const subject = encodeURIComponent(subjectText)
+                  const body = encodeURIComponent("A formázott sablont a vágólapra másoltam, csak illeszd be az Outlookba.")
+                  window.location.href = `mailto:?subject=${subject}&body=${body}`
+                } catch {
+                  setEmailCopyStatus("failed")
+                }
+              }}
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              {emailCopyStatus === "copied"
+                ? "Másolva!"
+                : emailCopyStatus === "failed"
+                  ? "Másolás sikertelen"
+                  : "Formázott sablon másolása"}
+            </Button>
+          </div>
         </div>
 
         <Card className="mb-4">
