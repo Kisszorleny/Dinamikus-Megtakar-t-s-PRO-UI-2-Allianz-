@@ -863,9 +863,9 @@ export default function OsszesitesPage() {
     const yearlyReviewLines = emailTegezo
       ? [
           "Évente egyszer a megtakarítási évforduló",
-          "alkalmával kötelezően felkereslek és Veled,",
-          "mint megtakarítási szakértőd támogatásommal,",
-          "felülvizsgáljuk a megtakarítás számla értékét.",
+          "alkalmával kötelezően felkereslek és Velem,",
+          "mint megtakarítási szakértőddel közösen,",
+          "felülvizsgáljuk a megtakarítás számlád értékét.",
           "Valamint segítek eligazodni a hozamok,",
           "befektetési alapok között.",
         ]
@@ -879,10 +879,18 @@ export default function OsszesitesPage() {
         ]
 
     const rugalmasLines = emailTegezo
-      ? ["amennyiben a megtakarítási időszak alatt szeretnél a", "Bónusz számládról pénzt kivenni, erre van lehetőséged", "akár már harmadik év után."]
-      : ["amennyiben a megtakarítási időszak alatt szeretne a", "Bónusz számlájáról pénzt kivenni, erre van lehetősége", "akár már harmadik év után."]
+      ? [
+          "amennyiben a megtakarítási időszak alatt szeretnél a",
+          "Bónusz számládról pénzt kivenni, erre is van lehetőséged",
+          "akár már harmadik év után.",
+        ]
+      : [
+          "amennyiben a megtakarítási időszak alatt szeretne a",
+          "Bónusz számlájáról pénzt kivenni, erre van lehetősége",
+          "akár már harmadik év után.",
+        ]
 
-    const kamatadoLine = emailTegezo ? "Kamatadó mentes a megtakarításod 10 év után." : "Kamatadó mentes a megtakarítása 10 év után."
+    const kamatadoLine = emailTegezo ? "Kamatadó mentes a megtakarítás 10 év után." : "Kamatadó mentes a megtakarítása 10 év után."
 
     const summaryTableHtml = `
       <table cellspacing="0" cellpadding="0" style="border-collapse:collapse; width:760px; margin: 18px 0;">
@@ -929,20 +937,36 @@ export default function OsszesitesPage() {
           ${p("A biztosítók más és más költséggel dolgoznak,")}
           ${p("ezt a mutatót az MNB hozta létre melynek célja,")}
           ${p("hogy a megtakarító tudjon mérlegelni, hogy")}
-          ${p("melyik biztosítónál helyezi el a megtakarítását.")}
+          ${p(
+            emailTegezo
+              ? "melyik biztosítónál helyezed el a megtakarításod."
+              : "melyik biztosítónál helyezi el a megtakarítását.",
+          )}
           ${pSpacer(16)}
-          ${p("Látszólag mindegy, hogy hol takarít meg ugyanis,")}
+          ${p(
+            emailTegezo
+              ? "Látszólag mindegy, hogy hol takarítunk meg ugyanis,"
+              : "Látszólag mindegy, hogy hol takarít meg ugyanis,",
+          )}
           ${p("1-3 % különbség van a biztosítók TKM értékében,")}
           ${p("azonban ez a százalékos különbség hosszútávon")}
-          ${p(`${tone.youDative} milliós különbséget jelent.`, true)}
+          ${p(emailTegezo ? "Milliós különbséget tud jelenteni." : `${tone.youDative} milliós különbséget jelent.`, true)}
 
           ${heading("Díjmentes számlavezetés")}
           ${p(data.displayCurrency === "HUF" ? "990 Ft a havi számlavezetési költség," : "3.3 Euro a havi számlavezetési költség,")}
           ${p("melyet most az első évben elengedünk.", true)}
 
           ${heading("Díjmentes eszközalap váltás")}
-          ${p(emailTegezo ? "Piacon egyedülálló módon tudod a befektetésed" : "Piacon egyedülálló módon tudja a befektetését")}
-          ${p("kezelni, ugyanis limit nélkül tud a befektetési")}
+          ${p(
+            emailTegezo
+              ? "A piacon egyedülálló módon tudod a befektetésed"
+              : "Piacon egyedülálló módon tudja a befektetését",
+          )}
+          ${p(
+            emailTegezo
+              ? "kezelni, ugyanis az Allianznál limit nélkül tudsz a befektetési"
+              : "kezelni, ugyanis limit nélkül tud a befektetési",
+          )}
           ${p("alapok között váltani.", true)}
           ${pSpacer(16)}
           ${yearlyReviewLines.map((line) => p(line)).join("")}
@@ -965,24 +989,33 @@ export default function OsszesitesPage() {
           </div>
 
           ${heading("FIX Bónusz jóváírás a hozamokon felül")}
-          ${p("Minden évben kap bónusz jóváírást,")}
+          ${p(emailTegezo ? "Minden évben kapsz bónusz jóváírást is," : "Minden évben kap bónusz jóváírást,")}
           ${p("pontosan annyi százalékot,")}
           ${p("ahányadik évben jár a megtakarítási")}
-          ${p("számlája a következőképpen:", true)}
+          ${p(emailTegezo ? "számlád a következőképpen:" : "számlája a következőképpen:", true)}
           ${p(`1. évben ${spanOrange("+1 % bónusz")}`)}
           ${p(`2. évben ${spanOrange("+2 % bónusz")}`)}
           ${p(`3. évben ${spanOrange("+3 % bónusz")}`)}
           ${p(`4. évben ${spanOrange("+4 % bónusz")}`)}
           ${p("..és így tovább egészen az utolsó megtakarítási évig bezárólag.")}
           ${p("Megéri tovább tervezni", true)}
-          ${p(`ugyanis például a 10. évben már ${spanOrange("+10% jóváírást")} kap az éves megtakarításai után.`, true)}
+          ${p(
+            emailTegezo
+              ? `ugyanis például a 10. évben már ${spanOrange("+10% jóváírást")} kapsz az éves megtakarításaid után.`
+              : `ugyanis például a 10. évben már ${spanOrange("+10% jóváírást")} kap az éves megtakarításai után.`,
+            true,
+          )}
 
           ${pSpacer(26)}
           ${p("amennyiben a fent meghatározott promóciós időszakban")}
           ${p(
             data.displayCurrency === "HUF"
-              ? `indítja el megtakarítási számláját, <span style="font-weight:700;">3 000 000 Ft</span> összegre`
-              : `indítja el megtakarítási számláját, <span style="font-weight:700;">12 000 Euro</span> összegre`,
+              ? emailTegezo
+                ? `indítod el megtakarítási számládat, <span style="font-weight:700;">3 000 000 Ft</span> összegre`
+                : `indítja el megtakarítási számláját, <span style="font-weight:700;">3 000 000 Ft</span> összegre`
+              : emailTegezo
+                ? `indítod el megtakarítási számládat, <span style="font-weight:700;">12 000 Euro</span> összegre`
+                : `indítja el megtakarítási számláját, <span style="font-weight:700;">12 000 Euro</span> összegre`,
           )}
           ${p(`biztosítjuk ${tone.youAcc} közlekedési baleseti halál esetén,`)}
           ${p(`melyet ${tone.yourBy} megjelölt kedvezményezett fog kapni`, true)}
@@ -990,7 +1023,7 @@ export default function OsszesitesPage() {
           ${heading("Biztonságos megtakarítási forma")}
           ${p("jogilag meghatározott formája nem teszi lehetővé,")}
           ${p("hogy az állam vagy a NAV inkasszálja az")}
-          ${p(`${tone.yourByCap} félretett összeget.`, true)}
+          ${p(emailTegezo ? "általad félretett összeget." : `${tone.yourByCap} félretett összeget.`, true)}
           ${p("Szociális hozzájárulási adó, valamint")}
           ${p(kamatadoLine, true)}
 
@@ -1003,8 +1036,17 @@ export default function OsszesitesPage() {
           ${p("8 napon belül a kedvezményezett számlájára a teljes összeg kiutalásra kerül", true)}
 
           ${pSpacer(26)}
-          ${p(`A közös munkánk során én folyamatosan figyelemmel fogom kísérni befektetését és segíteni fogok ${tone.youDative},`)}
-          ${p(`hogy mindig a legkedvezőbb és az éppen aktuális élethelyzetéhez leginkább igazodó döntéseket ${tone.canVerb} meghozni a pénzügyeit illetően.`, true)}
+          ${p(
+            emailTegezo
+              ? `A közös munkánk során én folyamatosan figyelemmel fogom kísérni befektetésed és segíteni fogok ${tone.youDative},`
+              : `A közös munkánk során én folyamatosan figyelemmel fogom kísérni befektetését és segíteni fogok ${tone.youDative},`,
+          )}
+          ${p(
+            emailTegezo
+              ? `hogy mindig a legkedvezőbb és az éppen aktuális élethelyzetéhez leginkább igazodó döntéseket ${tone.canVerb} meghozni a pénzügyeidet illetően.`
+              : `hogy mindig a legkedvezőbb és az éppen aktuális élethelyzetéhez leginkább igazodó döntéseket ${tone.canVerb} meghozni a pénzügyeit illetően.`,
+            true,
+          )}
           ${p("Hiszem, hogy a folyamatos és rendszeres kommunikáció a siker alapja.", true)}
           ${pSpacer(22)}
           ${p(`További információért vagy bármilyen kérdés esetén ${tone.contactVerb} bizalommal:`, true)}
