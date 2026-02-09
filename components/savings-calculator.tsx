@@ -4894,7 +4894,10 @@ export function SavingsCalculator() {
                                     <TooltipTrigger asChild>
                                       <span className="cursor-help inline-flex justify-end">
                                         <span className="inline-flex w-fit whitespace-nowrap rounded-md bg-blue-50 pl-1 pr-0.5 py-0.5 leading-tight text-right dark:bg-blue-900/30">
-                                          {formatValue(applyRealValueForYear(displayBalance), displayCurrency)}
+                                          {formatValue(applyRealValueForYear(displayBalance), displayCurrency).replace(
+                                            / /g,
+                                            "\u00A0",
+                                          )}
                                         </span>
                                       </span>
                                     </TooltipTrigger>
@@ -4968,7 +4971,10 @@ export function SavingsCalculator() {
                                 // CASE C: Both closed - plain text, no tooltip
                                 <div className="flex items-center justify-end min-h-[44px]">
                                   <span className="inline-flex w-fit whitespace-nowrap rounded-md bg-blue-50 pl-1 pr-0.5 py-0.5 leading-tight text-right dark:bg-blue-900/30">
-                                    {formatValue(applyRealValueForYear(displayBalance), displayCurrency)}
+                                    {formatValue(applyRealValueForYear(displayBalance), displayCurrency).replace(
+                                      / /g,
+                                      "\u00A0",
+                                    )}
                                   </span>
                                 </div>
                               )}
