@@ -912,7 +912,123 @@ export default function OsszesitesPage() {
       </table>
     `
 
-    const html = `
+    const tegezoHtml = `
+      <div style="background:#ffffff; padding:0; margin:0;">
+        <div style="padding-left: 40px;">
+          <div style="font-family:${FONT}; color:${BLUE}; font-size:36px; font-style:italic; font-weight:700; margin: 0 0 18px 0;">
+            ${esc(`Kedves ${safeName}!`)}
+          </div>
+
+          ${p("Telefonos megbeszélésünkre hivatkozva küldöm, Neked a")}
+          ${p(`<span style="font-weight:700;">${esc(getEmailSubject())}</span>`)}
+          ${p("terméktájékoztatóját, valamint a megtakarítási tervezetet.")}
+
+          ${pSpacer(18)}
+
+          ${p("Az alábbi ajánlat, Allianz prémium ügyfeleknek szóló konstrukció,", true)}
+          ${p(
+            `mely &nbsp; ${safeUntil ? `${spanOrange(safeUntil)}.-` : spanOrange("...")} ig érhető el.`,
+            true,
+          )}
+
+          ${summaryTableHtml}
+
+          ${pSpacer(24)}
+
+          ${heading("Teljes költségmutató (TKM)")}
+          ${p("A biztosítók más és más költséggel dolgoznak,")}
+          ${p("ezt a mutatót az MNB hozta létre melynek célja,")}
+          ${p("hogy a megtakarító tudjon mérlegelni, hogy")}
+          ${p("melyik biztosítónál helyezi el a megtakarítását.")}
+          ${pSpacer(16)}
+          ${p("Látszólag mindegy, hogy hol takarítunk meg ugyanis,")}
+          ${p("1-3 % különbség van a biztosítók TKM értékében,")}
+          ${p("azonban ez a százalékos különbség hosszútávon")}
+          ${p("Milliós különbséget tud jelenteni.", true)}
+
+          ${heading("Díjmentes számlavezetés")}
+          ${p("990 Ft a havi számlavezetési költség,")}
+          ${p("melyet most az első évben elengedünk.", true)}
+
+          ${heading("Díjmentes eszközalap váltás")}
+          ${p("A piacon egyedülálló módon tudod a befektetésed")}
+          ${p("kezelni, ugyanis az Allianznál limit nélkül tudsz a befektetési")}
+          ${p("alapok között váltani.", true)}
+          ${pSpacer(16)}
+          ${p("Évente egyszer a megtakarítási évforduló")}
+          ${p("alkalmával kötelezően felkereslek és Velem,")}
+          ${p("mint megtakarítási szakértőddel közösen,")}
+          ${p("felülvizsgáljuk a megtakarítás számlád értékét.")}
+          ${p("Valamint segítek eligazodni a hozamok,")}
+          ${p("befektetési alapok között.")}
+
+          ${heading("FIX Bónusz jóváírás a hozamokon felül")}
+          ${p("Minden évben kapsz bónusz jóváírást is,")}
+          ${p("pontosan annyi százalékot,")}
+          ${p("ahányadik évben jár a megtakarítási")}
+          ${p("számlálád a következőképpen:", true)}
+          ${p(`1. évben ${spanOrange("+1 % bónusz")}`)}
+          ${p(`2. évben ${spanOrange("+2 % bónusz")}`)}
+          ${p(`3. évben ${spanOrange("+3 % bónusz")}`)}
+          ${p(`4. évben ${spanOrange("+4 % bónusz")}`)}
+          ${p("..és így tovább egészen az utolsó megtakarítási évig bezárólag.")}
+          ${p("Megéri tovább tervezni")}
+          ${p(`ugyanis például a 10. évben már ${spanOrange("+10% jóváírást")} kapsz az éves megtakarításaid után.`, true)}
+
+          ${pSpacer(24)}
+          ${p("<span style=\"font-weight:700;\">Világgazdasági Részvény</span>")}
+          ${p(`2024 01. - 2025 01. hozam: ${spanOrange("33,6 % / év")}`)}
+          ${p(`2020 01. - 2025 01. hozam: ${spanOrange("106,80 % / 5év")}`)}
+          ${pSpacer(10)}
+          ${p("<span style=\"font-weight:700;\">Ipari Nyersanyag Eszközalap</span>")}
+          ${p(`2024 01. - 2025 01. hozam: ${spanOrange("27,53 % / év")}`)}
+          ${p(`2020 01. - 2025 01. hozam: ${spanOrange("144,91 % / 5év")}`)}
+          ${pSpacer(10)}
+          ${p("<span style=\"font-weight:700;\">Környezettudatos Részvény</span>")}
+          ${p(`2024 01. - 2025 01. hozam: ${spanOrange("27,01 % / év")}`)}
+          ${p(`2020 01. - 2025 01. hozam: ${spanOrange("89,02 % / 5év")}`)}
+          ${pSpacer(10)}
+          <div style="font-family:${FONT}; font-size:12px; color:#000000; font-weight:700; margin-top: 6px;">
+            forrás: profitline.hu - Ön is tudja ellenőrizni jelen megtakarítási hozamokat.
+          </div>
+
+          ${pSpacer(24)}
+          ${p("amennyiben a fent meghatározott promóciós időszakban")}
+          ${p(`indítod el megtakarítási számládat, &nbsp; <span style="font-weight:700;">3 000 000 Ft</span> összegre`)}
+          ${p("biztosítjuk Téged közlekedési baleseti halál esetén,")}
+          ${p("melyet az általad megjelölt kedvezményezett fog kapni", true)}
+
+          ${heading("Biztonságos megtakarítási forma")}
+          ${p("jogilag meghatározott formája nem teszi lehetővé,")}
+          ${p("hogy az állam vagy a NAV inkasszálja az")}
+          ${p("általad félretett összeget.", true)}
+          ${p("Szociális hozzájárulási adó, valamint")}
+          ${p("Kamatadó mentes a megtakarítás 10 év után.", true)}
+
+          ${heading("Rugalmas")}
+          ${p("amennyiben a megtakarítási időszak alatt szeretnél a")}
+          ${p("Bónusz számládról pénzt kivenni, erre is van lehetőséged", true)}
+          ${p("akár már harmadik év után.")}
+
+          ${heading("Örökölhető")}
+          ${p("halál esetén az általad megjelölt kedvezményezett kapja")}
+          ${p("a megtakarítási számla összegét hagyatéki eljárás alá nem vonható,")}
+          ${p("8 napon belül a kedvezményezett számlájára a teljes összeg kiutalásra kerül", true)}
+
+          ${pSpacer(24)}
+          ${p(
+            "A közös munkánk során én folyamatosan figyelemmel fogom kísérni befektetésed és segíteni fogok Neked,",
+          )}
+          ${p(
+            "hogy mindig a legkedvezőbb és az éppen aktuális élethelyzetéhez leginkább igazodó döntéseket tudd meghozni a pénzügyeidet illetően.",
+            true,
+          )}
+          ${p("Hiszem, hogy a folyamatos és rendszeres kommunikáció a siker alapja.", true)}
+        </div>
+      </div>
+    `.trim()
+
+    const magazosHtml = `
       <div style="background:#ffffff; padding:0; margin:0;">
         <div style="padding-left: 40px;">
           <div style="font-family:${FONT}; color:${BLUE}; font-size:36px; font-style:italic; font-weight:700; margin: 0 0 18px 0;">
@@ -1053,6 +1169,8 @@ export default function OsszesitesPage() {
         </div>
       </div>
     `.trim()
+
+    const html = emailTegezo ? tegezoHtml : magazosHtml
 
     const plainInstruction = emailTegezo
       ? "A formázott sablont a kalkulátorban a „Formázott sablon másolása” gombbal tudod kimásolni."
