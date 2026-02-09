@@ -121,6 +121,11 @@ export default function OsszesitesPage() {
     return false
   }
 
+  const getEmailSubject = () => {
+    const goal = String(getValue("accountGoal") ?? "").trim()
+    return goal || "Megtakarítási ajánlat"
+  }
+
   const getProductLabel = (productValue: string): string => {
     const productMap: Record<string, string> = {
       alfa_exclusive_plus: "Alfa Exclusive Plus",
@@ -780,7 +785,7 @@ export default function OsszesitesPage() {
           <Button
             variant="outline"
             onClick={() => {
-              const subjectText = `Megtakarítási számítás összesítés – ${new Date().toLocaleDateString("hu-HU")}`
+              const subjectText = getEmailSubject()
 
               const lines: string[] = []
               lines.push("Szia,")
@@ -1083,7 +1088,7 @@ export default function OsszesitesPage() {
                   </div>
                 `.trim()
 
-                const subjectText = `Allianz ajánlat – ${safeName}`
+                const subjectText = getEmailSubject()
 
                 const plain = [
                   `Kedves ${safeName}!`,
@@ -1110,11 +1115,178 @@ export default function OsszesitesPage() {
             </Button>
 
             <Button
+              variant="secondary"
+              className="h-9"
+              onClick={async () => {
+                setEmailCopyStatus("idle")
+
+                const safeName = (emailClientName || "Ügyfél").trim()
+                const safeUntil = (emailOfferUntil || "").trim()
+
+                // Reuse the same HTML/PLAIN generation by triggering the copy button logic
+                // (duplicated minimal parts here to keep it one-tap)
+                const FONT = "Calibri, Arial, Helvetica, sans-serif"
+                const BLUE = "#2F5597"
+                const ORANGE = "#ED7D31"
+                const ORANGE_DARK = "#C55A11"
+                const ORANGE_DARKER = "#8a4b12"
+                const BORDER = "#c9c9c9"
+
+                const esc = (value: string) =>
+                  value
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#39;")
+
+                const spanOrange = (text: string) =>
+                  `<span style="display:inline-block; background:${ORANGE}; color:#ffffff; font-weight:700; padding:2px 8px;">${esc(text)}</span>`
+
+                const heading = (text: string) =>
+                  `<div style="margin: 34px 0 12px 0;"><span style="display:inline-block; background:${ORANGE}; color:#ffffff; font-weight:700; padding:6px 12px; font-family:${FONT}; font-size:22px;">${esc(text)}</span></div>`
+
+                const p = (text: string, bold = false) =>
+                  `<div style="color:${BLUE}; font-family:${FONT}; font-size:18px; line-height:1.35; ${bold ? "font-weight:700;" : "font-weight:600;"} margin: 0 0 6px 0;">${text}</div>`
+
+                const pSpacer = (h = 14) => `<div style="height:${h}px; line-height:${h}px;">&nbsp;</div>`
+
+                const getText = (key: RowKey) => String(getValue(key) ?? "")
+                const getMoney = (key: RowKey) =>
+                  formatValue(getValue(key) as number, true, "", undefined, data.displayCurrency)
+                const getMoneyOrBlank = (key: RowKey) => {
+                  const v = getValue(key)
+                  if (v === undefined || v === null || v === "") return ""
+                  return typeof v === "number" ? formatValue(v, true, "", undefined, data.displayCurrency) : String(v)
+                }
+
+                const cellBase = `border:1px solid ${BORDER}; padding:7px 10px; font-family:${FONT}; font-size:16px; line-height:1.2;`
+                const cellLabel = `${cellBase} color:#000000; font-weight:600;`
+                const cellValue = `${cellBase} color:${BLUE}; font-weight:700; text-align:left; white-space:nowrap;`
+
+                const tableRow = (label: string, valueText: string) => `
+                  <tr>
+                    <td style="${cellLabel}">${esc(label)}</td>
+                    <td style="${cellValue}">${esc(valueText)}</td>
+                  </tr>
+                `
+
+                const spacerRow = () => `
+                  <tr>
+                    <td style="${cellBase} background:#ffffff; height:16px;">&nbsp;</td>
+                    <td style="${cellBase} background:#ffffff; height:16px;">&nbsp;</td>
+                  </tr>
+                `
+
+                const highlightRow = (label: string, valueText: string) => `
+                  <tr>
+                    <td style="${cellBase} background:${ORANGE_DARK}; color:#ffffff; font-weight:700; font-size:18px;">${esc(
+                      label,
+                    )}</td>
+                    <td style="${cellBase} background:${ORANGE_DARKER}; color:#ffffff; font-weight:700; font-size:18px; text-align:left; white-space:nowrap;">${esc(
+                      valueText,
+                    )}</td>
+                  </tr>
+                `
+
+                const productName = getText("accountName")
+                const goal = getText("accountGoal")
+                const monthly = getMoney("monthlyPayment")
+                const yearly = getMoney("yearlyPayment")
+                const years = formatValue(getValue("years") as number, false, " év", undefined, data.displayCurrency)
+                const total = getMoney("totalContributions")
+                const strategy = getText("strategy")
+                const annualYield = getText("annualYield")
+                const expectedReturn = getMoney("totalReturn")
+                const expectedBalance = getMoney("endBalance")
+                const totalBonus = data.productHasBonus ? getMoneyOrBlank("totalBonus") : ""
+                const finalNet = getMoney("endBalance")
+
+                const summaryTableHtml = `
+                  <table cellspacing="0" cellpadding="0" style="border-collapse:collapse; width:760px; margin: 18px 0;">
+                    <tbody>
+                      ${tableRow("Megtakarítási számla megnevezése", productName)}
+                      ${tableRow("Megtakarítási számla célja:", goal)}
+                      ${tableRow("Megtakarítási havi összeg:", monthly)}
+                      ${tableRow("Megtakarítási éves összeg:", yearly)}
+                      ${tableRow("Tervezett időtartam:", years)}
+                      ${spacerRow()}
+                      ${tableRow("Teljes befizetés:", total)}
+                      ${tableRow("Hozam stratégia:", strategy)}
+                      ${tableRow("Éves nettó hozam:", annualYield)}
+                      ${tableRow("Várható hozam:", expectedReturn)}
+                      ${tableRow("Megtakarítás számlán várható összeg:", expectedBalance)}
+                      ${totalBonus ? tableRow("Bónuszjóváírás tartam alatt összesen:", totalBonus) : ""}
+                      ${highlightRow("Teljes megtakarítás nettó értéke:", finalNet)}
+                    </tbody>
+                  </table>
+                `
+
+                const html = `
+                  <div style="background:#ffffff; padding:0; margin:0;">
+                    <div style="padding-left: 40px;">
+                      <div style="font-family:${FONT}; color:${BLUE}; font-size:36px; font-style:italic; font-weight:700; margin: 0 0 18px 0;">
+                        ${esc(`Kedves ${safeName}!`)}
+                      </div>
+
+                      ${p(`Telefonos megbeszélésünkre hivatkozva küldöm, <span style="font-weight:700;">Önnek</span> a`)}
+                      ${p(`<span style="font-weight:700;">${esc(getEmailSubject())}</span>`)}
+                      ${p("terméktájékoztatóját, valamint a megtakarítási tervezetet.")}
+
+                      ${pSpacer(18)}
+
+                      ${p(`Az alábbi ajánlat, Allianz prémium ügyfeleknek szóló konstrukció,`, true)}
+                      ${p(
+                        `mely ${safeUntil ? spanOrange(safeUntil) : spanOrange("...")} <span style="font-weight:700;">- ig</span> érhető el.`,
+                        true,
+                      )}
+
+                      ${summaryTableHtml}
+
+                      ${heading("Teljes költségmutató (TKM)")}
+                      ${p("A biztosítók más és más költséggel dolgoznak,")}
+                      ${p("ezt a mutatót az MNB hozta létre melynek célja,")}
+                      ${p("hogy a megtakarító tudjon mérlegelni, hogy")}
+                      ${p("melyik biztosítónál helyezi el a megtakarítását.")}
+                      ${pSpacer(16)}
+                      ${p("Látszólag mindegy, hogy hol takarít meg ugyanis,")}
+                      ${p("1-3 % különbség van a biztosítók TKM értékében,")}
+                      ${p("azonban ez a százalékos különbség hosszútávon")}
+                      ${p("Önnek milliós különbséget jelent.", true)}
+                    </div>
+                  </div>
+                `.trim()
+
+                const subjectText = getEmailSubject()
+                const subject = encodeURIComponent(subjectText)
+                const body = encodeURIComponent(
+                  "A formázott sablont megpróbáltam a vágólapra másolni. Illeszd be ide (Ctrl/Cmd+V).",
+                )
+
+                const plain = [
+                  `Kedves ${safeName}!`,
+                  "",
+                  "A formázott sablont a kalkulátorban a „Formázott sablon másolása” gombbal tudod kimásolni.",
+                  "",
+                  `Megnyitás: ${window.location.origin}/osszesites`,
+                ].join("\n")
+
+                const ok = await copyHtmlToClipboard(html, plain)
+                setEmailCopyStatus(ok ? "copied" : "failed")
+
+                // Try to open mail app after copy (not guaranteed on all mobiles)
+                window.location.href = `mailto:?subject=${subject}&body=${body}`
+              }}
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Másol + e-mail
+            </Button>
+
+            <Button
               variant="outline"
               className="h-9"
               onClick={() => {
-                const safeName = (emailClientName || "Ügyfél").trim()
-                const subjectText = `Allianz ajánlat – ${safeName}`
+                const subjectText = getEmailSubject()
                 const subject = encodeURIComponent(subjectText)
                 const body = encodeURIComponent(
                   "A formázott sablont előbb másold a vágólapra a „Formázott sablon másolása” gombbal, majd illeszd be ide (Ctrl/Cmd+V).",
