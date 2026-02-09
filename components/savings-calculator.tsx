@@ -2173,6 +2173,24 @@ export function SavingsCalculator() {
   )
 
   const results = useMemo(() => calculate(productId, dailyInputs), [productId, dailyInputs])
+  const dailyInputsWithoutTaxCredit = useMemo(
+    () => ({
+      ...dailyInputs,
+      enableTaxCredit: false,
+      taxCreditRatePercent: 0,
+      taxCreditCapPerYear: 0,
+      taxCreditStartYear: 1,
+      taxCreditEndYear: 0,
+      taxCreditLimitByYear: {},
+      taxCreditAmountByYear: {},
+      taxCreditYieldPercent: 0,
+    }),
+    [dailyInputs],
+  )
+  const resultsWithoutTaxCredit = useMemo(
+    () => calculate(productId, dailyInputsWithoutTaxCredit),
+    [productId, dailyInputsWithoutTaxCredit],
+  )
   const totalRiskInsuranceCost = results.totalRiskInsuranceCost ?? 0
 
   // TODO: Replace with real net calculation logic
@@ -2344,6 +2362,10 @@ export function SavingsCalculator() {
     if (!isFinite(inflationMultiplier) || inflationMultiplier <= 0) return value
     return value / inflationMultiplier
   }
+
+  const taxCreditPenaltyAmount = results.totalTaxCredit * 1.2
+  const endBalanceWithTaxCreditPenalty = Math.max(0, results.endBalance - taxCreditPenaltyAmount)
+  const endBalanceWithoutTaxCredit = resultsWithoutTaxCredit.endBalance
 
   const handleDisplayCurrencyChange = (value: Currency) => {
     setDisplayCurrency(value)
@@ -2703,6 +2725,7 @@ export function SavingsCalculator() {
   const [visibleYears, setVisibleYears] = useState(10)
 
   const [isMounted, setIsMounted] = useState(false)
+  const [taxCreditNotUntilRetirement, setTaxCreditNotUntilRetirement] = useState(false)
 
   useEffect(() => {
     setIsMounted(true)
@@ -3213,6 +3236,37 @@ export function SavingsCalculator() {
                         />
                         <span>Adójóváírás leállítása első pénzkivonás után</span>
                       </label>
+
+                      <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <Checkbox
+                            checked={taxCreditNotUntilRetirement}
+                            onCheckedChange={(checked) => setTaxCreditNotUntilRetirement(checked === true)}
+                            className="w-5 h-5"
+                          />
+                          <span>Nem nyugdíjig (20% visszafizetés)</span>
+                        </label>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">
+                            {taxCreditNotUntilRetirement
+                              ? "Végösszeg adójóváírással (20% büntetéssel)"
+                              : "Végösszeg adójóváírással"}
+                          </span>
+                          <span className="font-semibold tabular-nums">
+                            {formatCurrency(
+                              getRealValue(
+                                taxCreditNotUntilRetirement ? endBalanceWithTaxCreditPenalty : results.endBalance,
+                              ),
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Végösszeg adójóváírás nélkül</span>
+                          <span className="font-semibold tabular-nums">
+                            {formatCurrency(getRealValue(endBalanceWithoutTaxCredit))}
+                          </span>
+                        </div>
+                      </div>
                     </>
                   )}
                   </div>
