@@ -4457,7 +4457,7 @@ export function SavingsCalculator() {
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28">Adójóv.</th>
                         )}
                         <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28">Kivonás</th>
-                        <th className="py-3 pl-1 pr-0 text-right text-xs md:text-sm font-semibold sticky right-0 bg-transparent w-[1%] whitespace-nowrap">
+                        <th className="py-3 px-2 text-right text-xs md:text-sm font-semibold sticky right-0 z-20 bg-blue-50/95 dark:bg-blue-900/25 w-[18ch] min-w-[18ch] whitespace-nowrap">
                           {enableNetting ? "Nettó egyenleg" : "Egyenleg"}
                         </th>
                       </tr>
@@ -4885,7 +4885,7 @@ export function SavingsCalculator() {
                                 <p className="text-xs text-muted-foreground tabular-nums opacity-0">0</p>
                               </div>
                             </td>
-                            <td className="py-2 pl-1 pr-0 text-right text-xs md:text-sm font-semibold tabular-nums sticky right-0 bg-transparent w-[1%] align-top">
+                            <td className="py-2 px-2 text-right text-xs md:text-sm font-semibold tabular-nums sticky right-0 z-10 bg-blue-50/95 dark:bg-blue-900/25 w-[18ch] min-w-[18ch] align-top">
                               {(isAccountSplitOpen || isRedemptionOpen) &&
                               row.endingInvestedValue !== undefined &&
                               row.endingClientValue !== undefined ? (
@@ -4893,7 +4893,7 @@ export function SavingsCalculator() {
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className="cursor-help inline-flex justify-end">
-                                        <span className="inline-flex w-fit whitespace-nowrap rounded-md bg-blue-50 pl-1 pr-0.5 py-0.5 leading-tight text-right dark:bg-blue-900/30">
+                                        <span className="inline-flex w-fit whitespace-nowrap leading-tight text-right">
                                           {formatValue(applyRealValueForYear(displayBalance), displayCurrency).replace(
                                             / /g,
                                             "\u00A0",
@@ -4970,7 +4970,7 @@ export function SavingsCalculator() {
                               ) : (
                                 // CASE C: Both closed - plain text, no tooltip
                                 <div className="flex items-center justify-end min-h-[44px]">
-                                  <span className="inline-flex w-fit whitespace-nowrap rounded-md bg-blue-50 pl-1 pr-0.5 py-0.5 leading-tight text-right dark:bg-blue-900/30">
+                                  <span className="inline-flex w-fit whitespace-nowrap leading-tight text-right">
                                     {formatValue(applyRealValueForYear(displayBalance), displayCurrency).replace(
                                       / /g,
                                       "\u00A0",
