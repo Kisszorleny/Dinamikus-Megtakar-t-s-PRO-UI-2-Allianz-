@@ -929,6 +929,7 @@ export function SavingsCalculator() {
     }
     return {}
   })
+  const [taxCreditNotUntilRetirement, setTaxCreditNotUntilRetirement] = useState(false)
 
   const [investedShareByYear, setInvestedShareByYear] = useState<Record<number, number>>(() => {
     if (typeof window !== "undefined") {
@@ -2728,7 +2729,6 @@ export function SavingsCalculator() {
   const [visibleYears, setVisibleYears] = useState(10)
 
   const [isMounted, setIsMounted] = useState(false)
-  const [taxCreditNotUntilRetirement, setTaxCreditNotUntilRetirement] = useState(false)
 
   useEffect(() => {
     setIsMounted(true)
