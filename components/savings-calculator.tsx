@@ -2708,6 +2708,14 @@ export function SavingsCalculator() {
     setIsMounted(true)
   }, [])
 
+  const canUseFundYield = Boolean(selectedProduct)
+
+  useEffect(() => {
+    if (!canUseFundYield && annualYieldMode === "fund") {
+      setAnnualYieldMode("manual")
+    }
+  }, [canUseFundYield, annualYieldMode])
+
   useEffect(() => {
     if (!isMounted) return
     if (typeof window === "undefined") return
@@ -3030,11 +3038,20 @@ export function SavingsCalculator() {
                           <span className="text-xs text-muted-foreground">Manuális</span>
                           <Switch
                             checked={annualYieldMode === "fund"}
-                            onCheckedChange={(checked) => setAnnualYieldMode(checked ? "fund" : "manual")}
+                            disabled={!canUseFundYield}
+                            onCheckedChange={(checked) => {
+                              if (checked && !canUseFundYield) return
+                              setAnnualYieldMode(checked ? "fund" : "manual")
+                            }}
                           />
                           <span className="text-xs text-muted-foreground">Eszközalap</span>
                         </div>
                       </div>
+                      {!canUseFundYield ? (
+                        <p className="text-xs text-muted-foreground">
+                          Eszközalap módhoz előbb válassz terméket a termékválasztóban.
+                        </p>
+                      ) : null}
                       {annualYieldMode === "manual" ? (
                       <Input
                         id="annualYield"
