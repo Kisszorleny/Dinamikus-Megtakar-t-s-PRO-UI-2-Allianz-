@@ -4288,21 +4288,7 @@ export function SavingsCalculator() {
                     Módosítások törlése
                   </Button>
 
-                  <div className="flex items-center gap-2">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
-                      Megjelenítés:
-                    </Label>
-                    <Select value={displayCurrency} onValueChange={handleDisplayCurrencyChange}>
-                      <SelectTrigger className="w-16 h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="HUF">Ft</SelectItem>
-                        <SelectItem value="EUR">€</SelectItem>
-                        <SelectItem value="USD">$</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {/* Display currency selector removed here; kept in top bar */}
                 </div>
               </CardHeader>
               <CardContent>
