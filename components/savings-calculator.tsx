@@ -4457,7 +4457,7 @@ export function SavingsCalculator() {
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28">Adójóv.</th>
                         )}
                         <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28">Kivonás</th>
-                        <th className="py-3 px-2 text-right text-xs md:text-sm font-semibold sticky right-0 z-20 bg-blue-50/95 dark:bg-blue-900/25 w-[18ch] min-w-[18ch] whitespace-nowrap">
+                        <th className="py-3 px-1 text-right text-xs md:text-sm font-semibold sticky right-0 z-20 bg-background/95 w-[1%] whitespace-nowrap">
                           {enableNetting ? "Nettó egyenleg" : "Egyenleg"}
                         </th>
                       </tr>
@@ -4885,7 +4885,7 @@ export function SavingsCalculator() {
                                 <p className="text-xs text-muted-foreground tabular-nums opacity-0">0</p>
                               </div>
                             </td>
-                            <td className="py-2 px-2 text-right text-xs md:text-sm font-semibold tabular-nums sticky right-0 z-10 bg-blue-50/95 dark:bg-blue-900/25 w-[18ch] min-w-[18ch] align-top">
+                            <td className="py-2 px-1 text-right text-xs md:text-sm font-semibold tabular-nums sticky right-0 z-10 bg-background/95 w-[1%] align-top">
                               {(isAccountSplitOpen || isRedemptionOpen) &&
                               row.endingInvestedValue !== undefined &&
                               row.endingClientValue !== undefined ? (
