@@ -4604,8 +4604,9 @@ export function SavingsCalculator() {
                         }
 
                         const displayBalance = enableNetting ? netData.netBalance : displayData.endBalance
-                        const taxCreditPenaltyForRow =
-                          shouldApplyTaxCreditPenalty ? (sourceRow.taxCreditForYear ?? 0) * 1.2 : 0
+                        const taxCreditCumulativeForRow =
+                          cumulativeByYear[row.year]?.taxCreditForYear ?? sourceRow.taxCreditForYear ?? 0
+                        const taxCreditPenaltyForRow = shouldApplyTaxCreditPenalty ? taxCreditCumulativeForRow * 1.2 : 0
                         const displayBalanceWithPenalty = Math.max(0, displayBalance - taxCreditPenaltyForRow)
                         const applyRealValueForYear = (value: number) => getRealValueForYear(value, row.year)
                         // </CHANGE>
