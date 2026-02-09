@@ -10,6 +10,7 @@ import { convertForDisplay } from "@/lib/currency-conversion"
 import { formatNumber, parseNumber } from "@/lib/format-number"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 // TODO: Replace with real calculation import when implementing business logic
 // import { calculateResultsDaily, type InputsDaily, type Currency } from "@/lib/engine/calculate-results-daily"
 type InputsDaily = any
@@ -64,6 +65,7 @@ export default function OsszesitesPage() {
   const [emailClientName, setEmailClientName] = useState("Viktor")
   const [emailOfferUntil, setEmailOfferUntil] = useState("2026.02.14")
   const [emailCopyStatus, setEmailCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
+  const [emailTegezo, setEmailTegezo] = useState(false)
 
   const copyHtmlToClipboard = async (html: string, plain: string) => {
     // 1) Modern Clipboard API (works on most desktops; limited on mobile)
@@ -124,6 +126,31 @@ export default function OsszesitesPage() {
   const getEmailSubject = () => {
     const goal = String(getValue("accountGoal") ?? "").trim()
     return goal || "Megtakarítási ajánlat"
+  }
+
+  const getEmailTone = () => {
+    if (emailTegezo) {
+      return {
+        youNom: "Te",
+        youDative: "Neked",
+        youAcc: "Téged",
+        yourBy: "az általad",
+        yourByCap: "Az általad",
+        contactVerb: "keress",
+        canVerb: "tudd",
+        canVerbSimple: "tudod",
+      }
+    }
+    return {
+      youNom: "Ön",
+      youDative: "Önnek",
+      youAcc: "Önt",
+      yourBy: "az Ön által",
+      yourByCap: "Ön által",
+      contactVerb: "keressen",
+      canVerb: "tudja",
+      canVerbSimple: "tudja",
+    }
   }
 
   const getProductLabel = (productValue: string): string => {
@@ -853,6 +880,15 @@ export default function OsszesitesPage() {
                 placeholder="2026.02.14"
               />
             </div>
+            <div className="grid gap-1">
+              <Label className="text-xs text-muted-foreground" htmlFor="emailTegezo">
+                Tegező
+              </Label>
+              <div className="flex items-center gap-2">
+                <Switch id="emailTegezo" checked={emailTegezo} onCheckedChange={setEmailTegezo} />
+                <span className="text-xs text-muted-foreground">{emailTegezo ? "Tegező" : "Magázó"}</span>
+              </div>
+            </div>
             <Button
               variant="default"
               className="h-9"
@@ -861,6 +897,7 @@ export default function OsszesitesPage() {
 
                 const safeName = (emailClientName || "Ügyfél").trim()
                 const safeUntil = (emailOfferUntil || "").trim()
+                const tone = getEmailTone()
 
                 const FONT = "Calibri, Arial, Helvetica, sans-serif"
                 const BLUE = "#2F5597"
@@ -970,8 +1007,10 @@ export default function OsszesitesPage() {
                         ${esc(`Kedves ${safeName}!`)}
                       </div>
 
-                      ${p(`Telefonos megbeszélésünkre hivatkozva küldöm, <span style="font-weight:700;">Önnek</span> a`)}
-                      ${p(`<span style="font-weight:700;">Tőkenövelés</span>`)}
+                      ${p(
+                        `Telefonos megbeszélésünkre hivatkozva küldöm, <span style="font-weight:700;">${tone.youDative}</span> a`,
+                      )}
+                      ${p(`<span style="font-weight:700;">${esc(getEmailSubject())}</span>`)}
                       ${p("terméktájékoztatóját, valamint a megtakarítási tervezetet.")}
 
                       ${pSpacer(18)}
@@ -996,7 +1035,7 @@ export default function OsszesitesPage() {
                     ${p("Látszólag mindegy, hogy hol takarít meg ugyanis,")}
                     ${p("1-3 % különbség van a biztosítók TKM értékében,")}
                     ${p("azonban ez a százalékos különbség hosszútávon")}
-                    ${p("Önnek milliós különbséget jelent.", true)}
+                    ${p(`${tone.youDative} milliós különbséget jelent.`, true)}
 
                     ${heading("Díjmentes számlavezetés")}
                     ${p(
@@ -1007,7 +1046,11 @@ export default function OsszesitesPage() {
                     ${p("melyet most az első évben elengedünk.", true)}
 
                     ${heading("Díjmentes eszközalap váltás")}
-                    ${p("Piacon egyedülálló módon tudja a befektetését")}
+                    ${p(
+                      emailTegezo
+                        ? "Piacon egyedülálló módon tudod a befektetésed"
+                        : "Piacon egyedülálló módon tudja a befektetését",
+                    )}
                     ${p("kezelni, ugyanis limit nélkül tud a befektetési")}
                     ${p("alapok között váltani.", true)}
                     ${pSpacer(16)}
@@ -1032,7 +1075,7 @@ export default function OsszesitesPage() {
                     ${p(`2020 01. - 2025 01. hozam: ${spanOrange("89,02 % / 5év")}`)}
                     ${pSpacer(10)}
                     <div style="font-family:${FONT}; font-size:12px; color:#000000; font-weight:700; margin-top: 6px;">
-                      forrás: profilline.hu - Ön is tudja ellenőrizni jelen megtakarítási hozamokat.
+                      forrás: profilline.hu - ${tone.youNom} is ${tone.canVerbSimple} ellenőrizni jelen megtakarítási hozamokat.
                     </div>
 
                     ${heading("FIX Bónusz jóváírás a hozamokon felül")}
@@ -1058,13 +1101,13 @@ export default function OsszesitesPage() {
                         ? `indítja el megtakarítási számláját, <span style="font-weight:700;">3 000 000 Ft</span> összegre`
                         : `indítja el megtakarítási számláját, <span style="font-weight:700;">12 000 Euro</span> összegre`,
                     )}
-                    ${p("biztosítjuk Önt közlekedési baleseti halál esetén,")}
-                    ${p("melyet az Ön által megjelölt kedvezményezett fog kapni", true)}
+                    ${p(`biztosítjuk ${tone.youAcc} közlekedési baleseti halál esetén,`)}
+                    ${p(`melyet ${tone.yourBy} megjelölt kedvezményezett fog kapni`, true)}
 
                     ${heading("Biztonságos megtakarítási forma")}
                     ${p("jogilag meghatározott formája nem teszi lehetővé,")}
                     ${p("hogy az állam vagy a NAV inkasszálja az")}
-                    ${p("Ön által félretett összeget.", true)}
+                    ${p(`${tone.yourByCap} félretett összeget.`, true)}
                     ${p("Szociális hozzájárulási adó, valamint")}
                     ${p("Kamatadó mentes a megtakarítása 10 év után.", true)}
 
@@ -1074,16 +1117,24 @@ export default function OsszesitesPage() {
                     ${p("akár már harmadik év után.", true)}
 
                     ${heading("Örökölhető")}
-                    ${p("halál esetén az Ön által megjelölt kedvezményezett kapja")}
+                    ${p(`halál esetén ${tone.yourBy} megjelölt kedvezményezett kapja`)}
                     ${p("a megtakarítási számla összegét hagyatéki eljárás alá nem vonható,")}
                     ${p("8 napon belül a kedvezményezett számlájára a teljes összeg kiutalásra kerül", true)}
 
                     ${pSpacer(26)}
-                    ${p("A közös munkánk során én folyamatosan figyelemmel fogom kísérni befektetését és segíteni fogok Önnek,")}
-                    ${p("hogy mindig a legkedvezőbb és az éppen aktuális élethelyzetéhez leginkább igazodó döntéseket tudja meghozni a pénzügyeit illetően.", true)}
+                    ${p(
+                      `A közös munkánk során én folyamatosan figyelemmel fogom kísérni befektetését és segíteni fogok ${tone.youDative},`,
+                    )}
+                    ${p(
+                      `hogy mindig a legkedvezőbb és az éppen aktuális élethelyzetéhez leginkább igazodó döntéseket ${tone.canVerb} meghozni a pénzügyeit illetően.`,
+                      true,
+                    )}
                     ${p("Hiszem, hogy a folyamatos és rendszeres kommunikáció a siker alapja.", true)}
                     ${pSpacer(22)}
-                    ${p("További információért vagy bármilyen kérdés esetén keressen bizalommal:", true)}
+                    ${p(
+                      `További információért vagy bármilyen kérdés esetén ${tone.contactVerb} bizalommal:`,
+                      true,
+                    )}
                     </div>
                   </div>
                 `.trim()
@@ -1122,6 +1173,7 @@ export default function OsszesitesPage() {
 
                 const safeName = (emailClientName || "Ügyfél").trim()
                 const safeUntil = (emailOfferUntil || "").trim()
+                const tone = getEmailTone()
 
                 // Reuse the same HTML/PLAIN generation by triggering the copy button logic
                 // (duplicated minimal parts here to keep it one-tap)
@@ -1229,7 +1281,9 @@ export default function OsszesitesPage() {
                         ${esc(`Kedves ${safeName}!`)}
                       </div>
 
-                      ${p(`Telefonos megbeszélésünkre hivatkozva küldöm, <span style="font-weight:700;">Önnek</span> a`)}
+                      ${p(
+                        `Telefonos megbeszélésünkre hivatkozva küldöm, <span style="font-weight:700;">${tone.youDative}</span> a`,
+                      )}
                       ${p(`<span style="font-weight:700;">${esc(getEmailSubject())}</span>`)}
                       ${p("terméktájékoztatóját, valamint a megtakarítási tervezetet.")}
 
@@ -1252,7 +1306,7 @@ export default function OsszesitesPage() {
                       ${p("Látszólag mindegy, hogy hol takarít meg ugyanis,")}
                       ${p("1-3 % különbség van a biztosítók TKM értékében,")}
                       ${p("azonban ez a százalékos különbség hosszútávon")}
-                      ${p("Önnek milliós különbséget jelent.", true)}
+                      ${p(`${tone.youDative} milliós különbséget jelent.`, true)}
                     </div>
                   </div>
                 `.trim()
