@@ -4601,6 +4601,11 @@ export function SavingsCalculator() {
                         }
 
                         const displayBalance = enableNetting ? netData.netBalance : displayData.endBalance
+                        const taxCreditPenaltyForRow =
+                          taxCreditNotUntilRetirement && inputs.enableTaxCredit
+                            ? (sourceRow.taxCreditForYear ?? 0) * 1.2
+                            : 0
+                        const displayBalanceWithPenalty = Math.max(0, displayBalance - taxCreditPenaltyForRow)
                         const applyRealValueForYear = (value: number) => getRealValueForYear(value, row.year)
                         // </CHANGE>
 
@@ -4951,10 +4956,10 @@ export function SavingsCalculator() {
                                     <TooltipTrigger asChild>
                                       <span className="cursor-help inline-flex justify-end">
                                         <span className="inline-flex w-fit whitespace-nowrap leading-tight text-right">
-                                          {formatValue(applyRealValueForYear(displayBalance), displayCurrency).replace(
-                                            / /g,
-                                            "\u00A0",
-                                          )}
+                                          {formatValue(
+                                            applyRealValueForYear(displayBalanceWithPenalty),
+                                            displayCurrency,
+                                          ).replace(/ /g, "\u00A0")}
                                         </span>
                                       </span>
                                     </TooltipTrigger>
@@ -4988,7 +4993,11 @@ export function SavingsCalculator() {
                                             )}
                                             {/* </CHANGE> */}
                                             <div className="pt-1 border-t">
-                                              Összesen: {formatValue(applyRealValueForYear(row.endBalance), displayCurrency)}
+                                              Összesen:{" "}
+                                              {formatValue(
+                                                applyRealValueForYear(displayBalanceWithPenalty),
+                                                displayCurrency,
+                                              )}
                                             </div>
                                             {isRedemptionOpen && row.surrenderCharge > 0 && (
                                               <>
@@ -5028,10 +5037,10 @@ export function SavingsCalculator() {
                                 // CASE C: Both closed - plain text, no tooltip
                                 <div className="flex items-center justify-end min-h-[44px]">
                                   <span className="inline-flex w-fit whitespace-nowrap leading-tight text-right">
-                                    {formatValue(applyRealValueForYear(displayBalance), displayCurrency).replace(
-                                      / /g,
-                                      "\u00A0",
-                                    )}
+                                    {formatValue(
+                                      applyRealValueForYear(displayBalanceWithPenalty),
+                                      displayCurrency,
+                                    ).replace(/ /g, "\u00A0")}
                                   </span>
                                 </div>
                               )}
