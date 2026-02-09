@@ -65,6 +65,62 @@ export default function OsszesitesPage() {
   const [emailOfferUntil, setEmailOfferUntil] = useState("2026.02.14")
   const [emailCopyStatus, setEmailCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
 
+  const copyHtmlToClipboard = async (html: string, plain: string) => {
+    // 1) Modern Clipboard API (works on most desktops; limited on mobile)
+    try {
+      const ClipboardItemCtor: any = (window as any).ClipboardItem
+      if (ClipboardItemCtor && navigator.clipboard?.write) {
+        const item = new ClipboardItemCtor({
+          "text/html": new Blob([html], { type: "text/html" }),
+          "text/plain": new Blob([plain], { type: "text/plain" }),
+        })
+        await navigator.clipboard.write([item])
+        return true
+      }
+    } catch {
+      // fall through
+    }
+
+    // 2) Legacy execCommand('copy') using DOM selection (often works better on iOS/Safari)
+    try {
+      const container = document.createElement("div")
+      container.style.position = "fixed"
+      container.style.left = "-9999px"
+      container.style.top = "0"
+      container.style.opacity = "0"
+      container.style.pointerEvents = "none"
+      container.setAttribute("aria-hidden", "true")
+      container.innerHTML = html
+      document.body.appendChild(container)
+
+      const selection = window.getSelection()
+      if (!selection) throw new Error("No selection")
+      selection.removeAllRanges()
+      const range = document.createRange()
+      range.selectNodeContents(container)
+      selection.addRange(range)
+
+      const ok = document.execCommand("copy")
+      selection.removeAllRanges()
+      document.body.removeChild(container)
+      if (ok) return true
+    } catch {
+      // fall through
+    }
+
+    // 3) Plain text fallback
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(plain)
+        return true
+      }
+    } catch {
+      // ignore
+    }
+
+    return false
+  }
+
   const getProductLabel = (productValue: string): string => {
     const productMap: Record<string, string> = {
       alfa_exclusive_plus: "Alfa Exclusive Plus",
@@ -962,23 +1018,8 @@ export default function OsszesitesPage() {
                 ].join("\n")
 
                 try {
-                  // Prefer rich HTML clipboard for Outlook paste
-                  const ClipboardItemCtor: any = (window as any).ClipboardItem
-                  if (ClipboardItemCtor && navigator.clipboard?.write) {
-                    const item = new ClipboardItemCtor({
-                      "text/html": new Blob([html], { type: "text/html" }),
-                      "text/plain": new Blob([plain], { type: "text/plain" }),
-                    })
-                    await navigator.clipboard.write([item])
-                  } else {
-                    await navigator.clipboard.writeText(plain)
-                  }
-
-                  setEmailCopyStatus("copied")
-
-                  const subject = encodeURIComponent(subjectText)
-                  const body = encodeURIComponent("A formázott sablont a vágólapra másoltam, csak illeszd be az Outlookba.")
-                  window.location.href = `mailto:?subject=${subject}&body=${body}`
+                  const ok = await copyHtmlToClipboard(html, plain)
+                  setEmailCopyStatus(ok ? "copied" : "failed")
                 } catch {
                   setEmailCopyStatus("failed")
                 }
@@ -991,6 +1032,28 @@ export default function OsszesitesPage() {
                   ? "Másolás sikertelen"
                   : "Formázott sablon másolása"}
             </Button>
+
+            <Button
+              variant="outline"
+              className="h-9"
+              onClick={() => {
+                const safeName = (emailClientName || "Ügyfél").trim()
+                const subjectText = `Allianz ajánlat – ${safeName}`
+                const subject = encodeURIComponent(subjectText)
+                const body = encodeURIComponent(
+                  "A formázott sablont előbb másold a vágólapra a „Formázott sablon másolása” gombbal, majd illeszd be ide (Ctrl/Cmd+V).",
+                )
+                window.location.href = `mailto:?subject=${subject}&body=${body}`
+              }}
+            >
+              <Mail className="w-4 h-4 mr-2" />
+              Új e-mail megnyitása
+            </Button>
+
+            <div className="text-xs text-muted-foreground max-w-[520px]">
+              Mobilon a `mailto:` gyakran csak sima szöveget támogat. Nyomd meg a{" "}
+              <span className="font-medium">Formázott sablon másolása</span> gombot, majd az Outlook levélbe illeszd be.
+            </div>
           </div>
         </div>
 
