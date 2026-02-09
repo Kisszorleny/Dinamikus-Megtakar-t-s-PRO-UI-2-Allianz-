@@ -2789,33 +2789,6 @@ export function SavingsCalculator() {
 
           <div className="flex gap-1 mt-2 overflow-x-auto pb-1 md:hidden">
             <Button
-              variant={activeSection === "summary-link" ? "default" : "ghost"}
-              size="sm"
-              className="h-8 px-3 text-xs whitespace-nowrap"
-              onClick={() => router.push("/osszesites")}
-            >
-              <BarChart3 className="w-3 h-3 mr-1" />
-              Összesítés
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 px-3 text-xs whitespace-nowrap"
-              onClick={() => router.push("/osszehasonlitas")}
-            >
-              <GitCompare className="w-3 h-3 mr-1" />
-              Összehasonlítás
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 px-3 text-xs whitespace-nowrap"
-              onClick={() => router.push("/reszletes-adatok")}
-            >
-              <FileText className="w-3 h-3 mr-1" />
-              Részletes adatok
-            </Button>
-            <Button
               variant={activeSection === "settings" ? "default" : "ghost"}
               size="sm"
               className="h-8 px-3 text-xs whitespace-nowrap"
@@ -2841,6 +2814,33 @@ export function SavingsCalculator() {
             >
               <Table2 className="w-3 h-3 mr-1" />
               Éves bontás
+            </Button>
+            <Button
+              variant={activeSection === "summary-link" ? "default" : "ghost"}
+              size="sm"
+              className="h-8 px-3 text-xs whitespace-nowrap"
+              onClick={() => router.push("/osszesites")}
+            >
+              <BarChart3 className="w-3 h-3 mr-1" />
+              Összesítés
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-3 text-xs whitespace-nowrap"
+              onClick={() => router.push("/osszehasonlitas")}
+            >
+              <GitCompare className="w-3 h-3 mr-1" />
+              Összehasonlítás
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-3 text-xs whitespace-nowrap"
+              onClick={() => router.push("/reszletes-adatok")}
+            >
+              <FileText className="w-3 h-3 mr-1" />
+              Részletes adatok
             </Button>
           </div>
         </div>
