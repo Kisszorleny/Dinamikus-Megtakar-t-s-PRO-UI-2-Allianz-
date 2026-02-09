@@ -718,9 +718,42 @@ export default function OsszesitesPage() {
           <Button
             variant="outline"
             onClick={() => {
-              // TODO: Implement email sending functionality
-              const subject = encodeURIComponent("Megtakarítási számítás összesítés")
-              const body = encodeURIComponent("Kérlek nézd meg a mellékelt megtakarítási számítás összesítését.")
+              const subjectText = `Megtakarítási számítás összesítés – ${new Date().toLocaleDateString("hu-HU")}`
+
+              const lines: string[] = []
+              lines.push("Szia,")
+              lines.push("")
+              lines.push("Az alábbi megtakarítási kalkuláció összesítést küldöm:")
+              lines.push("")
+
+              for (const section of sections) {
+                lines.push(section.title)
+                lines.push("—".repeat(section.title.length))
+
+                for (const row of section.rows) {
+                  const label = getLabel(row.key, row.defaultLabel)
+                  const valueText = row.isNumeric
+                    ? formatValue(
+                        getValue(row.key) as number,
+                        row.showCurrency !== false,
+                        row.suffix || "",
+                        row.valueCurrency,
+                        row.displayCurrency,
+                      )
+                    : String(getValue(row.key))
+
+                  lines.push(`${label}: ${valueText}`)
+                }
+
+                lines.push("")
+              }
+
+              lines.push(`Megnyitás: ${window.location.origin}/osszesites`)
+              lines.push("")
+              lines.push("Üdv,")
+
+              const subject = encodeURIComponent(subjectText)
+              const body = encodeURIComponent(lines.join("\n"))
               window.location.href = `mailto:?subject=${subject}&body=${body}`
             }}
           >
