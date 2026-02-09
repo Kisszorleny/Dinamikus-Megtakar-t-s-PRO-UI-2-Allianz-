@@ -4373,7 +4373,7 @@ export function SavingsCalculator() {
 
                 {/* Desktop table */}
                 <div className="hidden md:block overflow-x-auto">
-                  <table className="inline-table w-max text-sm yearly-breakdown-table yearly-breakdown-table--auto">
+                  <table className="w-full min-w-[1100px] text-sm yearly-breakdown-table yearly-breakdown-table--auto">
                     <colgroup>
                       <col style={{ width: "60px" }} />
                       <col style={{ width: "70px" }} />
