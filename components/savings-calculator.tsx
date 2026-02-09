@@ -2363,9 +2363,12 @@ export function SavingsCalculator() {
     return value / inflationMultiplier
   }
 
-  const taxCreditPenaltyAmount = results.totalTaxCredit * 1.2
+  const shouldApplyTaxCreditPenalty = taxCreditNotUntilRetirement && inputs.enableTaxCredit
+  const taxCreditPenaltyAmount = shouldApplyTaxCreditPenalty ? results.totalTaxCredit * 1.2 : 0
   const endBalanceWithTaxCreditPenalty = Math.max(0, results.endBalance - taxCreditPenaltyAmount)
   const endBalanceWithoutTaxCredit = resultsWithoutTaxCredit.endBalance
+  const summaryBaseBalance = enableNetting && finalNetData ? finalNetData.netBalance : results.endBalance
+  const summaryBalanceWithPenalty = Math.max(0, summaryBaseBalance - taxCreditPenaltyAmount)
 
   const handleDisplayCurrencyChange = (value: Currency) => {
     setDisplayCurrency(value)
@@ -3155,7 +3158,7 @@ export function SavingsCalculator() {
                     <span>Adójóváírás bekapcsolása</span>
                   </label>
 
-                  {inputs.enableTaxCredit && (
+                      {inputs.enableTaxCredit && (
                     <>
                       <div className="space-y-2">
                         <Label>Adójóváírás mértéke (%)</Label>
@@ -4215,7 +4218,7 @@ export function SavingsCalculator() {
                     <span className="text-xs md:text-sm font-medium">Egyenleg a futamidő végén</span>
                     <span className="text-xl md:text-2xl font-bold tabular-nums">
                       {formatCurrency(
-                        getRealValue(enableNetting && finalNetData ? finalNetData.netBalance : results.endBalance),
+                        getRealValue(shouldApplyTaxCreditPenalty ? summaryBalanceWithPenalty : summaryBaseBalance),
                       )}
                     </span>
                   </div>
@@ -4602,9 +4605,7 @@ export function SavingsCalculator() {
 
                         const displayBalance = enableNetting ? netData.netBalance : displayData.endBalance
                         const taxCreditPenaltyForRow =
-                          taxCreditNotUntilRetirement && inputs.enableTaxCredit
-                            ? (sourceRow.taxCreditForYear ?? 0) * 1.2
-                            : 0
+                          shouldApplyTaxCreditPenalty ? (sourceRow.taxCreditForYear ?? 0) * 1.2 : 0
                         const displayBalanceWithPenalty = Math.max(0, displayBalance - taxCreditPenaltyForRow)
                         const applyRealValueForYear = (value: number) => getRealValueForYear(value, row.year)
                         // </CHANGE>
