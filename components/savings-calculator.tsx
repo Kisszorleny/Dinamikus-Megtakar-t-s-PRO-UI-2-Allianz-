@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { ChevronDown, ChevronUp, Settings, Calculator, BarChart3, Table2, Info, Plus, X, GitCompare } from "lucide-react"
+import { ChevronDown, ChevronUp, Settings, Calculator, BarChart3, Table2, Info, Plus, X, GitCompare, FileText } from "lucide-react"
 import {
   calculate,
   type InputsDaily,
@@ -2798,6 +2798,24 @@ export function SavingsCalculator() {
               Összesítés
             </Button>
             <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-3 text-xs whitespace-nowrap"
+              onClick={() => router.push("/osszehasonlitas")}
+            >
+              <GitCompare className="w-3 h-3 mr-1" />
+              Összehasonlítás
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-3 text-xs whitespace-nowrap"
+              onClick={() => router.push("/reszletes-adatok")}
+            >
+              <FileText className="w-3 h-3 mr-1" />
+              Részletes adatok
+            </Button>
+            <Button
               variant={activeSection === "settings" ? "default" : "ghost"}
               size="sm"
               className="h-8 px-3 text-xs whitespace-nowrap"
@@ -2823,15 +2841,6 @@ export function SavingsCalculator() {
             >
               <Table2 className="w-3 h-3 mr-1" />
               Éves bontás
-            </Button>
-            <Button
-              variant={activeSection === "special" ? "default" : "ghost"}
-              size="sm"
-              className="h-8 px-3 text-xs whitespace-nowrap"
-              onClick={() => scrollToSection("special")}
-            >
-              <Info className="w-3 h-3 mr-1" />
-              Egyéb
             </Button>
           </div>
         </div>
