@@ -371,8 +371,8 @@ function MobileYearCard({
   const isYearlyReadOnly = yearlyAccountView === "summary"
   const isEsetiView = yearlyAccountView === "eseti"
   const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
-  const effectiveCurrentIndex = isEsetiView ? 0 : currentIndex
-  const effectiveCurrentPayment = isEsetiView ? 0 : currentPayment
+  const effectiveCurrentIndex = isEsetiView ? indexByYear[row.year] ?? currentIndex ?? 0 : currentIndex
+  const effectiveCurrentPayment = isEsetiView ? paymentByYear[row.year] ?? currentPayment ?? 0 : currentPayment
 
   let displayData = {
     endBalance: row.endBalance,
@@ -4835,8 +4835,10 @@ export function SavingsCalculator() {
                       {adjustedResults.yearlyBreakdown.map((row, index) => {
                         const activePlanIndex = isEsetiView ? esetiPlan.planIndex : planIndex
                         const activePlanPayment = isEsetiView ? esetiPlan.planPayment : planPayment
-                        const currentIndex = isEsetiView ? 0 : activePlanIndex[row.year]
-                        const currentPayment = isEsetiView ? 0 : row.yearlyPayment ?? activePlanPayment[row.year] ?? 0
+                        const currentIndex = isEsetiView ? esetiIndexByYear[row.year] ?? 0 : activePlanIndex[row.year]
+                        const currentPayment = isEsetiView
+                          ? esetiPaymentByYear[row.year] ?? 0
+                          : row.yearlyPayment ?? activePlanPayment[row.year] ?? 0
                         const activeWithdrawalByYear = isEsetiView ? esetiWithdrawalByYear : withdrawalByYear
                         const currentWithdrawal = activeWithdrawalByYear[row.year] || 0
                         const updateIndexForView = isEsetiView ? updateEsetiIndex : updateIndex
@@ -4878,7 +4880,7 @@ export function SavingsCalculator() {
                           yearlyAggregationMode === "sum"
                             ? (isEsetiView ? cumulativeByYearEseti[row.year] : cumulativeByYear[row.year]) ?? row
                             : row
-                        const displayPaymentValue = isEsetiView ? 0 : row.yearlyPayment ?? currentPayment
+                        const displayPaymentValue = isEsetiView ? currentPayment : row.yearlyPayment ?? currentPayment
 
                         let displayData = {
                           endBalance: sourceRow.endBalance,
