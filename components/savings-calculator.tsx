@@ -2298,15 +2298,18 @@ export function SavingsCalculator() {
   ])
 
   const esetiPlan = useMemo(() => {
-    const baseYear1Payment = esetiPaymentByYear[1] ?? 0
-    return buildYearlyPlan({
-      years: totalYearsForPlan,
-      baseYear1Payment,
-      baseAnnualIndexPercent: esetiIndexByYear[1] ?? 0,
-      indexByYear: esetiIndexByYear,
-      paymentByYear: esetiPaymentByYear,
-      withdrawalByYear: esetiWithdrawalByYear,
-    })
+    const years = totalYearsForPlan
+    const indexEffective = Array<number>(years + 1).fill(0)
+    const yearlyPaymentsPlan = Array<number>(years + 1).fill(0)
+    const yearlyWithdrawalsPlan = Array<number>(years + 1).fill(0)
+
+    for (let y = 1; y <= years; y++) {
+      indexEffective[y] = esetiIndexByYear[y] ?? 0
+      yearlyWithdrawalsPlan[y] = esetiWithdrawalByYear[y] ?? 0
+      yearlyPaymentsPlan[y] = esetiPaymentByYear[y] ?? (y === 1 ? esetiPaymentByYear[1] ?? 0 : 0)
+    }
+
+    return { indexEffective, yearlyPaymentsPlan, yearlyWithdrawalsPlan }
   }, [totalYearsForPlan, esetiIndexByYear, esetiPaymentByYear, esetiWithdrawalByYear])
   const esetiPlanIndex = useMemo(() => {
     const map: Record<number, number> = {}
