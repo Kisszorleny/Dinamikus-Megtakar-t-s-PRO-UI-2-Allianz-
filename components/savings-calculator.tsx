@@ -439,7 +439,7 @@ function MobileYearCard({
   if (shouldApplyTaxCreditPenalty) {
     displayBalance = Math.max(0, displayBalance - (cumulativeRow.taxCreditForYear ?? 0) * 1.2)
   }
-  const effectiveWithdrawn = row.withdrawalForYear ?? 0
+  const effectiveWithdrawn = row.withdrawalForYear ?? currentWithdrawal
   const preWithdrawalBalance = displayBalance + effectiveWithdrawn
   const maxWithdrawalDisplay = convertForDisplay(preWithdrawalBalance, resultsCurrency, displayCurrency, eurToHufRate)
   displayBalance = Math.max(0, preWithdrawalBalance - effectiveWithdrawn)
@@ -4989,8 +4989,8 @@ export function SavingsCalculator() {
                         let displayBalanceWithPenalty = Math.max(0, displayBalance - taxCreditPenaltyForRow)
                         const effectiveWithdrawn =
                           yearlyAggregationMode === "sum"
-                            ? sourceRow.withdrawalForYear ?? 0
-                            : row.withdrawalForYear ?? 0
+                            ? sourceRow.withdrawalForYear ?? currentWithdrawal
+                            : row.withdrawalForYear ?? currentWithdrawal
                         const preWithdrawalBalanceWithPenalty = displayBalanceWithPenalty + effectiveWithdrawn
                         const maxWithdrawalDisplay = convertForDisplay(
                           preWithdrawalBalanceWithPenalty,
