@@ -439,10 +439,8 @@ function MobileYearCard({
   if (shouldApplyTaxCreditPenalty) {
     displayBalance = Math.max(0, displayBalance - (cumulativeRow.taxCreditForYear ?? 0) * 1.2)
   }
-  const maxWithdrawalDisplay = convertForDisplay(displayBalance, resultsCurrency, displayCurrency, eurToHufRate)
-  if (currentWithdrawal >= displayBalance) {
-    displayBalance = 0
-  }
+  const preWithdrawalBalance = displayBalance + currentWithdrawal
+  const maxWithdrawalDisplay = convertForDisplay(preWithdrawalBalance, resultsCurrency, displayCurrency, eurToHufRate)
   const applyRealValue = (value: number) => (getRealValueForYear ? getRealValueForYear(value, row.year) : value)
 
   const showBreakdown = isAccountSplitOpen || isRedemptionOpen
@@ -4987,15 +4985,13 @@ export function SavingsCalculator() {
                           0
                         const taxCreditPenaltyForRow = shouldApplyTaxCreditPenalty ? taxCreditCumulativeForRow * 1.2 : 0
                         let displayBalanceWithPenalty = Math.max(0, displayBalance - taxCreditPenaltyForRow)
+                        const preWithdrawalBalanceWithPenalty = displayBalanceWithPenalty + currentWithdrawal
                         const maxWithdrawalDisplay = convertForDisplay(
-                          displayBalanceWithPenalty,
+                          preWithdrawalBalanceWithPenalty,
                           results.currency,
                           displayCurrency,
                           inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
                         )
-                        if (currentWithdrawal >= displayBalanceWithPenalty) {
-                          displayBalanceWithPenalty = 0
-                        }
                         const applyRealValueForYear = (value: number) => getRealValueForYear(value, row.year)
                         // </CHANGE>
 
