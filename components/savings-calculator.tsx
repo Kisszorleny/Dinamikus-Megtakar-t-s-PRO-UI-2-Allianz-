@@ -439,9 +439,10 @@ function MobileYearCard({
   if (shouldApplyTaxCreditPenalty) {
     displayBalance = Math.max(0, displayBalance - (cumulativeRow.taxCreditForYear ?? 0) * 1.2)
   }
-  const preWithdrawalBalance = displayBalance + currentWithdrawal
+  const effectiveWithdrawn = row.withdrawalForYear ?? 0
+  const preWithdrawalBalance = displayBalance + effectiveWithdrawn
   const maxWithdrawalDisplay = convertForDisplay(preWithdrawalBalance, resultsCurrency, displayCurrency, eurToHufRate)
-  displayBalance = Math.max(0, preWithdrawalBalance - currentWithdrawal)
+  displayBalance = Math.max(0, preWithdrawalBalance - effectiveWithdrawn)
   const applyRealValue = (value: number) => (getRealValueForYear ? getRealValueForYear(value, row.year) : value)
 
   const showBreakdown = isAccountSplitOpen || isRedemptionOpen
@@ -4986,14 +4987,18 @@ export function SavingsCalculator() {
                           0
                         const taxCreditPenaltyForRow = shouldApplyTaxCreditPenalty ? taxCreditCumulativeForRow * 1.2 : 0
                         let displayBalanceWithPenalty = Math.max(0, displayBalance - taxCreditPenaltyForRow)
-                        const preWithdrawalBalanceWithPenalty = displayBalanceWithPenalty + currentWithdrawal
+                        const effectiveWithdrawn =
+                          yearlyAggregationMode === "sum"
+                            ? sourceRow.withdrawalForYear ?? 0
+                            : row.withdrawalForYear ?? 0
+                        const preWithdrawalBalanceWithPenalty = displayBalanceWithPenalty + effectiveWithdrawn
                         const maxWithdrawalDisplay = convertForDisplay(
                           preWithdrawalBalanceWithPenalty,
                           results.currency,
                           displayCurrency,
                           inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
                         )
-                        displayBalanceWithPenalty = Math.max(0, preWithdrawalBalanceWithPenalty - currentWithdrawal)
+                        displayBalanceWithPenalty = Math.max(0, preWithdrawalBalanceWithPenalty - effectiveWithdrawn)
                         const applyRealValueForYear = (value: number) => getRealValueForYear(value, row.year)
                         // </CHANGE>
 
