@@ -156,6 +156,125 @@ function calculateNetValues(
   })
 }
 
+const buildCumulativeByYear = (yearlyBreakdown: Array<any>) => {
+  const map: Record<number, any> = {}
+  let acc = {
+    interestForYear: 0,
+    costForYear: 0,
+    assetBasedCostForYear: 0,
+    plusCostForYear: 0,
+    bonusForYear: 0,
+    wealthBonusForYear: 0,
+    taxCreditForYear: 0,
+    withdrawalForYear: 0,
+    riskInsuranceCostForYear: 0,
+    client: {
+      interestForYear: 0,
+      costForYear: 0,
+      assetBasedCostForYear: 0,
+      plusCostForYear: 0,
+      bonusForYear: 0,
+      wealthBonusForYear: 0,
+    },
+    invested: {
+      interestForYear: 0,
+      costForYear: 0,
+      assetBasedCostForYear: 0,
+      plusCostForYear: 0,
+      bonusForYear: 0,
+      wealthBonusForYear: 0,
+    },
+    taxBonus: {
+      interestForYear: 0,
+      costForYear: 0,
+      assetBasedCostForYear: 0,
+      plusCostForYear: 0,
+      bonusForYear: 0,
+      wealthBonusForYear: 0,
+    },
+  }
+
+  for (const row of yearlyBreakdown) {
+    acc = {
+      interestForYear: acc.interestForYear + (row.interestForYear ?? 0),
+      costForYear: acc.costForYear + (row.costForYear ?? 0),
+      assetBasedCostForYear: acc.assetBasedCostForYear + (row.assetBasedCostForYear ?? 0),
+      plusCostForYear: acc.plusCostForYear + (row.plusCostForYear ?? 0),
+      bonusForYear: acc.bonusForYear + (row.bonusForYear ?? 0),
+      wealthBonusForYear: acc.wealthBonusForYear + (row.wealthBonusForYear ?? 0),
+      taxCreditForYear: acc.taxCreditForYear + (row.taxCreditForYear ?? 0),
+      withdrawalForYear: acc.withdrawalForYear + (row.withdrawalForYear ?? 0),
+      riskInsuranceCostForYear: acc.riskInsuranceCostForYear + (row.riskInsuranceCostForYear ?? 0),
+      client: {
+        interestForYear: acc.client.interestForYear + (row.client?.interestForYear ?? 0),
+        costForYear: acc.client.costForYear + (row.client?.costForYear ?? 0),
+        assetBasedCostForYear: acc.client.assetBasedCostForYear + (row.client?.assetBasedCostForYear ?? 0),
+        plusCostForYear: acc.client.plusCostForYear + (row.client?.plusCostForYear ?? 0),
+        bonusForYear: acc.client.bonusForYear + (row.client?.bonusForYear ?? 0),
+        wealthBonusForYear: acc.client.wealthBonusForYear + (row.client?.wealthBonusForYear ?? 0),
+      },
+      invested: {
+        interestForYear: acc.invested.interestForYear + (row.invested?.interestForYear ?? 0),
+        costForYear: acc.invested.costForYear + (row.invested?.costForYear ?? 0),
+        assetBasedCostForYear: acc.invested.assetBasedCostForYear + (row.invested?.assetBasedCostForYear ?? 0),
+        plusCostForYear: acc.invested.plusCostForYear + (row.invested?.plusCostForYear ?? 0),
+        bonusForYear: acc.invested.bonusForYear + (row.invested?.bonusForYear ?? 0),
+        wealthBonusForYear: acc.invested.wealthBonusForYear + (row.invested?.wealthBonusForYear ?? 0),
+      },
+      taxBonus: {
+        interestForYear: acc.taxBonus.interestForYear + (row.taxBonus?.interestForYear ?? 0),
+        costForYear: acc.taxBonus.costForYear + (row.taxBonus?.costForYear ?? 0),
+        assetBasedCostForYear: acc.taxBonus.assetBasedCostForYear + (row.taxBonus?.assetBasedCostForYear ?? 0),
+        plusCostForYear: acc.taxBonus.plusCostForYear + (row.taxBonus?.plusCostForYear ?? 0),
+        bonusForYear: acc.taxBonus.bonusForYear + (row.taxBonus?.bonusForYear ?? 0),
+        wealthBonusForYear: acc.taxBonus.wealthBonusForYear + (row.taxBonus?.wealthBonusForYear ?? 0),
+      },
+    }
+
+    map[row.year] = {
+      ...row,
+      interestForYear: acc.interestForYear,
+      costForYear: acc.costForYear,
+      assetBasedCostForYear: acc.assetBasedCostForYear,
+      plusCostForYear: acc.plusCostForYear,
+      bonusForYear: acc.bonusForYear,
+      wealthBonusForYear: acc.wealthBonusForYear,
+      taxCreditForYear: acc.taxCreditForYear,
+      withdrawalForYear: acc.withdrawalForYear,
+      riskInsuranceCostForYear: acc.riskInsuranceCostForYear,
+      client: {
+        ...row.client,
+        interestForYear: acc.client.interestForYear,
+        costForYear: acc.client.costForYear,
+        assetBasedCostForYear: acc.client.assetBasedCostForYear,
+        plusCostForYear: acc.client.plusCostForYear,
+        bonusForYear: acc.client.bonusForYear,
+        wealthBonusForYear: acc.client.wealthBonusForYear,
+      },
+      invested: {
+        ...row.invested,
+        interestForYear: acc.invested.interestForYear,
+        costForYear: acc.invested.costForYear,
+        assetBasedCostForYear: acc.invested.assetBasedCostForYear,
+        plusCostForYear: acc.invested.plusCostForYear,
+        bonusForYear: acc.invested.bonusForYear,
+        wealthBonusForYear: acc.invested.wealthBonusForYear,
+      },
+      taxBonus: {
+        ...row.taxBonus,
+        interestForYear: acc.taxBonus.interestForYear,
+        costForYear: acc.taxBonus.costForYear,
+        assetBasedCostForYear: acc.taxBonus.assetBasedCostForYear,
+        plusCostForYear: acc.taxBonus.plusCostForYear,
+        bonusForYear: acc.taxBonus.bonusForYear,
+        wealthBonusForYear: acc.taxBonus.wealthBonusForYear,
+      },
+    }
+  }
+
+  return map
+}
+
 function MobileYearCard({
   row,
   planIndex,
@@ -249,7 +368,7 @@ function MobileYearCard({
   const isPaymentModified = paymentByYear[row.year] !== undefined
   const isWithdrawalModified = withdrawalByYear[row.year] !== undefined
   const isTaxCreditLimited = currentTaxCreditLimit !== undefined
-  const isYearlyReadOnly = yearlyAccountView !== "main"
+  const isYearlyReadOnly = yearlyAccountView === "summary"
   const isEsetiView = yearlyAccountView === "eseti"
   const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
   const effectiveCurrentIndex = isEsetiView ? 0 : currentIndex
@@ -936,6 +1055,19 @@ export function SavingsCalculator() {
     }
     return {}
   })
+  const [esetiPaymentByYear, setEsetiPaymentByYear] = useState<Record<number, number>>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-esetiPaymentByYear")
+      if (stored) {
+        try {
+          return JSON.parse(stored)
+        } catch (e) {
+          console.error("[v0] Failed to parse stored esetiPaymentByYear:", e)
+        }
+      }
+    }
+    return {}
+  })
 
   const [withdrawalByYear, setWithdrawalByYear] = useState<Record<number, number>>(() => {
     if (typeof window !== "undefined") {
@@ -950,6 +1082,19 @@ export function SavingsCalculator() {
     }
     return {}
   })
+  const [esetiWithdrawalByYear, setEsetiWithdrawalByYear] = useState<Record<number, number>>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-esetiWithdrawalByYear")
+      if (stored) {
+        try {
+          return JSON.parse(stored)
+        } catch (e) {
+          console.error("[v0] Failed to parse stored esetiWithdrawalByYear:", e)
+        }
+      }
+    }
+    return {}
+  })
 
   const [taxCreditLimitByYear, setTaxCreditLimitByYear] = useState<Record<number, number>>(() => {
     if (typeof window !== "undefined") {
@@ -959,6 +1104,19 @@ export function SavingsCalculator() {
           return JSON.parse(stored)
         } catch (e) {
           console.error("[v0] Failed to parse stored taxCreditLimitByYear:", e)
+        }
+      }
+    }
+    return {}
+  })
+  const [esetiIndexByYear, setEsetiIndexByYear] = useState<Record<number, number>>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-esetiIndexByYear")
+      if (stored) {
+        try {
+          return JSON.parse(stored)
+        } catch (e) {
+          console.error("[v0] Failed to parse stored esetiIndexByYear:", e)
         }
       }
     }
@@ -1939,6 +2097,11 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-withdrawalByYear", JSON.stringify(withdrawalByYear))
     }
   }, [withdrawalByYear])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-esetiWithdrawalByYear", JSON.stringify(esetiWithdrawalByYear))
+    }
+  }, [esetiWithdrawalByYear])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -1951,6 +2114,16 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-taxCreditLimitByYear", JSON.stringify(taxCreditLimitByYear))
     }
   }, [taxCreditLimitByYear])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-esetiIndexByYear", JSON.stringify(esetiIndexByYear))
+    }
+  }, [esetiIndexByYear])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-esetiPaymentByYear", JSON.stringify(esetiPaymentByYear))
+    }
+  }, [esetiPaymentByYear])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -2123,6 +2296,18 @@ export function SavingsCalculator() {
     withdrawalByYear,
   ])
 
+  const esetiPlan = useMemo(() => {
+    const baseYear1Payment = esetiPaymentByYear[1] ?? 0
+    return buildYearlyPlan({
+      years: totalYearsForPlan,
+      baseYear1Payment,
+      baseAnnualIndexPercent: esetiIndexByYear[1] ?? 0,
+      indexByYear: esetiIndexByYear,
+      paymentByYear: esetiPaymentByYear,
+      withdrawalByYear: esetiWithdrawalByYear,
+    })
+  }, [totalYearsForPlan, esetiIndexByYear, esetiPaymentByYear, esetiWithdrawalByYear])
+
   // Risk Insurance Cost Calculation
   const [enableRiskInsurance, setEnableRiskInsurance] = useState(false)
   const [riskInsuranceType, setRiskInsuranceType] = useState<string>("")
@@ -2272,6 +2457,34 @@ export function SavingsCalculator() {
     riskInsuranceEndYear,
     // Removed: surplusToExtraFeeDefaultPercent
   ])
+  const dailyInputsEseti = useMemo<InputsDaily>(
+    () => ({
+      ...dailyInputs,
+      yearlyPaymentsPlan: esetiPlan.yearlyPaymentsPlan,
+      yearlyWithdrawalsPlan: esetiPlan.yearlyWithdrawalsPlan,
+      annualIndexPercent: 0,
+      initialCostByYear: {},
+      initialCostDefaultPercent: 0,
+      yearlyManagementFeePercent: 0,
+      yearlyFixedManagementFeeAmount: 0,
+      managementFeeValue: 0,
+      assetBasedFeePercent: 0,
+      assetCostPercentByYear: {},
+      plusCostByYear: {},
+      bonusMode: "none",
+      bonusOnContributionPercent: 0,
+      bonusFromYear: 1,
+      bonusPercent: 0,
+      bonusStartYear: 1,
+      bonusStopYear: 0,
+      bonusPercentByYear: {},
+      riskInsuranceEnabled: false,
+      riskInsuranceMonthlyFeeAmount: 0,
+      riskInsuranceFeePercentOfMonthlyPayment: 0,
+      riskInsuranceAnnualIndexPercent: 0,
+    }),
+    [dailyInputs, esetiPlan],
+  )
 
   const productId = useMemo(
     () => mapSelectedProductToProductId(selectedProduct, selectedInsurer),
@@ -2279,6 +2492,7 @@ export function SavingsCalculator() {
   )
 
   const results = useMemo(() => calculate(productId, dailyInputs), [productId, dailyInputs])
+  const resultsEseti = useMemo(() => calculate(productId, dailyInputsEseti), [productId, dailyInputsEseti])
   const dailyInputsWithoutTaxCredit = useMemo(
     () => ({
       ...dailyInputs,
@@ -2301,128 +2515,21 @@ export function SavingsCalculator() {
 
   // TODO: Replace with real net calculation logic
   // Static placeholder net values - NO calculations, just placeholder data for UI display
-  const cumulativeByYear = useMemo(() => {
-    const map: Record<number, typeof results.yearlyBreakdown[number]> = {}
-    let acc = {
-      interestForYear: 0,
-      costForYear: 0,
-      assetBasedCostForYear: 0,
-      plusCostForYear: 0,
-      bonusForYear: 0,
-      wealthBonusForYear: 0,
-      taxCreditForYear: 0,
-      withdrawalForYear: 0,
-      riskInsuranceCostForYear: 0,
-      client: {
-        interestForYear: 0,
-        costForYear: 0,
-        assetBasedCostForYear: 0,
-        plusCostForYear: 0,
-        bonusForYear: 0,
-        wealthBonusForYear: 0,
-      },
-      invested: {
-        interestForYear: 0,
-        costForYear: 0,
-        assetBasedCostForYear: 0,
-        plusCostForYear: 0,
-        bonusForYear: 0,
-        wealthBonusForYear: 0,
-      },
-      taxBonus: {
-        interestForYear: 0,
-        costForYear: 0,
-        assetBasedCostForYear: 0,
-        plusCostForYear: 0,
-        bonusForYear: 0,
-        wealthBonusForYear: 0,
-      },
-    }
-
-    for (const row of results.yearlyBreakdown) {
-      acc = {
-        interestForYear: acc.interestForYear + (row.interestForYear ?? 0),
-        costForYear: acc.costForYear + (row.costForYear ?? 0),
-        assetBasedCostForYear: acc.assetBasedCostForYear + (row.assetBasedCostForYear ?? 0),
-        plusCostForYear: acc.plusCostForYear + (row.plusCostForYear ?? 0),
-        bonusForYear: acc.bonusForYear + (row.bonusForYear ?? 0),
-        wealthBonusForYear: acc.wealthBonusForYear + (row.wealthBonusForYear ?? 0),
-        taxCreditForYear: acc.taxCreditForYear + (row.taxCreditForYear ?? 0),
-        withdrawalForYear: acc.withdrawalForYear + (row.withdrawalForYear ?? 0),
-        riskInsuranceCostForYear: acc.riskInsuranceCostForYear + (row.riskInsuranceCostForYear ?? 0),
-        client: {
-          interestForYear: acc.client.interestForYear + (row.client?.interestForYear ?? 0),
-          costForYear: acc.client.costForYear + (row.client?.costForYear ?? 0),
-          assetBasedCostForYear: acc.client.assetBasedCostForYear + (row.client?.assetBasedCostForYear ?? 0),
-          plusCostForYear: acc.client.plusCostForYear + (row.client?.plusCostForYear ?? 0),
-          bonusForYear: acc.client.bonusForYear + (row.client?.bonusForYear ?? 0),
-          wealthBonusForYear: acc.client.wealthBonusForYear + (row.client?.wealthBonusForYear ?? 0),
-        },
-        invested: {
-          interestForYear: acc.invested.interestForYear + (row.invested?.interestForYear ?? 0),
-          costForYear: acc.invested.costForYear + (row.invested?.costForYear ?? 0),
-          assetBasedCostForYear: acc.invested.assetBasedCostForYear + (row.invested?.assetBasedCostForYear ?? 0),
-          plusCostForYear: acc.invested.plusCostForYear + (row.invested?.plusCostForYear ?? 0),
-          bonusForYear: acc.invested.bonusForYear + (row.invested?.bonusForYear ?? 0),
-          wealthBonusForYear: acc.invested.wealthBonusForYear + (row.invested?.wealthBonusForYear ?? 0),
-        },
-        taxBonus: {
-          interestForYear: acc.taxBonus.interestForYear + (row.taxBonus?.interestForYear ?? 0),
-          costForYear: acc.taxBonus.costForYear + (row.taxBonus?.costForYear ?? 0),
-          assetBasedCostForYear: acc.taxBonus.assetBasedCostForYear + (row.taxBonus?.assetBasedCostForYear ?? 0),
-          plusCostForYear: acc.taxBonus.plusCostForYear + (row.taxBonus?.plusCostForYear ?? 0),
-          bonusForYear: acc.taxBonus.bonusForYear + (row.taxBonus?.bonusForYear ?? 0),
-          wealthBonusForYear: acc.taxBonus.wealthBonusForYear + (row.taxBonus?.wealthBonusForYear ?? 0),
-        },
-      }
-
-      map[row.year] = {
-        ...row,
-        interestForYear: acc.interestForYear,
-        costForYear: acc.costForYear,
-        assetBasedCostForYear: acc.assetBasedCostForYear,
-        plusCostForYear: acc.plusCostForYear,
-        bonusForYear: acc.bonusForYear,
-        wealthBonusForYear: acc.wealthBonusForYear,
-        taxCreditForYear: acc.taxCreditForYear,
-        withdrawalForYear: acc.withdrawalForYear,
-        riskInsuranceCostForYear: acc.riskInsuranceCostForYear,
-        client: {
-          ...row.client,
-          interestForYear: acc.client.interestForYear,
-          costForYear: acc.client.costForYear,
-          assetBasedCostForYear: acc.client.assetBasedCostForYear,
-          plusCostForYear: acc.client.plusCostForYear,
-          bonusForYear: acc.client.bonusForYear,
-          wealthBonusForYear: acc.client.wealthBonusForYear,
-        },
-        invested: {
-          ...row.invested,
-          interestForYear: acc.invested.interestForYear,
-          costForYear: acc.invested.costForYear,
-          assetBasedCostForYear: acc.invested.assetBasedCostForYear,
-          plusCostForYear: acc.invested.plusCostForYear,
-          bonusForYear: acc.invested.bonusForYear,
-          wealthBonusForYear: acc.invested.wealthBonusForYear,
-        },
-        taxBonus: {
-          ...row.taxBonus,
-          interestForYear: acc.taxBonus.interestForYear,
-          costForYear: acc.taxBonus.costForYear,
-          assetBasedCostForYear: acc.taxBonus.assetBasedCostForYear,
-          plusCostForYear: acc.taxBonus.plusCostForYear,
-          bonusForYear: acc.taxBonus.bonusForYear,
-          wealthBonusForYear: acc.taxBonus.wealthBonusForYear,
-        },
-      }
-    }
-
-    return map
-  }, [results.yearlyBreakdown])
+  const cumulativeByYear = useMemo(() => buildCumulativeByYear(results.yearlyBreakdown), [results.yearlyBreakdown])
+  const cumulativeByYearEseti = useMemo(
+    () => buildCumulativeByYear(resultsEseti.yearlyBreakdown),
+    [resultsEseti.yearlyBreakdown],
+  )
 
   const netCalculations = useMemo(() => {
     return calculateNetValues(results.yearlyBreakdown, isCorporateBond)
   }, [results.yearlyBreakdown, isCorporateBond])
+  const yearlyNetCalculations = useMemo(() => {
+    return calculateNetValues(
+      (yearlyAccountView === "eseti" ? resultsEseti : results).yearlyBreakdown,
+      isCorporateBond,
+    )
+  }, [yearlyAccountView, resultsEseti, results, isCorporateBond])
 
   const finalNetData = useMemo(() => {
     if (netCalculations.length === 0) return null
@@ -2551,7 +2658,52 @@ export function SavingsCalculator() {
     }
   }
 
+  const updateEsetiIndex = (year: number, value: number) => {
+    setEsetiIndexByYear((prev) => {
+      const updated = { ...prev }
+      for (let y = year; y <= totalYearsForPlan; y++) {
+        if (value === 0) {
+          delete updated[y]
+        } else {
+          updated[y] = value
+        }
+      }
+      return updated
+    })
+  }
+
+  const updateEsetiPayment = (year: number, displayValue: number) => {
+    const rate = inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate
+    const calcValue = convertFromDisplayToCalc(displayValue, results.currency, displayCurrency, rate)
+    if (calcValue === 0) {
+      const newMap = { ...esetiPaymentByYear }
+      delete newMap[year]
+      setEsetiPaymentByYear(newMap)
+    } else {
+      setEsetiPaymentByYear({ ...esetiPaymentByYear, [year]: calcValue })
+    }
+  }
+
+  const updateEsetiWithdrawal = (year: number, displayValue: number) => {
+    const rate = inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate
+    const calcValue = convertFromDisplayToCalc(displayValue, results.currency, displayCurrency, rate)
+    if (calcValue === 0) {
+      const newMap = { ...esetiWithdrawalByYear }
+      delete newMap[year]
+      setEsetiWithdrawalByYear(newMap)
+    } else {
+      setEsetiWithdrawalByYear({ ...esetiWithdrawalByYear, [year]: calcValue })
+    }
+  }
+
   const clearAllModifications = () => {
+    if (yearlyAccountView === "eseti") {
+      setEsetiIndexByYear({})
+      setEsetiPaymentByYear({})
+      setEsetiWithdrawalByYear({})
+      return
+    }
+
     setIndexByYear({})
     setPaymentByYear({})
     setWithdrawalByYear({})
@@ -2689,7 +2841,10 @@ export function SavingsCalculator() {
     return Object.values(extraServicesCostsByYear).reduce((sum, cost) => sum + cost, 0)
   }, [extraServicesCostsByYear])
 
-  const adjustedResults = useMemo(() => results, [results])
+  const adjustedResults = useMemo(
+    () => (yearlyAccountView === "eseti" ? resultsEseti : results),
+    [yearlyAccountView, resultsEseti, results],
+  )
 
   const addExtraService = () => {
     const newService: ExtraService = {
@@ -2826,7 +2981,7 @@ export function SavingsCalculator() {
     setIsMounted(true)
   }, [])
 
-  const isYearlyReadOnly = yearlyAccountView !== "main"
+  const isYearlyReadOnly = yearlyAccountView === "summary"
   const isYearlyMuted = yearlyAccountView === "summary"
   const isEsetiView = yearlyAccountView === "eseti"
   const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
@@ -4523,25 +4678,25 @@ export function SavingsCalculator() {
                     <MobileYearCard
                       key={row.year}
                       row={row}
-                      planIndex={planIndex}
-                      planPayment={planPayment}
-                      indexByYear={indexByYear}
-                      paymentByYear={paymentByYear}
-                      withdrawalByYear={withdrawalByYear}
+                      planIndex={isEsetiView ? esetiPlan.planIndex : planIndex}
+                      planPayment={isEsetiView ? esetiPlan.planPayment : planPayment}
+                      indexByYear={isEsetiView ? esetiIndexByYear : indexByYear}
+                      paymentByYear={isEsetiView ? esetiPaymentByYear : paymentByYear}
+                      withdrawalByYear={isEsetiView ? esetiWithdrawalByYear : withdrawalByYear}
                       taxCreditLimitByYear={taxCreditLimitByYear}
                       displayCurrency={displayCurrency}
-                      resultsCurrency={results.currency}
+                      resultsCurrency={adjustedResults.currency}
                       eurToHufRate={inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate}
                       enableTaxCredit={inputs.enableTaxCredit}
                       editingFields={editingFields}
                       setFieldEditing={setFieldEditing}
-                      updateIndex={updateIndex}
-                      updatePayment={updatePayment}
-                      updateWithdrawal={updateWithdrawal}
+                      updateIndex={isEsetiView ? updateEsetiIndex : updateIndex}
+                      updatePayment={isEsetiView ? updateEsetiPayment : updatePayment}
+                      updateWithdrawal={isEsetiView ? updateEsetiWithdrawal : updateWithdrawal}
                       updateTaxCreditLimit={updateTaxCreditLimit}
                       formatValue={formatValue}
                       enableNetting={enableNetting}
-                      netData={netCalculations[index]}
+                      netData={yearlyNetCalculations[index]}
                       riskInsuranceCostForYear={enableRiskInsurance ? row.riskInsuranceCostForYear : undefined}
                       isAccountSplitOpen={isAccountSplitOpen}
                       isRedemptionOpen={isRedemptionOpen}
@@ -4554,7 +4709,7 @@ export function SavingsCalculator() {
                       updateBonusPercent={updateBonusPercent}
                       yearlyViewMode={effectiveYearlyViewMode}
                       yearlyAccountView={yearlyAccountView}
-                      cumulativeByYear={cumulativeByYear}
+                      cumulativeByYear={isEsetiView ? cumulativeByYearEseti : cumulativeByYear}
                       shouldApplyTaxCreditPenalty={shouldApplyTaxCreditPenalty}
                       isTaxBonusSeparateAccount={isTaxBonusSeparateAccount}
                       getRealValueForYear={getRealValueForYear}
@@ -4678,9 +4833,15 @@ export function SavingsCalculator() {
                     </thead>
                     <tbody className={isYearlyReadOnly ? "pointer-events-none" : undefined}>
                       {adjustedResults.yearlyBreakdown.map((row, index) => {
-                        const currentIndex = isEsetiView ? 0 : planIndex[row.year]
-                        const currentPayment = isEsetiView ? 0 : row.yearlyPayment ?? planPayment[row.year] ?? 0
-                        const currentWithdrawal = withdrawalByYear[row.year] || 0
+                        const activePlanIndex = isEsetiView ? esetiPlan.planIndex : planIndex
+                        const activePlanPayment = isEsetiView ? esetiPlan.planPayment : planPayment
+                        const currentIndex = isEsetiView ? 0 : activePlanIndex[row.year]
+                        const currentPayment = isEsetiView ? 0 : row.yearlyPayment ?? activePlanPayment[row.year] ?? 0
+                        const activeWithdrawalByYear = isEsetiView ? esetiWithdrawalByYear : withdrawalByYear
+                        const currentWithdrawal = activeWithdrawalByYear[row.year] || 0
+                        const updateIndexForView = isEsetiView ? updateEsetiIndex : updateIndex
+                        const updatePaymentForView = isEsetiView ? updateEsetiPayment : updatePayment
+                        const updateWithdrawalForView = isEsetiView ? updateEsetiWithdrawal : updateWithdrawal
                         const isAllianzProduct =
                           selectedInsurer === "Allianz" &&
                           (selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram")
@@ -4707,14 +4868,16 @@ export function SavingsCalculator() {
                           isAllianzProduct && row.year === 1 ? row.yearlyPayment * acquisitionCostRate : 0
                         const currentTaxCreditLimit = taxCreditLimitByYear[row.year]
 
-                        const isIndexModified = indexByYear[row.year] !== undefined
-                        const isPaymentModified = paymentByYear[row.year] !== undefined
-                        const isWithdrawalModified = withdrawalByYear[row.year] !== undefined
+                        const isIndexModified = (isEsetiView ? esetiIndexByYear : indexByYear)[row.year] !== undefined
+                        const isPaymentModified = (isEsetiView ? esetiPaymentByYear : paymentByYear)[row.year] !== undefined
+                        const isWithdrawalModified = activeWithdrawalByYear[row.year] !== undefined
                         const isTaxCreditLimited = currentTaxCreditLimit !== undefined
 
-                        const netData = netCalculations[index]
+                        const netData = yearlyNetCalculations[index]
                         const sourceRow =
-                          yearlyAggregationMode === "sum" ? cumulativeByYear[row.year] ?? row : row
+                          yearlyAggregationMode === "sum"
+                            ? (isEsetiView ? cumulativeByYearEseti[row.year] : cumulativeByYear[row.year]) ?? row
+                            : row
                         const displayPaymentValue = isEsetiView ? 0 : row.yearlyPayment ?? currentPayment
 
                         let displayData = {
@@ -4772,7 +4935,7 @@ export function SavingsCalculator() {
                           }
                         }
 
-                        const cumulativeRow = cumulativeByYear[row.year] ?? row
+                        const cumulativeRow = (isEsetiView ? cumulativeByYearEseti : cumulativeByYear)[row.year] ?? row
                         const cumulativeCostsToDate =
                           (cumulativeRow.costForYear ?? 0) +
                           (cumulativeRow.assetBasedCostForYear ?? 0) +
@@ -4786,7 +4949,9 @@ export function SavingsCalculator() {
                         }
 
                         const taxCreditCumulativeForRow =
-                          cumulativeByYear[row.year]?.taxCreditForYear ?? sourceRow.taxCreditForYear ?? 0
+                          (isEsetiView ? cumulativeByYearEseti : cumulativeByYear)[row.year]?.taxCreditForYear ??
+                          sourceRow.taxCreditForYear ??
+                          0
                         const taxCreditPenaltyForRow = shouldApplyTaxCreditPenalty ? taxCreditCumulativeForRow * 1.2 : 0
                         const displayBalanceWithPenalty = Math.max(0, displayBalance - taxCreditPenaltyForRow)
                         const applyRealValueForYear = (value: number) => getRealValueForYear(value, row.year)
@@ -4808,7 +4973,7 @@ export function SavingsCalculator() {
                                   onBlur={() => setFieldEditing(`index-${row.year}`, false)}
                                   onChange={(e) => {
                                     const parsed = parseNumber(e.target.value)
-                                    if (!isNaN(parsed)) updateIndex(row.year, parsed)
+                                    if (!isNaN(parsed)) updateIndexForView(row.year, parsed)
                                   }}
                                   className={`w-14 h-8 text-right tabular-nums ${isIndexModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
                                 />
@@ -4848,7 +5013,7 @@ export function SavingsCalculator() {
                                   onBlur={() => setFieldEditing(`payment-${row.year}`, false)}
                                   onChange={(e) => {
                                     const parsed = parseNumber(e.target.value)
-                                    if (!isNaN(parsed)) updatePayment(row.year, parsed)
+                                    if (!isNaN(parsed)) updatePaymentForView(row.year, parsed)
                                   }}
                                   className={`w-full h-8 text-right tabular-nums ${isPaymentModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
                                 />
@@ -5135,7 +5300,7 @@ export function SavingsCalculator() {
                                   onBlur={() => setFieldEditing(`withdrawal-${row.year}`, false)}
                                   onChange={(e) => {
                                     const parsed = parseNumber(e.target.value)
-                                    if (!isNaN(parsed)) updateWithdrawal(row.year, parsed)
+                                    if (!isNaN(parsed)) updateWithdrawalForView(row.year, parsed)
                                   }}
                                   className={`w-full h-8 text-right tabular-nums ${isWithdrawalModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
                                 />
