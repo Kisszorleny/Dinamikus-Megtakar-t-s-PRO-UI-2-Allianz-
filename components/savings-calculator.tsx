@@ -2308,6 +2308,20 @@ export function SavingsCalculator() {
       withdrawalByYear: esetiWithdrawalByYear,
     })
   }, [totalYearsForPlan, esetiIndexByYear, esetiPaymentByYear, esetiWithdrawalByYear])
+  const esetiPlanIndex = useMemo(() => {
+    const map: Record<number, number> = {}
+    for (let y = 1; y <= totalYearsForPlan; y++) {
+      map[y] = esetiPlan.indexEffective[y] ?? 0
+    }
+    return map
+  }, [esetiPlan, totalYearsForPlan])
+  const esetiPlanPayment = useMemo(() => {
+    const map: Record<number, number> = {}
+    for (let y = 1; y <= totalYearsForPlan; y++) {
+      map[y] = esetiPlan.yearlyPaymentsPlan[y] ?? 0
+    }
+    return map
+  }, [esetiPlan, totalYearsForPlan])
 
   // Risk Insurance Cost Calculation
   const [enableRiskInsurance, setEnableRiskInsurance] = useState(false)
@@ -4682,8 +4696,8 @@ export function SavingsCalculator() {
                     <MobileYearCard
                       key={row.year}
                       row={row}
-                      planIndex={isEsetiView ? esetiPlan.planIndex : planIndex}
-                      planPayment={isEsetiView ? esetiPlan.planPayment : planPayment}
+                      planIndex={isEsetiView ? esetiPlanIndex : planIndex}
+                      planPayment={isEsetiView ? esetiPlanPayment : planPayment}
                       indexByYear={isEsetiView ? esetiIndexByYear : indexByYear}
                       paymentByYear={isEsetiView ? esetiPaymentByYear : paymentByYear}
                       withdrawalByYear={isEsetiView ? esetiWithdrawalByYear : withdrawalByYear}
@@ -4840,8 +4854,8 @@ export function SavingsCalculator() {
                     <tbody className={isYearlyReadOnly ? "pointer-events-none" : undefined}>
                   {(adjustedResults?.yearlyBreakdown ?? []).map((row, index) => {
                         if (!row) return null
-                        const activePlanIndex = (isEsetiView ? esetiPlan?.planIndex : planIndex) ?? {}
-                        const activePlanPayment = (isEsetiView ? esetiPlan?.planPayment : planPayment) ?? {}
+                        const activePlanIndex = (isEsetiView ? esetiPlanIndex : planIndex) ?? {}
+                        const activePlanPayment = (isEsetiView ? esetiPlanPayment : planPayment) ?? {}
                         const currentIndex = isEsetiView ? esetiIndexByYear[row.year] ?? 0 : activePlanIndex[row.year] ?? 0
                         const currentPayment = isEsetiView
                           ? esetiPaymentByYear[row.year] ?? 0
