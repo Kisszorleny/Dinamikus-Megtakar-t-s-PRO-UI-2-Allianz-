@@ -441,6 +441,7 @@ function MobileYearCard({
   }
   const preWithdrawalBalance = displayBalance + currentWithdrawal
   const maxWithdrawalDisplay = convertForDisplay(preWithdrawalBalance, resultsCurrency, displayCurrency, eurToHufRate)
+  displayBalance = Math.max(0, preWithdrawalBalance - currentWithdrawal)
   const applyRealValue = (value: number) => (getRealValueForYear ? getRealValueForYear(value, row.year) : value)
 
   const showBreakdown = isAccountSplitOpen || isRedemptionOpen
@@ -4992,6 +4993,7 @@ export function SavingsCalculator() {
                           displayCurrency,
                           inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
                         )
+                        displayBalanceWithPenalty = Math.max(0, preWithdrawalBalanceWithPenalty - currentWithdrawal)
                         const applyRealValueForYear = (value: number) => getRealValueForYear(value, row.year)
                         // </CHANGE>
 
