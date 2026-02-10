@@ -1247,12 +1247,68 @@ export function SavingsCalculator() {
     }
     return 3.0 // Default 3%
   })
+  const [inflationAutoEnabled, setInflationAutoEnabled] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-inflationAutoEnabled")
+      if (stored) {
+        return stored === "true"
+      }
+    }
+    return true
+  })
+  const [inflationKshYear, setInflationKshYear] = useState<number | null>(null)
+  const [inflationKshValue, setInflationKshValue] = useState<number | null>(null)
+  const [inflationKshLoading, setInflationKshLoading] = useState(false)
+  const [inflationKshError, setInflationKshError] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       sessionStorage.setItem("calculator-inflationRate", JSON.stringify(inflationRate))
     }
   }, [inflationRate])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-inflationAutoEnabled", String(inflationAutoEnabled))
+    }
+  }, [inflationAutoEnabled])
+
+  useEffect(() => {
+    if (!enableRealValue || !inflationAutoEnabled) return
+    let cancelled = false
+
+    const loadInflation = async () => {
+      setInflationKshLoading(true)
+      setInflationKshError(null)
+      try {
+        const response = await fetch("/api/ksh/inflation")
+        if (!response.ok) {
+          throw new Error("KSH adat nem elerheto")
+        }
+        const data = await response.json()
+        if (cancelled) return
+        if (typeof data?.inflationPercent === "number") {
+          setInflationRate(data.inflationPercent)
+          setInflationKshYear(typeof data?.year === "number" ? data.year : null)
+          setInflationKshValue(data.inflationPercent)
+        } else {
+          throw new Error("KSH adat nem ertelmezheto")
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setInflationKshError("KSH adat nem elerheto")
+        }
+      } finally {
+        if (!cancelled) {
+          setInflationKshLoading(false)
+        }
+      }
+    }
+
+    loadInflation()
+    return () => {
+      cancelled = true
+    }
+  }, [enableRealValue, inflationAutoEnabled])
 
   // Collapsible states for cards
 
@@ -4198,16 +4254,47 @@ export function SavingsCalculator() {
                       <Label htmlFor="inflationRate" className="text-xs text-muted-foreground">
                         Éves átlagos infláció (%)
                       </Label>
-                      <Input
-                        id="inflationRate"
-                        type="number"
-                        value={inflationRate}
-                        onChange={(e) => setInflationRate(Number(e.target.value))}
-                        min={0}
-                        max={100}
-                        step={0.1}
-                        className="w-32 h-8 text-sm"
-                      />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Input
+                          id="inflationRate"
+                          type="number"
+                          value={inflationRate}
+                          onChange={(e) => {
+                            setInflationRate(Number(e.target.value))
+                            if (inflationAutoEnabled) setInflationAutoEnabled(false)
+                          }}
+                          min={0}
+                          max={100}
+                          step={0.1}
+                          className="w-32 h-8 text-sm"
+                        />
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Checkbox
+                            checked={inflationAutoEnabled}
+                            onCheckedChange={(checked) => setInflationAutoEnabled(checked === true)}
+                            className="w-4 h-4"
+                          />
+                          KSH alapján
+                        </label>
+                        {!inflationAutoEnabled && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setInflationAutoEnabled(true)}
+                          >
+                            KSH vissza
+                          </Button>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {inflationKshLoading && "KSH adat betöltése..."}
+                        {!inflationKshLoading && inflationKshError && inflationKshError}
+                        {!inflationKshLoading && !inflationKshError && inflationKshYear && inflationKshValue !== null && (
+                          <>KSH {inflationKshYear}: {inflationKshValue.toFixed(1)}%</>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
