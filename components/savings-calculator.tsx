@@ -252,6 +252,8 @@ function MobileYearCard({
   const isYearlyReadOnly = yearlyAccountView !== "main"
   const isEsetiView = yearlyAccountView === "eseti"
   const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
+  const effectiveCurrentIndex = isEsetiView ? 0 : currentIndex
+  const effectiveCurrentPayment = isEsetiView ? 0 : currentPayment
 
   let displayData = {
     endBalance: row.endBalance,
@@ -380,7 +382,11 @@ function MobileYearCard({
           <Input
             type="text"
             inputMode="numeric"
-            value={editingFields[`index-${row.year}`] ? String(currentIndex) : formatNumber(currentIndex)}
+            value={
+              editingFields[`index-${row.year}`]
+                ? String(effectiveCurrentIndex)
+                : formatNumber(effectiveCurrentIndex)
+            }
             onFocus={() => setFieldEditing(`index-${row.year}`, true)}
             onBlur={() => setFieldEditing(`index-${row.year}`, false)}
             onChange={(e) => {
@@ -397,9 +403,11 @@ function MobileYearCard({
             inputMode="numeric"
             value={
               editingFields[`payment-${row.year}`]
-                ? String(Math.round(convertForDisplay(currentPayment, resultsCurrency, displayCurrency, eurToHufRate)))
+                ? String(
+                    Math.round(convertForDisplay(effectiveCurrentPayment, resultsCurrency, displayCurrency, eurToHufRate)),
+                  )
                 : formatNumber(
-                    Math.round(convertForDisplay(currentPayment, resultsCurrency, displayCurrency, eurToHufRate)),
+                    Math.round(convertForDisplay(effectiveCurrentPayment, resultsCurrency, displayCurrency, eurToHufRate)),
                   )
             }
             onFocus={() => setFieldEditing(`payment-${row.year}`, true)}
@@ -4670,8 +4678,8 @@ export function SavingsCalculator() {
                     </thead>
                     <tbody className={isYearlyReadOnly ? "pointer-events-none" : undefined}>
                       {adjustedResults.yearlyBreakdown.map((row, index) => {
-                        const currentIndex = planIndex[row.year]
-                        const currentPayment = row.yearlyPayment ?? planPayment[row.year] ?? 0
+                        const currentIndex = isEsetiView ? 0 : planIndex[row.year]
+                        const currentPayment = isEsetiView ? 0 : row.yearlyPayment ?? planPayment[row.year] ?? 0
                         const currentWithdrawal = withdrawalByYear[row.year] || 0
                         const isAllianzProduct =
                           selectedInsurer === "Allianz" &&
@@ -4707,7 +4715,7 @@ export function SavingsCalculator() {
                         const netData = netCalculations[index]
                         const sourceRow =
                           yearlyAggregationMode === "sum" ? cumulativeByYear[row.year] ?? row : row
-                        const displayPaymentValue = row.yearlyPayment ?? currentPayment
+                        const displayPaymentValue = isEsetiView ? 0 : row.yearlyPayment ?? currentPayment
 
                         let displayData = {
                           endBalance: sourceRow.endBalance,
