@@ -128,7 +128,8 @@ function calculateNetValues(
   isCorporate: boolean,
 ) {
   return yearlyBreakdown.map((row) => {
-    const grossProfit = row.endBalance - row.totalContributions
+    const totalContributions = Number.isFinite(row.totalContributions) ? row.totalContributions : 0
+    const grossProfit = row.endBalance - totalContributions
 
     // Determine tax rate based on year
     let taxRate = 0
@@ -141,7 +142,7 @@ function calculateNetValues(
 
     const taxDeduction = grossProfit > 0 ? grossProfit * taxRate : 0
     const netProfit = grossProfit - taxDeduction
-    const netBalance = row.totalContributions + netProfit
+    const netBalance = totalContributions + netProfit
 
     return {
       year: row.year,
@@ -2412,20 +2413,7 @@ export function SavingsCalculator() {
   }, [results.yearlyBreakdown])
 
   const netCalculations = useMemo(() => {
-    return results.yearlyBreakdown.map((row, index) => {
-      // Static placeholder values - no tax calculations
-      const placeholderTaxRate = isCorporateBond ? 0.15 : 0.28 // Just for display
-      const placeholderGrossProfit = row.endBalance * 0.3 // Static placeholder 30% of balance
-      const placeholderTaxDeduction = placeholderGrossProfit * placeholderTaxRate // Static placeholder
-      return {
-        grossBalance: row.endBalance,
-        grossProfit: placeholderGrossProfit, // Static placeholder
-        taxRate: placeholderTaxRate,
-        taxDeduction: placeholderTaxDeduction, // Static placeholder
-        netProfit: placeholderGrossProfit - placeholderTaxDeduction, // Static placeholder
-        netBalance: row.endBalance - placeholderTaxDeduction, // Static placeholder
-      }
-    })
+    return calculateNetValues(results.yearlyBreakdown, isCorporateBond)
   }, [results.yearlyBreakdown, isCorporateBond])
 
   const finalNetData = useMemo(() => {
