@@ -156,7 +156,7 @@ function calculateNetValues(
   })
 }
 
-const buildCumulativeByYear = (yearlyBreakdown: Array<any>) => {
+const buildCumulativeByYear = (yearlyBreakdown: Array<any> = []) => {
   const map: Record<number, any> = {}
   let acc = {
     interestForYear: 0,
@@ -195,6 +195,7 @@ const buildCumulativeByYear = (yearlyBreakdown: Array<any>) => {
   }
 
   for (const row of yearlyBreakdown) {
+    if (!row) continue
     acc = {
       interestForYear: acc.interestForYear + (row.interestForYear ?? 0),
       costForYear: acc.costForYear + (row.costForYear ?? 0),
@@ -2515,10 +2516,13 @@ export function SavingsCalculator() {
 
   // TODO: Replace with real net calculation logic
   // Static placeholder net values - NO calculations, just placeholder data for UI display
-  const cumulativeByYear = useMemo(() => buildCumulativeByYear(results.yearlyBreakdown), [results.yearlyBreakdown])
+  const cumulativeByYear = useMemo(
+    () => buildCumulativeByYear(results?.yearlyBreakdown ?? []),
+    [results?.yearlyBreakdown],
+  )
   const cumulativeByYearEseti = useMemo(
-    () => buildCumulativeByYear(resultsEseti.yearlyBreakdown),
-    [resultsEseti.yearlyBreakdown],
+    () => buildCumulativeByYear(resultsEseti?.yearlyBreakdown ?? []),
+    [resultsEseti?.yearlyBreakdown],
   )
 
   const netCalculations = useMemo(() => {
@@ -4674,7 +4678,7 @@ export function SavingsCalculator() {
               <CardContent>
                 {/* Mobile view */}
                 <div className={`md:hidden space-y-3 ${isYearlyMuted ? "opacity-60" : ""}`}>
-                  {adjustedResults.yearlyBreakdown.slice(0, visibleYears).map((row, index) => (
+                  {(adjustedResults?.yearlyBreakdown ?? []).slice(0, visibleYears).map((row, index) => (
                     <MobileYearCard
                       key={row.year}
                       row={row}
@@ -4685,7 +4689,7 @@ export function SavingsCalculator() {
                       withdrawalByYear={isEsetiView ? esetiWithdrawalByYear : withdrawalByYear}
                       taxCreditLimitByYear={taxCreditLimitByYear}
                       displayCurrency={displayCurrency}
-                      resultsCurrency={adjustedResults.currency}
+                      resultsCurrency={adjustedResults?.currency ?? results.currency}
                       eurToHufRate={inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate}
                       enableTaxCredit={inputs.enableTaxCredit}
                       editingFields={editingFields}
@@ -4717,15 +4721,17 @@ export function SavingsCalculator() {
                     />
                   ))}
                   {/* Show more button */}
-                  {visibleYears < adjustedResults.yearlyBreakdown.length && (
+                  {visibleYears < (adjustedResults?.yearlyBreakdown?.length ?? 0) && (
                     <Button
                       variant="outline"
                       className="w-full h-11 mt-2 bg-transparent"
                       onClick={() =>
-                        setVisibleYears((prev) => Math.min(prev + 10, adjustedResults.yearlyBreakdown.length))
+                        setVisibleYears((prev) =>
+                          Math.min(prev + 10, adjustedResults?.yearlyBreakdown?.length ?? prev + 10),
+                        )
                       }
                     >
-                      Még {Math.min(10, adjustedResults.yearlyBreakdown.length - visibleYears)} év mutatása
+                      Még {Math.min(10, (adjustedResults?.yearlyBreakdown?.length ?? 0) - visibleYears)} év mutatása
                     </Button>
                   )}
 
@@ -4832,7 +4838,7 @@ export function SavingsCalculator() {
                       </tr>
                     </thead>
                     <tbody className={isYearlyReadOnly ? "pointer-events-none" : undefined}>
-                      {adjustedResults.yearlyBreakdown.map((row, index) => {
+                  {(adjustedResults?.yearlyBreakdown ?? []).map((row, index) => {
                         const activePlanIndex = isEsetiView ? esetiPlan.planIndex : planIndex
                         const activePlanPayment = isEsetiView ? esetiPlan.planPayment : planPayment
                         const currentIndex = isEsetiView ? esetiIndexByYear[row.year] ?? 0 : activePlanIndex[row.year]
