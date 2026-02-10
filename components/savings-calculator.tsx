@@ -372,8 +372,8 @@ function MobileYearCard({
   const isYearlyReadOnly = yearlyAccountView === "summary"
   const isEsetiView = yearlyAccountView === "eseti"
   const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
-  const effectiveCurrentIndex = isEsetiView ? indexByYear[row.year] ?? currentIndex ?? 0 : currentIndex
-  const effectiveCurrentPayment = isEsetiView ? paymentByYear[row.year] ?? currentPayment ?? 0 : currentPayment
+  const effectiveCurrentIndex = isEsetiView ? indexByYear?.[row.year] ?? currentIndex ?? 0 : currentIndex
+  const effectiveCurrentPayment = isEsetiView ? paymentByYear?.[row.year] ?? currentPayment ?? 0 : currentPayment
 
   let displayData = {
     endBalance: row.endBalance,
@@ -4839,9 +4839,10 @@ export function SavingsCalculator() {
                     </thead>
                     <tbody className={isYearlyReadOnly ? "pointer-events-none" : undefined}>
                   {(adjustedResults?.yearlyBreakdown ?? []).map((row, index) => {
-                        const activePlanIndex = isEsetiView ? esetiPlan.planIndex : planIndex
-                        const activePlanPayment = isEsetiView ? esetiPlan.planPayment : planPayment
-                        const currentIndex = isEsetiView ? esetiIndexByYear[row.year] ?? 0 : activePlanIndex[row.year]
+                        if (!row) return null
+                        const activePlanIndex = (isEsetiView ? esetiPlan?.planIndex : planIndex) ?? {}
+                        const activePlanPayment = (isEsetiView ? esetiPlan?.planPayment : planPayment) ?? {}
+                        const currentIndex = isEsetiView ? esetiIndexByYear[row.year] ?? 0 : activePlanIndex[row.year] ?? 0
                         const currentPayment = isEsetiView
                           ? esetiPaymentByYear[row.year] ?? 0
                           : row.yearlyPayment ?? activePlanPayment[row.year] ?? 0
