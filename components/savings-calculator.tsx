@@ -4601,6 +4601,8 @@ export function SavingsCalculator() {
                         const isAllianzProduct =
                           selectedInsurer === "Allianz" &&
                           (selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram")
+                        const isAllianzBonusProduct =
+                          selectedInsurer === "Allianz" && selectedProduct === "allianz_bonusz_eletprogram"
                         const monthlyAdminFee =
                           isAllianzProduct && inputs.currency === "EUR" ? 3.3 : isAllianzProduct ? 990 : 0
                         const getAdminFeeForYear = (targetYear: number) =>
@@ -4617,7 +4619,9 @@ export function SavingsCalculator() {
                                 0,
                               )
                             : adminFeeYear
-                        const acquisitionCostYear = isAllianzProduct && row.year === 1 ? row.yearlyPayment * 0.33 : 0
+                        const acquisitionCostRate = isAllianzBonusProduct ? 0.79 : 0.33
+                        const acquisitionCostYear =
+                          isAllianzProduct && row.year === 1 ? row.yearlyPayment * acquisitionCostRate : 0
                         const currentTaxCreditLimit = taxCreditLimitByYear[row.year]
 
                         const isIndexModified = indexByYear[row.year] !== undefined
