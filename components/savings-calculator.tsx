@@ -439,7 +439,11 @@ function MobileYearCard({
   if (shouldApplyTaxCreditPenalty) {
     displayBalance = Math.max(0, displayBalance - (cumulativeRow.taxCreditForYear ?? 0) * 1.2)
   }
+  if (currentWithdrawal >= displayBalance) {
+    displayBalance = 0
+  }
   const applyRealValue = (value: number) => (getRealValueForYear ? getRealValueForYear(value, row.year) : value)
+  const maxWithdrawalDisplay = convertForDisplay(displayBalance, resultsCurrency, displayCurrency, eurToHufRate)
 
   const showBreakdown = isAccountSplitOpen || isRedemptionOpen
 
@@ -560,7 +564,10 @@ function MobileYearCard({
             onBlur={() => setFieldEditing(`withdrawal-${row.year}`, false)}
             onChange={(e) => {
               const parsed = parseNumber(e.target.value)
-              if (!isNaN(parsed)) updateWithdrawal(row.year, parsed)
+              if (!isNaN(parsed)) {
+                const capped = Math.min(parsed, maxWithdrawalDisplay)
+                updateWithdrawal(row.year, capped)
+              }
             }}
             className={`h-11 text-base tabular-nums ${isWithdrawalModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
           />
@@ -4979,7 +4986,16 @@ export function SavingsCalculator() {
                           sourceRow.taxCreditForYear ??
                           0
                         const taxCreditPenaltyForRow = shouldApplyTaxCreditPenalty ? taxCreditCumulativeForRow * 1.2 : 0
-                        const displayBalanceWithPenalty = Math.max(0, displayBalance - taxCreditPenaltyForRow)
+                        let displayBalanceWithPenalty = Math.max(0, displayBalance - taxCreditPenaltyForRow)
+                        if (currentWithdrawal >= displayBalanceWithPenalty) {
+                          displayBalanceWithPenalty = 0
+                        }
+                        const maxWithdrawalDisplay = convertForDisplay(
+                          displayBalanceWithPenalty,
+                          results.currency,
+                          displayCurrency,
+                          inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
+                        )
                         const applyRealValueForYear = (value: number) => getRealValueForYear(value, row.year)
                         // </CHANGE>
 
@@ -5326,7 +5342,10 @@ export function SavingsCalculator() {
                                   onBlur={() => setFieldEditing(`withdrawal-${row.year}`, false)}
                                   onChange={(e) => {
                                     const parsed = parseNumber(e.target.value)
-                                    if (!isNaN(parsed)) updateWithdrawalForView(row.year, parsed)
+                                    if (!isNaN(parsed)) {
+                                      const capped = Math.min(parsed, maxWithdrawalDisplay)
+                                      updateWithdrawalForView(row.year, capped)
+                                    }
                                   }}
                                   className={`w-full h-8 text-right tabular-nums ${isWithdrawalModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
                                 />
