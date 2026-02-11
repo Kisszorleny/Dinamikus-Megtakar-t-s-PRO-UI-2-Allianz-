@@ -426,16 +426,7 @@ function MobileYearCard({
   }
 
   const cumulativeRow = cumulativeByYear?.[row.year] ?? row
-  const cumulativeCostsToDate =
-    (cumulativeRow.costForYear ?? 0) +
-    (cumulativeRow.assetBasedCostForYear ?? 0) +
-    (cumulativeRow.plusCostForYear ?? 0)
-  const cumulativeBonusesToDate = (cumulativeRow.bonusForYear ?? 0) + (cumulativeRow.wealthBonusForYear ?? 0)
-
   let displayBalance = enableNetting && netData ? netData.netBalance : displayData.endBalance
-  if (isEsetiView) {
-    displayBalance = displayBalance + cumulativeCostsToDate - cumulativeBonusesToDate
-  }
   if (shouldApplyTaxCreditPenalty) {
     displayBalance = Math.max(0, displayBalance - (cumulativeRow.taxCreditForYear ?? 0) * 1.2)
   }
@@ -4969,17 +4960,7 @@ export function SavingsCalculator() {
                         }
 
                         const cumulativeRow = (isEsetiView ? cumulativeByYearEseti : cumulativeByYear)[row.year] ?? row
-                        const cumulativeCostsToDate =
-                          (cumulativeRow.costForYear ?? 0) +
-                          (cumulativeRow.assetBasedCostForYear ?? 0) +
-                          (cumulativeRow.plusCostForYear ?? 0)
-                        const cumulativeBonusesToDate =
-                          (cumulativeRow.bonusForYear ?? 0) + (cumulativeRow.wealthBonusForYear ?? 0)
-
                         let displayBalance = enableNetting ? netData.netBalance : displayData.endBalance
-                        if (isEsetiView) {
-                          displayBalance = displayBalance + cumulativeCostsToDate - cumulativeBonusesToDate
-                        }
 
                         const taxCreditCumulativeForRow =
                           (isEsetiView ? cumulativeByYearEseti : cumulativeByYear)[row.year]?.taxCreditForYear ??
