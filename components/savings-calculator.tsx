@@ -2562,6 +2562,30 @@ export function SavingsCalculator() {
     riskInsuranceEndYear,
     // Removed: surplusToExtraFeeDefaultPercent
   ])
+  const productId = useMemo(
+    () => mapSelectedProductToProductId(selectedProduct, selectedInsurer),
+    [selectedProduct, selectedInsurer],
+  )
+
+  const results = useMemo(() => calculate(productId, dailyInputs), [productId, dailyInputs])
+  const mainTaxCreditByYear = useMemo(() => {
+    const map: Record<number, number> = {}
+    for (const row of results.yearlyBreakdown ?? []) {
+      if (!row) continue
+      map[row.year] = row.taxCreditForYear ?? 0
+    }
+    return map
+  }, [results.yearlyBreakdown])
+  const esetiTaxCreditLimitsByYear = useMemo(() => {
+    const map: Record<number, number> = {}
+    const defaultCap = inputs.taxCreditCapPerYear ?? 0
+    for (let year = 1; year <= totalYearsForPlan; year++) {
+      const yearCap = taxCreditLimitByYear[year] ?? defaultCap
+      const mainUsed = mainTaxCreditByYear[year] ?? 0
+      map[year] = Math.max(0, yearCap - mainUsed)
+    }
+    return map
+  }, [inputs.taxCreditCapPerYear, totalYearsForPlan, taxCreditLimitByYear, mainTaxCreditByYear])
   const dailyInputsEseti = useMemo<InputsDaily>(
     () => ({
       ...dailyInputs,
@@ -2569,6 +2593,7 @@ export function SavingsCalculator() {
       frequency: esetiFrequency,
       yearlyPaymentsPlan: esetiPlan.yearlyPaymentsPlan,
       yearlyWithdrawalsPlan: esetiPlan.yearlyWithdrawalsPlan,
+      taxCreditLimitByYear: esetiTaxCreditLimitsByYear,
       annualIndexPercent: 0,
       initialCostByYear: {},
       initialCostDefaultPercent: 0,
@@ -2591,15 +2616,8 @@ export function SavingsCalculator() {
       riskInsuranceFeePercentOfMonthlyPayment: 0,
       riskInsuranceAnnualIndexPercent: 0,
     }),
-    [dailyInputs, esetiPlan, esetiFrequency],
+    [dailyInputs, esetiPlan, esetiFrequency, esetiTaxCreditLimitsByYear],
   )
-
-  const productId = useMemo(
-    () => mapSelectedProductToProductId(selectedProduct, selectedInsurer),
-    [selectedProduct, selectedInsurer],
-  )
-
-  const results = useMemo(() => calculate(productId, dailyInputs), [productId, dailyInputs])
   const resultsEseti = useMemo(() => calculate(productId, dailyInputsEseti), [productId, dailyInputsEseti])
   const dailyInputsWithoutTaxCredit = useMemo(
     () => ({
@@ -2934,7 +2952,7 @@ export function SavingsCalculator() {
     }
   }
 
-  const updateTaxCreditAmount = (year: number, valueInDisplayCurrency: number) => {
+  const updateTaxCreditAmount = (year: number, valueInDisplayCurrency: number, maxInCalcCurrency?: number) => {
     const rate = inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate
     const valueInCalc = convertFromDisplayToCalc(valueInDisplayCurrency, results.currency, displayCurrency, rate)
 
@@ -2947,7 +2965,8 @@ export function SavingsCalculator() {
       return
     }
 
-    setTaxCreditAmountByYear((prev) => ({ ...prev, [year]: Math.max(0, valueInCalc) }))
+    const safeMax = maxInCalcCurrency !== undefined ? Math.max(0, maxInCalcCurrency) : Number.POSITIVE_INFINITY
+    setTaxCreditAmountByYear((prev) => ({ ...prev, [year]: Math.max(0, Math.min(valueInCalc, safeMax)) }))
   }
 
   const applyTaxCreditSettings = () => {
@@ -5119,6 +5138,17 @@ export function SavingsCalculator() {
                         const acquisitionCostYear =
                           isAllianzProduct && row.year === 1 ? row.yearlyPayment * acquisitionCostRate : 0
                         const currentTaxCreditLimit = taxCreditLimitByYear[row.year]
+                        const baseTaxCreditCapForYear =
+                          currentTaxCreditLimit ?? inputs.taxCreditCapPerYear ?? Number.POSITIVE_INFINITY
+                        const remainingTaxCreditCapForYear = isEsetiView
+                          ? Math.max(0, baseTaxCreditCapForYear - (mainTaxCreditByYear[row.year] ?? 0))
+                          : baseTaxCreditCapForYear
+                        const remainingTaxCreditCapDisplayForYear = convertForDisplay(
+                          remainingTaxCreditCapForYear,
+                          results.currency,
+                          displayCurrency,
+                          inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
+                        )
 
                         const isIndexModified = (isEsetiView ? esetiIndexByYear : indexByYear)[row.year] !== undefined
                         const isPaymentModified = (isEsetiView ? esetiPaymentByYear : paymentByYear)[row.year] !== undefined
@@ -5514,7 +5544,8 @@ export function SavingsCalculator() {
                                     onChange={(e) => {
                                       const parsed = parseNumber(e.target.value)
                                       if (!isNaN(parsed) && parsed >= 0) {
-                                        updateTaxCreditAmount(row.year, parsed)
+                                        const capped = Math.min(parsed, remainingTaxCreditCapDisplayForYear)
+                                        updateTaxCreditAmount(row.year, capped, remainingTaxCreditCapForYear)
                                       }
                                     }}
                                     className={`w-full h-8 text-right tabular-nums ${taxCreditAmountByYear[row.year] !== undefined ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
