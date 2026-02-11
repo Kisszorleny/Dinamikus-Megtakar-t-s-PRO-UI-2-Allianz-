@@ -2476,6 +2476,7 @@ export function SavingsCalculator() {
   const dailyInputsEseti = useMemo<InputsDaily>(
     () => ({
       ...dailyInputs,
+      disableProductDefaults: true,
       yearlyPaymentsPlan: esetiPlan.yearlyPaymentsPlan,
       yearlyWithdrawalsPlan: esetiPlan.yearlyWithdrawalsPlan,
       annualIndexPercent: 0,
@@ -2494,6 +2495,7 @@ export function SavingsCalculator() {
       bonusStartYear: 1,
       bonusStopYear: 0,
       bonusPercentByYear: {},
+      adminFeeMonthlyAmount: 0,
       riskInsuranceEnabled: false,
       riskInsuranceMonthlyFeeAmount: 0,
       riskInsuranceFeePercentOfMonthlyPayment: 0,

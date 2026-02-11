@@ -11,11 +11,18 @@ export const allianzEletprogram: ProductDefinition = {
   id: "allianz-eletprogram",
   label: "Allianz Életprogram (Forintos, nyugdíjbiztosítás nélkül)",
   calculate: (inputs: InputsDaily): ResultsDaily => {
+    const shouldUseProductDefaults = inputs.disableProductDefaults !== true
     const isBonusVariant = inputs.productVariant === "allianz_bonusz_eletprogram"
     const year1InitialCostPercent = isBonusVariant ? YEAR1_INITIAL_COST_BONUS_PERCENT : YEAR1_INITIAL_COST_PERCENT
     const initialCostByYear = {
       ...(inputs.initialCostByYear ?? {}),
-      1: isBonusVariant ? YEAR1_INITIAL_COST_BONUS_PERCENT : inputs.initialCostByYear?.[1] ?? year1InitialCostPercent,
+      ...(shouldUseProductDefaults
+        ? {
+            1: isBonusVariant
+              ? YEAR1_INITIAL_COST_BONUS_PERCENT
+              : inputs.initialCostByYear?.[1] ?? year1InitialCostPercent,
+          }
+        : {}),
     }
     const monthlyFee = inputs.currency === "EUR" ? MONTHLY_FEE_EUR : MONTHLY_FEE_HUF
 
@@ -24,13 +31,13 @@ export const allianzEletprogram: ProductDefinition = {
       currency: inputs.currency ?? "HUF",
       initialCostByYear,
       initialCostDefaultPercent: inputs.initialCostDefaultPercent ?? 0,
-      bonusMode: isBonusVariant ? "refundInitialCostIncreasing" : inputs.bonusMode,
+      bonusMode: shouldUseProductDefaults && isBonusVariant ? "refundInitialCostIncreasing" : inputs.bonusMode,
       // Ensure no extra management fee layer is applied
       managementFeeValueType: "percent",
       managementFeeValue: 0,
       yearlyFixedManagementFeeAmount: 0,
-      adminFeeMonthlyAmount: monthlyFee,
-      assetBasedFeePercent: ANNUAL_ASSET_FEE_PERCENT,
+      adminFeeMonthlyAmount: shouldUseProductDefaults ? monthlyFee : (inputs.adminFeeMonthlyAmount ?? 0),
+      assetBasedFeePercent: shouldUseProductDefaults ? ANNUAL_ASSET_FEE_PERCENT : (inputs.assetBasedFeePercent ?? 0),
       taxCreditToInvestedAccount: inputs.enableTaxCredit === true,
     })
   },

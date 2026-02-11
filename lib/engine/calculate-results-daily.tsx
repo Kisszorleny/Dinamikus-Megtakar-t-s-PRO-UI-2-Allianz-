@@ -5,6 +5,7 @@ export type ManagementFeeValueType = "percent" | "amount"
 
 export interface InputsDaily {
   currency: Currency
+  disableProductDefaults?: boolean
 
   // Duration
   durationUnit: "year" | "month" | "day"
