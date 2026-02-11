@@ -1127,6 +1127,32 @@ export function SavingsCalculator() {
     }
     return 10
   })
+  const [esetiDurationUnit, setEsetiDurationUnit] = useState<DurationUnit>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-esetiDurationUnit")
+      if (stored) {
+        try {
+          return JSON.parse(stored) as DurationUnit
+        } catch (e) {
+          console.error("[v0] Failed to parse stored esetiDurationUnit:", e)
+        }
+      }
+    }
+    return "year"
+  })
+  const [esetiDurationValue, setEsetiDurationValue] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-esetiDurationValue")
+      if (stored) {
+        try {
+          return JSON.parse(stored) as number
+        } catch (e) {
+          console.error("[v0] Failed to parse stored esetiDurationValue:", e)
+        }
+      }
+    }
+    return 10
+  })
 
   const [inputs, setInputs] = useState<
     Omit<InputsDaily, "yearsPlanned" | "yearlyPaymentsPlan" | "yearlyWithdrawalsPlan" | "taxCreditLimitByYear">
@@ -1190,6 +1216,32 @@ export function SavingsCalculator() {
 
     // Default values if nothing stored
     return defaultInputs
+  })
+  const [esetiBaseInputs, setEsetiBaseInputs] = useState<{
+    regularPayment: number
+    frequency: PaymentFrequency
+    annualYieldPercent: number
+    annualIndexPercent: number
+    keepYearlyPayment: boolean
+  }>(() => {
+    const defaults = {
+      regularPayment: 20000,
+      frequency: "éves" as PaymentFrequency,
+      annualYieldPercent: 12,
+      annualIndexPercent: 0,
+      keepYearlyPayment: true,
+    }
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-esetiBaseInputs")
+      if (stored) {
+        try {
+          return { ...defaults, ...(JSON.parse(stored) as Partial<typeof defaults>) }
+        } catch (e) {
+          console.error("[v0] Failed to parse stored esetiBaseInputs:", e)
+        }
+      }
+    }
+    return defaults
   })
 
   const [indexByYear, setIndexByYear] = useState<Record<number, number>>(() => {
@@ -1296,6 +1348,11 @@ export function SavingsCalculator() {
     }
     return "éves"
   })
+  useEffect(() => {
+    if (esetiFrequency !== esetiBaseInputs.frequency) {
+      setEsetiFrequency(esetiBaseInputs.frequency)
+    }
+  }, [esetiBaseInputs.frequency, esetiFrequency])
 
   const [taxCreditAmountByYear, setTaxCreditAmountByYear] = useState<Record<number, number>>(() => {
     if (typeof window !== "undefined") {
@@ -2246,6 +2303,16 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-durationValue", JSON.stringify(durationValue))
     }
   }, [durationValue])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-esetiDurationUnit", JSON.stringify(esetiDurationUnit))
+    }
+  }, [esetiDurationUnit])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-esetiDurationValue", JSON.stringify(esetiDurationValue))
+    }
+  }, [esetiDurationValue])
 
   // Persist inputs to sessionStorage
   useEffect(() => {
@@ -2253,6 +2320,11 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-inputs", JSON.stringify(inputs))
     }
   }, [inputs])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-esetiBaseInputs", JSON.stringify(esetiBaseInputs))
+    }
+  }, [esetiBaseInputs])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -2406,15 +2478,29 @@ export function SavingsCalculator() {
     }
   }, [inputs.calculationMode, durationUnit])
 
-  const totalYearsForPlan = useMemo(() => {
-    const totalDays =
-      durationUnit === "year"
-        ? durationValue * 365
-        : durationUnit === "month"
-          ? Math.round(durationValue * (365 / 12))
-          : durationValue
+  const toYearsFromDuration = (unit: DurationUnit, value: number) => {
+    const totalDays = unit === "year" ? value * 365 : unit === "month" ? Math.round(value * (365 / 12)) : value
     return Math.max(1, Math.ceil(totalDays / 365))
-  }, [durationUnit, durationValue])
+  }
+
+  const totalYearsForPlan = useMemo(() => toYearsFromDuration(durationUnit, durationValue), [durationUnit, durationValue])
+  const esetiDurationMaxByUnit = useMemo(() => {
+    return {
+      year: totalYearsForPlan,
+      month: totalYearsForPlan * 12,
+      day: totalYearsForPlan * 365,
+    } as const
+  }, [totalYearsForPlan])
+  useEffect(() => {
+    const maxForUnit = esetiDurationMaxByUnit[esetiDurationUnit]
+    if (esetiDurationValue > maxForUnit) {
+      setEsetiDurationValue(maxForUnit)
+    }
+  }, [esetiDurationValue, esetiDurationUnit, esetiDurationMaxByUnit])
+  const esetiTotalYearsForPlan = useMemo(() => {
+    const cappedValue = Math.min(esetiDurationValue, esetiDurationMaxByUnit[esetiDurationUnit])
+    return toYearsFromDuration(esetiDurationUnit, cappedValue)
+  }, [esetiDurationUnit, esetiDurationValue, esetiDurationMaxByUnit])
 
   const { planIndex, planPayment, yearlyBasePaymentYear1 } = useMemo(() => {
     const periodsPerYear =
@@ -2476,33 +2562,40 @@ export function SavingsCalculator() {
   ])
 
   const esetiPlan = useMemo(() => {
-    const years = totalYearsForPlan
-    const indexEffective = Array<number>(years + 1).fill(0)
-    const yearlyPaymentsPlan = Array<number>(years + 1).fill(0)
-    const yearlyWithdrawalsPlan = Array<number>(years + 1).fill(0)
-
-    for (let y = 1; y <= years; y++) {
-      indexEffective[y] = esetiIndexByYear[y] ?? 0
-      yearlyWithdrawalsPlan[y] = esetiWithdrawalByYear[y] ?? 0
-      yearlyPaymentsPlan[y] = esetiPaymentByYear[y] ?? (y === 1 ? esetiPaymentByYear[1] ?? 0 : 0)
-    }
-
-    return { indexEffective, yearlyPaymentsPlan, yearlyWithdrawalsPlan }
-  }, [totalYearsForPlan, esetiIndexByYear, esetiPaymentByYear, esetiWithdrawalByYear])
+    const periodsPerYear =
+      esetiBaseInputs.frequency === "havi"
+        ? 12
+        : esetiBaseInputs.frequency === "negyedéves"
+          ? 4
+          : esetiBaseInputs.frequency === "féléves"
+            ? 2
+            : 1
+    const baseYear1Payment = esetiBaseInputs.keepYearlyPayment
+      ? esetiBaseInputs.regularPayment * 12
+      : esetiBaseInputs.regularPayment * periodsPerYear
+    return buildYearlyPlan({
+      years: esetiTotalYearsForPlan,
+      baseYear1Payment,
+      baseAnnualIndexPercent: esetiBaseInputs.annualIndexPercent,
+      indexByYear: esetiIndexByYear,
+      paymentByYear: esetiPaymentByYear,
+      withdrawalByYear: esetiWithdrawalByYear,
+    })
+  }, [esetiBaseInputs, esetiTotalYearsForPlan, esetiIndexByYear, esetiPaymentByYear, esetiWithdrawalByYear])
   const esetiPlanIndex = useMemo(() => {
     const map: Record<number, number> = {}
-    for (let y = 1; y <= totalYearsForPlan; y++) {
+    for (let y = 1; y <= esetiTotalYearsForPlan; y++) {
       map[y] = esetiPlan.indexEffective[y] ?? 0
     }
     return map
-  }, [esetiPlan, totalYearsForPlan])
+  }, [esetiPlan, esetiTotalYearsForPlan])
   const esetiPlanPayment = useMemo(() => {
     const map: Record<number, number> = {}
-    for (let y = 1; y <= totalYearsForPlan; y++) {
+    for (let y = 1; y <= esetiTotalYearsForPlan; y++) {
       map[y] = esetiPlan.yearlyPaymentsPlan[y] ?? 0
     }
     return map
-  }, [esetiPlan, totalYearsForPlan])
+  }, [esetiPlan, esetiTotalYearsForPlan])
 
   // Risk Insurance Cost Calculation
   const [enableRiskInsurance, setEnableRiskInsurance] = useState(false)
@@ -2681,11 +2774,14 @@ export function SavingsCalculator() {
     () => ({
       ...dailyInputs,
       disableProductDefaults: true,
+      durationUnit: esetiDurationUnit,
+      durationValue: Math.min(esetiDurationValue, esetiDurationMaxByUnit[esetiDurationUnit]),
+      annualYieldPercent: esetiBaseInputs.annualYieldPercent,
       frequency: esetiFrequency,
       yearlyPaymentsPlan: esetiPlan.yearlyPaymentsPlan,
       yearlyWithdrawalsPlan: esetiPlan.yearlyWithdrawalsPlan,
       taxCreditLimitByYear: esetiTaxCreditLimitsByYear,
-      annualIndexPercent: 0,
+      annualIndexPercent: esetiBaseInputs.annualIndexPercent,
       initialCostByYear: {},
       initialCostDefaultPercent: 0,
       yearlyManagementFeePercent: 0,
@@ -2707,7 +2803,16 @@ export function SavingsCalculator() {
       riskInsuranceFeePercentOfMonthlyPayment: 0,
       riskInsuranceAnnualIndexPercent: 0,
     }),
-    [dailyInputs, esetiPlan, esetiFrequency, esetiTaxCreditLimitsByYear],
+    [
+      dailyInputs,
+      esetiDurationUnit,
+      esetiDurationValue,
+      esetiDurationMaxByUnit,
+      esetiBaseInputs,
+      esetiPlan,
+      esetiFrequency,
+      esetiTaxCreditLimitsByYear,
+    ],
   )
   const resultsEseti = useMemo(() => calculate(productId, dailyInputsEseti), [productId, dailyInputsEseti])
   const dailyInputsWithoutTaxCredit = useMemo(
@@ -3285,6 +3390,17 @@ export function SavingsCalculator() {
   const isYearlyReadOnly = yearlyAccountView === "summary"
   const isYearlyMuted = yearlyAccountView === "summary"
   const isEsetiView = yearlyAccountView === "eseti"
+  const settingsAccountView: "main" | "eseti" = yearlyAccountView === "eseti" ? "eseti" : "main"
+  const isSettingsEseti = settingsAccountView === "eseti"
+  const settingsDurationUnit = isSettingsEseti ? esetiDurationUnit : durationUnit
+  const settingsDurationValue = isSettingsEseti ? esetiDurationValue : durationValue
+  const settingsDurationMax = isSettingsEseti
+    ? esetiDurationMaxByUnit[settingsDurationUnit]
+    : settingsDurationUnit === "year"
+      ? 50
+      : settingsDurationUnit === "month"
+        ? 600
+        : 18250
   const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
 
   const canUseFundYield = Boolean(selectedProduct)
@@ -3443,8 +3559,30 @@ export function SavingsCalculator() {
           <div id="settings" className="lg:col-span-3 space-y-4 scroll-mt-28">
             <div className="space-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>Alapbeállítások</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Alapbeállítások - {isSettingsEseti ? "Eseti" : "Fő"}</CardTitle>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setYearlyAccountView(settingsAccountView === "eseti" ? "main" : "eseti")}
+                      aria-label="Váltás fő és eseti között"
+                    >
+                      <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setYearlyAccountView(settingsAccountView === "eseti" ? "main" : "eseti")}
+                      aria-label="Váltás fő és eseti között"
+                    >
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -3545,14 +3683,20 @@ export function SavingsCalculator() {
                         inputMode="numeric"
                         value={
                           editingFields.regularPayment
-                            ? String(inputs.regularPayment)
-                            : formatNumber(inputs.regularPayment)
+                            ? String(isSettingsEseti ? esetiBaseInputs.regularPayment : inputs.regularPayment)
+                            : formatNumber(isSettingsEseti ? esetiBaseInputs.regularPayment : inputs.regularPayment)
                         }
                         onFocus={() => setFieldEditing("regularPayment", true)}
                         onBlur={() => setFieldEditing("regularPayment", false)}
                         onChange={(e) => {
                           const parsed = parseNumber(e.target.value)
-                          if (!isNaN(parsed)) setInputs({ ...inputs, regularPayment: parsed })
+                          if (!isNaN(parsed)) {
+                            if (isSettingsEseti) {
+                              setEsetiBaseInputs((prev) => ({ ...prev, regularPayment: parsed }))
+                            } else {
+                              setInputs({ ...inputs, regularPayment: parsed })
+                            }
+                          }
                         }}
                       />
                       {selectedProduct === "alfa_exclusive_plus" && (
@@ -3567,8 +3711,15 @@ export function SavingsCalculator() {
                     <div className="space-y-2">
                       <Label htmlFor="frequency">Fizetési gyakoriság</Label>
                       <Select
-                        value={inputs.frequency}
-                        onValueChange={(value: PaymentFrequency) => setInputs({ ...inputs, frequency: value })}
+                        value={isSettingsEseti ? esetiBaseInputs.frequency : inputs.frequency}
+                        onValueChange={(value: PaymentFrequency) => {
+                          if (isSettingsEseti) {
+                            setEsetiBaseInputs((prev) => ({ ...prev, frequency: value }))
+                            setEsetiFrequency(value)
+                          } else {
+                            setInputs({ ...inputs, frequency: value })
+                          }
+                        }}
                       >
                         <SelectTrigger id="frequency">
                           <SelectValue />
@@ -3587,7 +3738,19 @@ export function SavingsCalculator() {
                     <div className="space-y-2">
                       <Label>Futamidő</Label>
                       <div className="flex gap-2">
-                        <Select value={durationUnit} onValueChange={(v) => setDurationUnit(v as DurationUnit)}>
+                        <Select
+                          value={settingsDurationUnit}
+                          onValueChange={(v) => {
+                            const nextUnit = v as DurationUnit
+                            if (isSettingsEseti) {
+                              const maxForUnit = esetiDurationMaxByUnit[nextUnit]
+                              setEsetiDurationUnit(nextUnit)
+                              setEsetiDurationValue((prev) => Math.min(prev, maxForUnit))
+                            } else {
+                              setDurationUnit(nextUnit)
+                            }
+                          }}
+                        >
                           <SelectTrigger className="w-[120px]">
                             <SelectValue />
                           </SelectTrigger>
@@ -3599,13 +3762,23 @@ export function SavingsCalculator() {
                         </Select>
                         <Input
                           type="number"
-                          value={durationValue}
-                          onChange={(e) => setDurationValue(Number(e.target.value))}
+                          value={settingsDurationValue}
+                          onChange={(e) => {
+                            const parsed = Number(e.target.value)
+                            if (isSettingsEseti) {
+                              setEsetiDurationValue(Math.min(parsed, settingsDurationMax))
+                            } else {
+                              setDurationValue(parsed)
+                            }
+                          }}
                           min={1}
-                          max={durationUnit === "year" ? 50 : durationUnit === "month" ? 600 : 18250}
+                          max={settingsDurationMax}
                           className="flex-1"
                         />
                       </div>
+                      {isSettingsEseti ? (
+                        <p className="text-xs text-muted-foreground">Az eseti futamidő legfeljebb a fő számla futamideje lehet.</p>
+                      ) : null}
                     </div>
 
                     <div className="space-y-2 min-w-0">
@@ -3635,8 +3808,15 @@ export function SavingsCalculator() {
                       <Input
                         id="annualYield"
                         type="number"
-                        value={inputs.annualYieldPercent}
-                        onChange={(e) => setInputs({ ...inputs, annualYieldPercent: Number(e.target.value) })}
+                        value={isSettingsEseti ? esetiBaseInputs.annualYieldPercent : inputs.annualYieldPercent}
+                        onChange={(e) => {
+                          const nextValue = Number(e.target.value)
+                          if (isSettingsEseti) {
+                            setEsetiBaseInputs((prev) => ({ ...prev, annualYieldPercent: nextValue }))
+                          } else {
+                            setInputs({ ...inputs, annualYieldPercent: nextValue })
+                          }
+                        }}
                         min={0}
                         max={100}
                         step={0.1}
@@ -3649,7 +3829,11 @@ export function SavingsCalculator() {
                             setSelectedFundId(value)
                             const selectedFund = fundOptions.find((f) => f.id === value)
                             if (selectedFund) {
-                              setInputs({ ...inputs, annualYieldPercent: selectedFund.historicalYield })
+                              if (isSettingsEseti) {
+                                setEsetiBaseInputs((prev) => ({ ...prev, annualYieldPercent: selectedFund.historicalYield }))
+                              } else {
+                                setInputs({ ...inputs, annualYieldPercent: selectedFund.historicalYield })
+                              }
                             }
                           }}
                         >
@@ -3680,8 +3864,15 @@ export function SavingsCalculator() {
                       <Input
                         id="annualIndex"
                         type="number"
-                        value={inputs.annualIndexPercent}
-                        onChange={(e) => setInputs({ ...inputs, annualIndexPercent: Number(e.target.value) })}
+                        value={isSettingsEseti ? esetiBaseInputs.annualIndexPercent : inputs.annualIndexPercent}
+                        onChange={(e) => {
+                          const nextValue = Number(e.target.value)
+                          if (isSettingsEseti) {
+                            setEsetiBaseInputs((prev) => ({ ...prev, annualIndexPercent: nextValue }))
+                          } else {
+                            setInputs({ ...inputs, annualIndexPercent: nextValue })
+                          }
+                        }}
                         min={0}
                         max={100}
                         step={0.1}
@@ -3691,8 +3882,14 @@ export function SavingsCalculator() {
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id="keepYearlyPayment"
-                        checked={inputs.keepYearlyPayment}
-                        onCheckedChange={(checked) => setInputs({ ...inputs, keepYearlyPayment: checked === true })}
+                        checked={isSettingsEseti ? esetiBaseInputs.keepYearlyPayment : inputs.keepYearlyPayment}
+                        onCheckedChange={(checked) => {
+                          if (isSettingsEseti) {
+                            setEsetiBaseInputs((prev) => ({ ...prev, keepYearlyPayment: checked === true }))
+                          } else {
+                            setInputs({ ...inputs, keepYearlyPayment: checked === true })
+                          }
+                        }}
                       />
                       <Label htmlFor="keepYearlyPayment" className="cursor-pointer">
                         Éves díjat tart
@@ -3701,18 +3898,28 @@ export function SavingsCalculator() {
                   </div>
 
                   {/* Tax Credit Section */}
-                  <div className="pt-4 border-t space-y-4">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <Checkbox
-                      checked={inputs.enableTaxCredit}
-                      onCheckedChange={(checked) => setInputs({ ...inputs, enableTaxCredit: checked === true })}
-                      className="w-5 h-5"
-                    />
-                    <span>Adójóváírás bekapcsolása</span>
-                  </label>
+                  <div className={`pt-4 border-t space-y-4 ${isSettingsEseti ? "opacity-60" : ""}`}>
+                    <label className={`flex items-center gap-3 ${isSettingsEseti ? "cursor-not-allowed" : "cursor-pointer"}`}>
+                      <Checkbox
+                        checked={inputs.enableTaxCredit}
+                        onCheckedChange={(checked) => {
+                          if (!isSettingsEseti) {
+                            setInputs({ ...inputs, enableTaxCredit: checked === true })
+                          }
+                        }}
+                        disabled={isSettingsEseti}
+                        className="w-5 h-5"
+                      />
+                      <span>Adójóváírás bekapcsolása</span>
+                    </label>
+                    {isSettingsEseti ? (
+                      <p className="text-xs text-muted-foreground">
+                        Itt csak megjelenítjük az alapbeállításokban kiválasztott adójóváírás állapotot.
+                      </p>
+                    ) : null}
 
-                      {inputs.enableTaxCredit && (
-                    <>
+                      {!isSettingsEseti && inputs.enableTaxCredit && (
+                        <>
                       <div className="space-y-2">
                         <Label>Adójóváírás mértéke (%)</Label>
                         <Input
@@ -3823,7 +4030,7 @@ export function SavingsCalculator() {
                           </span>
                         </div>
                       </div>
-                    </>
+                        </>
                   )}
                   </div>
                 </CardContent>
@@ -5135,7 +5342,11 @@ export function SavingsCalculator() {
                             <div className="flex items-center justify-end">
                               <Select
                                 value={esetiFrequency}
-                                onValueChange={(value) => setEsetiFrequency(value as PaymentFrequency)}
+                                onValueChange={(value) => {
+                                  const nextFrequency = value as PaymentFrequency
+                                  setEsetiFrequency(nextFrequency)
+                                  setEsetiBaseInputs((prev) => ({ ...prev, frequency: nextFrequency }))
+                                }}
                                 disabled={isYearlyReadOnly}
                               >
                                 <SelectTrigger className="h-5 w-auto border-0 bg-transparent px-0 py-0 text-sm font-medium shadow-none ring-0 hover:bg-transparent focus:ring-0 focus:ring-offset-0 data-[size=default]:h-5 [&>svg]:size-3.5 [&>svg]:opacity-50">
@@ -5220,9 +5431,11 @@ export function SavingsCalculator() {
                         if (!row) return null
                         const activePlanIndex = (isEsetiView ? esetiPlanIndex : planIndex) ?? {}
                         const activePlanPayment = (isEsetiView ? esetiPlanPayment : planPayment) ?? {}
-                        const currentIndex = isEsetiView ? esetiIndexByYear[row.year] ?? 0 : activePlanIndex[row.year] ?? 0
+                        const currentIndex = isEsetiView
+                          ? esetiIndexByYear[row.year] ?? activePlanIndex[row.year] ?? 0
+                          : activePlanIndex[row.year] ?? 0
                         const currentPayment = isEsetiView
-                          ? esetiPaymentByYear[row.year] ?? 0
+                          ? esetiPaymentByYear[row.year] ?? activePlanPayment[row.year] ?? 0
                           : row.yearlyPayment ?? activePlanPayment[row.year] ?? 0
                         const activeWithdrawalByYear = isEsetiView ? esetiWithdrawalByYear : withdrawalByYear
                         const currentWithdrawal = activeWithdrawalByYear[row.year] || 0
