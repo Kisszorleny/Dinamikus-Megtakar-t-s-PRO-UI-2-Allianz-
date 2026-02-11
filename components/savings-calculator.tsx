@@ -3390,17 +3390,11 @@ export function SavingsCalculator() {
   const isYearlyReadOnly = yearlyAccountView === "summary"
   const isYearlyMuted = yearlyAccountView === "summary"
   const isEsetiView = yearlyAccountView === "eseti"
-  const settingsAccountView: "main" | "eseti" = yearlyAccountView === "eseti" ? "eseti" : "main"
-  const isSettingsEseti = settingsAccountView === "eseti"
-  const settingsDurationUnit = isSettingsEseti ? esetiDurationUnit : durationUnit
-  const settingsDurationValue = isSettingsEseti ? esetiDurationValue : durationValue
-  const settingsDurationMax = isSettingsEseti
-    ? esetiDurationMaxByUnit[settingsDurationUnit]
-    : settingsDurationUnit === "year"
-      ? 50
-      : settingsDurationUnit === "month"
-        ? 600
-        : 18250
+  const isSettingsEseti = false
+  const settingsDurationUnit = durationUnit
+  const settingsDurationValue = durationValue
+  const settingsDurationMax =
+    settingsDurationUnit === "year" ? 50 : settingsDurationUnit === "month" ? 600 : 18250
   const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
 
   const canUseFundYield = Boolean(selectedProduct)
@@ -3560,29 +3554,7 @@ export function SavingsCalculator() {
             <div className="space-y-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Alapbeállítások - {isSettingsEseti ? "Eseti" : "Fő"}</CardTitle>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => setYearlyAccountView(settingsAccountView === "eseti" ? "main" : "eseti")}
-                      aria-label="Váltás fő és eseti között"
-                    >
-                      <ChevronLeft className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => setYearlyAccountView(settingsAccountView === "eseti" ? "main" : "eseti")}
-                      aria-label="Váltás fő és eseti között"
-                    >
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </div>
+                  <CardTitle>Alapbeállítások</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
