@@ -276,6 +276,63 @@ const buildCumulativeByYear = (yearlyBreakdown: Array<any> = []) => {
   return map
 }
 
+const numeric = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : 0)
+
+const mergeYearRows = (mainRow?: any, esetiRow?: any) => {
+  const main = mainRow ?? {}
+  const eseti = esetiRow ?? {}
+
+  return {
+    year: main.year ?? eseti.year ?? 0,
+    yearlyPayment: numeric(main.yearlyPayment) + numeric(eseti.yearlyPayment),
+    totalContributions: numeric(main.totalContributions) + numeric(eseti.totalContributions),
+    interestForYear: numeric(main.interestForYear) + numeric(eseti.interestForYear),
+    costForYear: numeric(main.costForYear) + numeric(eseti.costForYear),
+    assetBasedCostForYear: numeric(main.assetBasedCostForYear) + numeric(eseti.assetBasedCostForYear),
+    plusCostForYear: numeric(main.plusCostForYear) + numeric(eseti.plusCostForYear),
+    bonusForYear: numeric(main.bonusForYear) + numeric(eseti.bonusForYear),
+    wealthBonusForYear: numeric(main.wealthBonusForYear) + numeric(eseti.wealthBonusForYear),
+    taxCreditForYear: numeric(main.taxCreditForYear) + numeric(eseti.taxCreditForYear),
+    withdrawalForYear: numeric(main.withdrawalForYear) + numeric(eseti.withdrawalForYear),
+    riskInsuranceCostForYear: numeric(main.riskInsuranceCostForYear) + numeric(eseti.riskInsuranceCostForYear),
+    endBalance: numeric(main.endBalance) + numeric(eseti.endBalance),
+    endingInvestedValue: numeric(main.endingInvestedValue) + numeric(eseti.endingInvestedValue),
+    endingClientValue: numeric(main.endingClientValue) + numeric(eseti.endingClientValue),
+    endingTaxBonusValue: numeric(main.endingTaxBonusValue) + numeric(eseti.endingTaxBonusValue),
+    surrenderValue: numeric(main.surrenderValue) + numeric(eseti.surrenderValue),
+    surrenderCharge: numeric(main.surrenderCharge) + numeric(eseti.surrenderCharge),
+    client: {
+      endBalance: numeric(main.client?.endBalance) + numeric(eseti.client?.endBalance),
+      interestForYear: numeric(main.client?.interestForYear) + numeric(eseti.client?.interestForYear),
+      costForYear: numeric(main.client?.costForYear) + numeric(eseti.client?.costForYear),
+      assetBasedCostForYear: numeric(main.client?.assetBasedCostForYear) + numeric(eseti.client?.assetBasedCostForYear),
+      plusCostForYear: numeric(main.client?.plusCostForYear) + numeric(eseti.client?.plusCostForYear),
+      bonusForYear: numeric(main.client?.bonusForYear) + numeric(eseti.client?.bonusForYear),
+      wealthBonusForYear: numeric(main.client?.wealthBonusForYear) + numeric(eseti.client?.wealthBonusForYear),
+    },
+    invested: {
+      endBalance: numeric(main.invested?.endBalance) + numeric(eseti.invested?.endBalance),
+      interestForYear: numeric(main.invested?.interestForYear) + numeric(eseti.invested?.interestForYear),
+      costForYear: numeric(main.invested?.costForYear) + numeric(eseti.invested?.costForYear),
+      assetBasedCostForYear:
+        numeric(main.invested?.assetBasedCostForYear) + numeric(eseti.invested?.assetBasedCostForYear),
+      plusCostForYear: numeric(main.invested?.plusCostForYear) + numeric(eseti.invested?.plusCostForYear),
+      bonusForYear: numeric(main.invested?.bonusForYear) + numeric(eseti.invested?.bonusForYear),
+      wealthBonusForYear: numeric(main.invested?.wealthBonusForYear) + numeric(eseti.invested?.wealthBonusForYear),
+    },
+    taxBonus: {
+      endBalance: numeric(main.taxBonus?.endBalance) + numeric(eseti.taxBonus?.endBalance),
+      interestForYear: numeric(main.taxBonus?.interestForYear) + numeric(eseti.taxBonus?.interestForYear),
+      costForYear: numeric(main.taxBonus?.costForYear) + numeric(eseti.taxBonus?.costForYear),
+      assetBasedCostForYear:
+        numeric(main.taxBonus?.assetBasedCostForYear) + numeric(eseti.taxBonus?.assetBasedCostForYear),
+      plusCostForYear: numeric(main.taxBonus?.plusCostForYear) + numeric(eseti.taxBonus?.plusCostForYear),
+      bonusForYear: numeric(main.taxBonus?.bonusForYear) + numeric(eseti.taxBonus?.bonusForYear),
+      wealthBonusForYear: numeric(main.taxBonus?.wealthBonusForYear) + numeric(eseti.taxBonus?.wealthBonusForYear),
+    },
+  }
+}
+
 function MobileYearCard({
   row,
   planIndex,
@@ -491,26 +548,30 @@ function MobileYearCard({
       </div>
 
       {/* Always visible: editable fields */}
-      <div className={`grid grid-cols-2 gap-3 mb-3 ${isYearlyReadOnly ? "opacity-60 pointer-events-none" : ""}`}>
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Indexálás (%)</Label>
-          <Input
-            type="text"
-            inputMode="numeric"
-            value={
-              editingFields[`index-${row.year}`]
-                ? String(effectiveCurrentIndex)
-                : formatNumber(effectiveCurrentIndex)
-            }
-            onFocus={() => setFieldEditing(`index-${row.year}`, true)}
-            onBlur={() => setFieldEditing(`index-${row.year}`, false)}
-            onChange={(e) => {
-              const parsed = parseNumber(e.target.value)
-              if (!isNaN(parsed)) updateIndex(row.year, parsed)
-            }}
-            className={`h-11 text-base tabular-nums ${isIndexModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
-          />
-        </div>
+      <div
+        className={`grid ${isYearlyReadOnly ? "grid-cols-1" : "grid-cols-2"} gap-3 mb-3 ${isYearlyReadOnly ? "opacity-60 pointer-events-none" : ""}`}
+      >
+        {!isYearlyReadOnly && (
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Indexálás (%)</Label>
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={
+                editingFields[`index-${row.year}`]
+                  ? String(effectiveCurrentIndex)
+                  : formatNumber(effectiveCurrentIndex)
+              }
+              onFocus={() => setFieldEditing(`index-${row.year}`, true)}
+              onBlur={() => setFieldEditing(`index-${row.year}`, false)}
+              onChange={(e) => {
+                const parsed = parseNumber(e.target.value)
+                if (!isNaN(parsed)) updateIndex(row.year, parsed)
+              }}
+              className={`h-11 text-base tabular-nums ${isIndexModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+            />
+          </div>
+        )}
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Befizetés / év</Label>
           <Input
@@ -2556,16 +2617,28 @@ export function SavingsCalculator() {
     () => buildCumulativeByYear(resultsEseti?.yearlyBreakdown ?? []),
     [resultsEseti?.yearlyBreakdown],
   )
+  const summaryYearlyBreakdown = useMemo(() => {
+    const mainByYear = new Map((results?.yearlyBreakdown ?? []).map((row: any) => [row.year, row]))
+    const esetiByYear = new Map((resultsEseti?.yearlyBreakdown ?? []).map((row: any) => [row.year, row]))
+    const years = Array.from(new Set([...mainByYear.keys(), ...esetiByYear.keys()])).sort((a, b) => a - b)
+    return years.map((year) => mergeYearRows(mainByYear.get(year), esetiByYear.get(year)))
+  }, [results?.yearlyBreakdown, resultsEseti?.yearlyBreakdown])
+  const cumulativeByYearSummary = useMemo(
+    () => buildCumulativeByYear(summaryYearlyBreakdown),
+    [summaryYearlyBreakdown],
+  )
+  const yearlyBreakdownForView = useMemo(() => {
+    if (yearlyAccountView === "summary") return summaryYearlyBreakdown
+    if (yearlyAccountView === "eseti") return resultsEseti.yearlyBreakdown
+    return results.yearlyBreakdown
+  }, [yearlyAccountView, summaryYearlyBreakdown, resultsEseti.yearlyBreakdown, results.yearlyBreakdown])
 
   const netCalculations = useMemo(() => {
     return calculateNetValues(results.yearlyBreakdown, isCorporateBond)
   }, [results.yearlyBreakdown, isCorporateBond])
   const yearlyNetCalculations = useMemo(() => {
-    return calculateNetValues(
-      (yearlyAccountView === "eseti" ? resultsEseti : results).yearlyBreakdown,
-      isCorporateBond,
-    )
-  }, [yearlyAccountView, resultsEseti, results, isCorporateBond])
+    return calculateNetValues(yearlyBreakdownForView, isCorporateBond)
+  }, [yearlyBreakdownForView, isCorporateBond])
 
   const finalNetData = useMemo(() => {
     if (netCalculations.length === 0) return null
@@ -2877,10 +2950,15 @@ export function SavingsCalculator() {
     return Object.values(extraServicesCostsByYear).reduce((sum, cost) => sum + cost, 0)
   }, [extraServicesCostsByYear])
 
-  const adjustedResults = useMemo(
-    () => (yearlyAccountView === "eseti" ? resultsEseti : results),
-    [yearlyAccountView, resultsEseti, results],
-  )
+  const adjustedResults = useMemo(() => {
+    if (yearlyAccountView === "summary") {
+      return {
+        ...results,
+        yearlyBreakdown: summaryYearlyBreakdown,
+      }
+    }
+    return yearlyAccountView === "eseti" ? resultsEseti : results
+  }, [yearlyAccountView, results, resultsEseti, summaryYearlyBreakdown])
 
   const addExtraService = () => {
     const newService: ExtraService = {
@@ -4745,7 +4823,9 @@ export function SavingsCalculator() {
                       updateBonusPercent={updateBonusPercent}
                       yearlyViewMode={effectiveYearlyViewMode}
                       yearlyAccountView={yearlyAccountView}
-                      cumulativeByYear={isEsetiView ? cumulativeByYearEseti : cumulativeByYear}
+                      cumulativeByYear={
+                        isEsetiView ? cumulativeByYearEseti : yearlyAccountView === "summary" ? cumulativeByYearSummary : cumulativeByYear
+                      }
                       shouldApplyTaxCreditPenalty={shouldApplyTaxCreditPenalty}
                       isTaxBonusSeparateAccount={isTaxBonusSeparateAccount}
                       getRealValueForYear={getRealValueForYear}
@@ -4783,7 +4863,7 @@ export function SavingsCalculator() {
                   <table className="w-full min-w-[1100px] text-sm yearly-breakdown-table yearly-breakdown-table--auto">
                     <colgroup>
                       <col style={{ width: "60px" }} />
-                      <col style={{ width: "70px" }} />
+                      {!isYearlyReadOnly && <col style={{ width: "70px" }} />}
                       <col style={{ width: "120px" }} />
                       <col style={{ width: "100px" }} />
                       <col style={{ width: "100px" }} />
@@ -4805,7 +4885,9 @@ export function SavingsCalculator() {
                     <thead>
                       <tr className="border-b">
                         <th className="py-3 px-3 text-center font-medium w-16 sticky left-0 z-20 bg-background/95">Év</th>
-                        <th className="py-3 px-3 text-right font-medium whitespace-nowrap">Index (%)</th>
+                        {!isYearlyReadOnly && (
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap">Index (%)</th>
+                        )}
                         <th className="py-3 px-3 text-right font-medium whitespace-nowrap">
                           {isEsetiView ? (
                             <div className="flex items-center justify-end">
@@ -4937,10 +5019,12 @@ export function SavingsCalculator() {
                         const isTaxCreditLimited = currentTaxCreditLimit !== undefined
 
                         const netData = yearlyNetCalculations[index]
-                        const sourceRow =
-                          yearlyAggregationMode === "sum"
-                            ? (isEsetiView ? cumulativeByYearEseti[row.year] : cumulativeByYear[row.year]) ?? row
-                            : row
+                        const sourceCumulativeByYear = isEsetiView
+                          ? cumulativeByYearEseti
+                          : yearlyAccountView === "summary"
+                            ? cumulativeByYearSummary
+                            : cumulativeByYear
+                        const sourceRow = yearlyAggregationMode === "sum" ? sourceCumulativeByYear[row.year] ?? row : row
                         const displayPaymentValue = isEsetiView ? currentPayment : row.yearlyPayment ?? currentPayment
 
                         let displayData = {
@@ -4998,13 +5082,11 @@ export function SavingsCalculator() {
                           }
                         }
 
-                        const cumulativeRow = (isEsetiView ? cumulativeByYearEseti : cumulativeByYear)[row.year] ?? row
+                        const cumulativeRow = sourceCumulativeByYear[row.year] ?? row
                         let displayBalance = enableNetting ? netData.netBalance : displayData.endBalance
 
                         const taxCreditCumulativeForRow =
-                          (isEsetiView ? cumulativeByYearEseti : cumulativeByYear)[row.year]?.taxCreditForYear ??
-                          sourceRow.taxCreditForYear ??
-                          0
+                          sourceCumulativeByYear[row.year]?.taxCreditForYear ?? sourceRow.taxCreditForYear ?? 0
                         const taxCreditPenaltyForRow = shouldApplyTaxCreditPenalty ? taxCreditCumulativeForRow * 1.2 : 0
                         let displayBalanceWithPenalty = Math.max(0, displayBalance - taxCreditPenaltyForRow)
                         const effectiveWithdrawn =
@@ -5026,25 +5108,27 @@ export function SavingsCalculator() {
                           <tr key={row.year} className="border-b hover:bg-muted/50">
                             <td className="py-2 px-3 text-center font-medium sticky left-0 z-10 bg-background/95">{row.year}</td>
 
-                            <td className="py-2 px-3 text-right align-top">
-                              <div className="flex flex-col items-end gap-1 min-h-[44px]">
-                                <Input
-                                  type="text"
-                                  inputMode="numeric"
-                                  value={
-                                    editingFields[`index-${row.year}`] ? String(currentIndex) : formatNumber(currentIndex)
-                                  }
-                                  onFocus={() => setFieldEditing(`index-${row.year}`, true)}
-                                  onBlur={() => setFieldEditing(`index-${row.year}`, false)}
-                                  onChange={(e) => {
-                                    const parsed = parseNumber(e.target.value)
-                                    if (!isNaN(parsed)) updateIndexForView(row.year, parsed)
-                                  }}
-                                  className={`w-14 h-8 text-right tabular-nums ${isIndexModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
-                                />
-                                <p className="text-xs text-muted-foreground tabular-nums opacity-0">0</p>
-                              </div>
-                            </td>
+                            {!isYearlyReadOnly && (
+                              <td className="py-2 px-3 text-right align-top">
+                                <div className="flex flex-col items-end gap-1 min-h-[44px]">
+                                  <Input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={
+                                      editingFields[`index-${row.year}`] ? String(currentIndex) : formatNumber(currentIndex)
+                                    }
+                                    onFocus={() => setFieldEditing(`index-${row.year}`, true)}
+                                    onBlur={() => setFieldEditing(`index-${row.year}`, false)}
+                                    onChange={(e) => {
+                                      const parsed = parseNumber(e.target.value)
+                                      if (!isNaN(parsed)) updateIndexForView(row.year, parsed)
+                                    }}
+                                    className={`w-14 h-8 text-right tabular-nums ${isIndexModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+                                  />
+                                  <p className="text-xs text-muted-foreground tabular-nums opacity-0">0</p>
+                                </div>
+                              </td>
+                            )}
 
                             <td className="py-2 px-3 text-right align-top">
                               <div className="flex flex-col items-end gap-1 min-h-[44px]">
