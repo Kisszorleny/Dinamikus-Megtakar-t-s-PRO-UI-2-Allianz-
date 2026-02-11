@@ -3075,7 +3075,13 @@ export function SavingsCalculator() {
   const updateEsetiPayment = (year: number, displayValue: number) => {
     const rate = inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate
     const calcValue = convertFromDisplayToCalc(displayValue, results.currency, displayCurrency, rate)
-    setEsetiPaymentByYear({ ...esetiPaymentByYear, [year]: calcValue })
+    setEsetiPaymentByYear((prev) => {
+      const updated = { ...prev }
+      for (let y = year; y <= esetiTotalYearsForPlan; y++) {
+        updated[y] = calcValue
+      }
+      return updated
+    })
   }
 
   const updateEsetiWithdrawal = (year: number, displayValue: number) => {
