@@ -4882,15 +4882,38 @@ export function SavingsCalculator() {
                     {/* Tax bracket info */}
                     <div className="text-xs text-muted-foreground bg-muted p-3 rounded-md space-y-1">
                       <p className="font-medium">Adósávok ({isCorporateBond ? "céges" : "lakossági"})</p>
-                      <ul className="list-disc list-inside space-y-0.5">
-                        <li>
-                          0-5 év: {isCorporateBond ? "15%" : "28%"} {!isCorporateBond && "(15% kamatadó + 13% szochó)"}
-                        </li>
-                        <li>
-                          5-10 év: {isCorporateBond ? "7,5%" : "14%"} {!isCorporateBond && "(7,5% + 6,5%)"}
-                        </li>
-                        <li>10+ év: adómentes</li>
-                      </ul>
+                      {yearlyAccountView === "eseti" ? (
+                        <ul className="list-disc list-inside space-y-0.5">
+                          <li>
+                            0-3 év: {isCorporateBond ? "15%" : "28%"}{" "}
+                            {!isCorporateBond && "(15% kamatadó + 13% szochó)"}
+                          </li>
+                          <li>
+                            3-5 év: {isCorporateBond ? "7,5%" : "14%"} {!isCorporateBond && "(7,5% + 6,5%)"}
+                          </li>
+                          <li>5+ év: adómentes</li>
+                        </ul>
+                      ) : yearlyAccountView === "summary" ? (
+                        <ul className="list-disc list-inside space-y-0.5">
+                          <li>
+                            Fő számla: 0-5 év / 5-10 év / 10+ év sávok ({isCorporateBond ? "15% / 7,5% / 0%" : "28% / 14% / 0%"})
+                          </li>
+                          <li>
+                            Eseti számla: 0-3 év / 3-5 év / 5+ év sávok ({isCorporateBond ? "15% / 7,5% / 0%" : "28% / 14% / 0%"})
+                          </li>
+                        </ul>
+                      ) : (
+                        <ul className="list-disc list-inside space-y-0.5">
+                          <li>
+                            0-5 év: {isCorporateBond ? "15%" : "28%"}{" "}
+                            {!isCorporateBond && "(15% kamatadó + 13% szochó)"}
+                          </li>
+                          <li>
+                            5-10 év: {isCorporateBond ? "7,5%" : "14%"} {!isCorporateBond && "(7,5% + 6,5%)"}
+                          </li>
+                          <li>10+ év: adómentes</li>
+                        </ul>
+                      )}
                     </div>
                   </div>
                 )}
