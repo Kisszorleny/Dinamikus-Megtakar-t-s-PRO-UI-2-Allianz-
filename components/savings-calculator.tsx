@@ -9,7 +9,21 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { ChevronDown, ChevronUp, Settings, Calculator, BarChart3, Table2, Info, Plus, X, GitCompare, FileText } from "lucide-react"
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Settings,
+  Calculator,
+  BarChart3,
+  Table2,
+  Info,
+  Plus,
+  X,
+  GitCompare,
+  FileText,
+} from "lucide-react"
 import {
   calculate,
   type InputsDaily,
@@ -897,7 +911,7 @@ export function SavingsCalculator() {
   }, [])
 
   const [yearlyViewMode, setYearlyViewMode] = useState<"total" | "client" | "invested" | "taxBonus">("total")
-  const [yearlyAccountView, setYearlyAccountView] = useState<"summary" | "main" | "eseti">("main")
+  const [yearlyAccountView, setYearlyAccountView] = useState<"summary" | "main" | "eseti">("summary")
   const [yearlyAggregationMode, setYearlyAggregationMode] = useState<"year" | "sum">("year")
   const [showCostBreakdown, setShowCostBreakdown] = useState(false)
   const [showBonusBreakdown, setShowBonusBreakdown] = useState(false)
@@ -2641,9 +2655,9 @@ export function SavingsCalculator() {
   }, [yearlyBreakdownForView, isCorporateBond])
 
   const finalNetData = useMemo(() => {
-    if (netCalculations.length === 0) return null
-    return netCalculations[netCalculations.length - 1]
-  }, [netCalculations])
+    if (yearlyNetCalculations.length === 0) return null
+    return yearlyNetCalculations[yearlyNetCalculations.length - 1]
+  }, [yearlyNetCalculations])
 
   const formatValue = (value: number, displayCurr: Currency) => {
     // When displaying in USD, use usdToHufRate; when displaying in EUR, use eurToHufRate
@@ -2676,8 +2690,48 @@ export function SavingsCalculator() {
   const taxCreditPenaltyAmount = shouldApplyTaxCreditPenalty ? results.totalTaxCredit * 1.2 : 0
   const endBalanceWithTaxCreditPenalty = Math.max(0, results.endBalance - taxCreditPenaltyAmount)
   const endBalanceWithoutTaxCredit = resultsWithoutTaxCredit.endBalance
-  const summaryBaseBalance = enableNetting && finalNetData ? finalNetData.netBalance : results.endBalance
-  const summaryBalanceWithPenalty = Math.max(0, summaryBaseBalance - taxCreditPenaltyAmount)
+  const summaryTotalsByAccount = useMemo(
+    () => ({
+      main: {
+        totalContributions: results.totalContributions,
+        totalCosts: results.totalCosts,
+        totalBonus: results.totalBonus,
+        totalTaxCredit: results.totalTaxCredit,
+        totalInterestNet: results.totalInterestNet,
+        endBalance: results.endBalance,
+        totalRiskInsuranceCost: results.totalRiskInsuranceCost ?? 0,
+      },
+      eseti: {
+        totalContributions: resultsEseti.totalContributions,
+        totalCosts: resultsEseti.totalCosts,
+        totalBonus: resultsEseti.totalBonus,
+        totalTaxCredit: resultsEseti.totalTaxCredit,
+        totalInterestNet: resultsEseti.totalInterestNet,
+        endBalance: resultsEseti.endBalance,
+        totalRiskInsuranceCost: resultsEseti.totalRiskInsuranceCost ?? 0,
+      },
+      summary: {
+        totalContributions: results.totalContributions + resultsEseti.totalContributions,
+        totalCosts: results.totalCosts + resultsEseti.totalCosts,
+        totalBonus: results.totalBonus + resultsEseti.totalBonus,
+        totalTaxCredit: results.totalTaxCredit + resultsEseti.totalTaxCredit,
+        totalInterestNet: results.totalInterestNet + resultsEseti.totalInterestNet,
+        endBalance: results.endBalance + resultsEseti.endBalance,
+        totalRiskInsuranceCost: (results.totalRiskInsuranceCost ?? 0) + (resultsEseti.totalRiskInsuranceCost ?? 0),
+      },
+    }),
+    [results, resultsEseti],
+  )
+  const summaryAccountLabels: Record<"summary" | "main" | "eseti", string> = {
+    summary: "Összesített",
+    main: "Fő",
+    eseti: "Eseti",
+  }
+  const summaryAccountsOrder: Array<"summary" | "main" | "eseti"> = ["summary", "main", "eseti"]
+  const activeSummaryTotals = summaryTotalsByAccount[yearlyAccountView]
+  const activeTaxCreditPenaltyAmount = shouldApplyTaxCreditPenalty ? activeSummaryTotals.totalTaxCredit * 1.2 : 0
+  const summaryBaseBalance = enableNetting && finalNetData ? finalNetData.netBalance : activeSummaryTotals.endBalance
+  const summaryBalanceWithPenalty = Math.max(0, summaryBaseBalance - activeTaxCreditPenaltyAmount)
 
   const handleDisplayCurrencyChange = (value: Currency) => {
     setDisplayCurrency(value)
@@ -4443,8 +4497,40 @@ export function SavingsCalculator() {
               id="summary"
               className={`w-full border-2 scroll-mt-28 ${enableNetting ? "border-yellow-300 bg-yellow-50/50 dark:border-yellow-700 dark:bg-yellow-950/20" : "bg-accent"}`}
             >
-              <CardHeader className="pb-2 md:pb-4">
-                <CardTitle className="text-lg md:text-xl">Összegzés</CardTitle>
+              <CardHeader className="pb-2 md:pb-4 flex flex-row items-center justify-between">
+                <CardTitle className="text-lg md:text-xl">
+                  Összegzés - {summaryAccountLabels[yearlyAccountView]}
+                </CardTitle>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => {
+                      const currentIndex = summaryAccountsOrder.indexOf(yearlyAccountView)
+                      const nextIndex = (currentIndex - 1 + summaryAccountsOrder.length) % summaryAccountsOrder.length
+                      setYearlyAccountView(summaryAccountsOrder[nextIndex])
+                    }}
+                    aria-label="Előző számla"
+                  >
+                    <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => {
+                      const currentIndex = summaryAccountsOrder.indexOf(yearlyAccountView)
+                      const nextIndex = (currentIndex + 1) % summaryAccountsOrder.length
+                      setYearlyAccountView(summaryAccountsOrder[nextIndex])
+                    }}
+                    aria-label="Következő számla"
+                  >
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {/* Netting checkboxes */}
@@ -4568,24 +4654,24 @@ export function SavingsCalculator() {
                   <div className="flex items-center justify-between rounded-lg bg-background p-3 md:p-4">
                     <span className="text-xs md:text-sm font-medium text-muted-foreground">Teljes befizetés</span>
                     <span className="text-lg md:text-xl font-bold tabular-nums">
-                      {formatCurrency(getRealValue(results.totalContributions))}
+                      {formatCurrency(getRealValue(activeSummaryTotals.totalContributions))}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between rounded-lg bg-background p-3 md:p-4">
                     <span className="text-xs md:text-sm font-medium text-muted-foreground">Összes költség</span>
                     <span className="text-lg md:text-xl font-bold text-destructive tabular-nums">
-                      {formatCurrency(getRealValue(results.totalCosts))}
+                      {formatCurrency(getRealValue(activeSummaryTotals.totalCosts))}
                     </span>
                   </div>
 
-                  {enableRiskInsurance && totalRiskInsuranceCost > 0 && (
+                  {enableRiskInsurance && activeSummaryTotals.totalRiskInsuranceCost > 0 && (
                     <div className="flex items-center justify-between rounded-lg bg-background p-3 md:p-4">
                       <span className="text-xs md:text-sm font-medium text-muted-foreground">
                         Ebből kockázati bizt.
                       </span>
                       <span className="text-lg md:text-xl font-bold text-purple-600 dark:text-purple-400 tabular-nums">
-                        {formatCurrency(getRealValue(totalRiskInsuranceCost))}
+                        {formatCurrency(getRealValue(activeSummaryTotals.totalRiskInsuranceCost))}
                       </span>
                     </div>
                   )}
@@ -4593,21 +4679,21 @@ export function SavingsCalculator() {
                   <div className="flex items-center justify-between rounded-lg bg-background p-3 md:p-4">
                     <span className="text-xs md:text-sm font-medium text-muted-foreground">Összes bónusz</span>
                     <span className="text-lg md:text-xl font-bold text-chart-2 tabular-nums">
-                      {formatCurrency(getRealValue(results.totalBonus))}
+                      {formatCurrency(getRealValue(activeSummaryTotals.totalBonus))}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between rounded-lg bg-background p-3 md:p-4">
                     <span className="text-xs md:text-sm font-medium text-muted-foreground">Összes adójóváírás</span>
                     <span className="text-lg md:text-xl font-bold text-chart-3 tabular-nums">
-                      {formatCurrency(getRealValue(results.totalTaxCredit))}
+                      {formatCurrency(getRealValue(activeSummaryTotals.totalTaxCredit))}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between rounded-lg bg-background p-3 md:p-4">
                     <span className="text-xs md:text-sm font-medium text-muted-foreground">Teljes nettó hozam</span>
                     <span className="text-lg md:text-xl font-bold text-chart-1 tabular-nums">
-                      {formatCurrency(getRealValue(results.totalInterestNet))}
+                      {formatCurrency(getRealValue(activeSummaryTotals.totalInterestNet))}
                     </span>
                   </div>
 
