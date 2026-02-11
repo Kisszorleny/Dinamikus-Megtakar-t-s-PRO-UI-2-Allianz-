@@ -3390,11 +3390,18 @@ export function SavingsCalculator() {
   const isYearlyReadOnly = yearlyAccountView === "summary"
   const isYearlyMuted = yearlyAccountView === "summary"
   const isEsetiView = yearlyAccountView === "eseti"
-  const isSettingsEseti = false
-  const settingsDurationUnit = durationUnit
-  const settingsDurationValue = durationValue
+  const settingsAccountView: "main" | "eseti" = yearlyAccountView === "eseti" ? "eseti" : "main"
+  const isSettingsEseti = settingsAccountView === "eseti"
+  const settingsDurationUnit = isSettingsEseti ? esetiDurationUnit : durationUnit
+  const settingsDurationValue = isSettingsEseti ? esetiDurationValue : durationValue
   const settingsDurationMax =
-    settingsDurationUnit === "year" ? 50 : settingsDurationUnit === "month" ? 600 : 18250
+    isSettingsEseti
+      ? esetiDurationMaxByUnit[settingsDurationUnit]
+      : settingsDurationUnit === "year"
+        ? 50
+        : settingsDurationUnit === "month"
+          ? 600
+          : 18250
   const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
 
   const canUseFundYield = Boolean(selectedProduct)
@@ -3555,12 +3562,38 @@ export function SavingsCalculator() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Alapbeállítások</CardTitle>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setYearlyAccountView(settingsAccountView === "eseti" ? "main" : "eseti")}
+                      aria-label="Váltás fő és eseti között"
+                    >
+                      <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setYearlyAccountView(settingsAccountView === "eseti" ? "main" : "eseti")}
+                      aria-label="Váltás fő és eseti között"
+                    >
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className={`grid gap-4 sm:grid-cols-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
                     <div className="space-y-2">
                       <Label htmlFor="currency">Devizanem</Label>
-                      <Select value={inputs.currency} onValueChange={handleCurrencyChange}>
+                      <Select
+                        value={inputs.currency}
+                        onValueChange={handleCurrencyChange}
+                        disabled={isSettingsEseti}
+                      >
                         <SelectTrigger id="currency">
                           <SelectValue />
                         </SelectTrigger>
@@ -3589,6 +3622,7 @@ export function SavingsCalculator() {
                             id={inputs.currency === "USD" ? "usdToHufRate" : "eurToHufRate"}
                             type="text"
                             inputMode="numeric"
+                            disabled={isSettingsEseti}
                             value={
                               editingFields[inputs.currency === "USD" ? "usdToHufRate" : "eurToHufRate"]
                                 ? String(inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate)
@@ -3601,6 +3635,7 @@ export function SavingsCalculator() {
                               setFieldEditing(inputs.currency === "USD" ? "usdToHufRate" : "eurToHufRate", false)
                             }
                             onChange={(e) => {
+                              if (isSettingsEseti) return
                               const parsed = parseNumber(e.target.value)
                               if (!isNaN(parsed)) {
                                 if (inputs.currency === "USD") {
@@ -3618,7 +3653,7 @@ export function SavingsCalculator() {
                             variant="outline"
                             size="sm"
                             onClick={() => loadFxRate(inputs.currency as "EUR" | "USD")}
-                            disabled={isLoadingFx}
+                            disabled={isLoadingFx || isSettingsEseti}
                             className="shrink-0 bg-transparent"
                           >
                             {isLoadingFx ? "Betöltés..." : "Aktuális árfolyam"}
@@ -3653,6 +3688,7 @@ export function SavingsCalculator() {
                         id="regularPayment"
                         type="text"
                         inputMode="numeric"
+                        disabled={isSettingsEseti}
                         value={
                           editingFields.regularPayment
                             ? String(isSettingsEseti ? esetiBaseInputs.regularPayment : inputs.regularPayment)
@@ -3684,6 +3720,7 @@ export function SavingsCalculator() {
                       <Label htmlFor="frequency">Fizetési gyakoriság</Label>
                       <Select
                         value={isSettingsEseti ? esetiBaseInputs.frequency : inputs.frequency}
+                        disabled={isSettingsEseti}
                         onValueChange={(value: PaymentFrequency) => {
                           if (isSettingsEseti) {
                             setEsetiBaseInputs((prev) => ({ ...prev, frequency: value }))
@@ -3707,11 +3744,12 @@ export function SavingsCalculator() {
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
+                    <div className={`space-y-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
                       <Label>Futamidő</Label>
                       <div className="flex gap-2">
                         <Select
                           value={settingsDurationUnit}
+                          disabled={isSettingsEseti}
                           onValueChange={(v) => {
                             const nextUnit = v as DurationUnit
                             if (isSettingsEseti) {
@@ -3734,6 +3772,7 @@ export function SavingsCalculator() {
                         </Select>
                         <Input
                           type="number"
+                          disabled={isSettingsEseti}
                           value={settingsDurationValue}
                           onChange={(e) => {
                             const parsed = Number(e.target.value)
@@ -3758,12 +3797,13 @@ export function SavingsCalculator() {
                       <Label htmlFor="annualYield" className="min-w-0 flex-1 truncate">
                         Éves átlagos hozam (%)
                       </Label>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className={`flex items-center gap-2 shrink-0 ${isSettingsEseti ? "opacity-60" : ""}`}>
                           <span className="text-xs text-muted-foreground">Manuális</span>
                           <Switch
                             checked={annualYieldMode === "fund"}
-                            disabled={!canUseFundYield}
+                            disabled={!canUseFundYield || isSettingsEseti}
                             onCheckedChange={(checked) => {
+                              if (isSettingsEseti) return
                               if (checked && !canUseFundYield) return
                               setAnnualYieldMode(checked ? "fund" : "manual")
                             }}
@@ -3776,7 +3816,7 @@ export function SavingsCalculator() {
                           Eszközalap módhoz előbb válassz terméket a termékválasztóban.
                         </p>
                       ) : null}
-                      {annualYieldMode === "manual" ? (
+                      {annualYieldMode === "manual" || isSettingsEseti ? (
                       <Input
                         id="annualYield"
                         type="number"
@@ -3830,12 +3870,13 @@ export function SavingsCalculator() {
                     </div>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className={`grid gap-4 sm:grid-cols-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
                     <div className="space-y-2">
                       <Label htmlFor="annualIndex">Éves indexálás (%)</Label>
                       <Input
                         id="annualIndex"
                         type="number"
+                        disabled={isSettingsEseti}
                         value={isSettingsEseti ? esetiBaseInputs.annualIndexPercent : inputs.annualIndexPercent}
                         onChange={(e) => {
                           const nextValue = Number(e.target.value)
@@ -3854,6 +3895,7 @@ export function SavingsCalculator() {
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id="keepYearlyPayment"
+                        disabled={isSettingsEseti}
                         checked={isSettingsEseti ? esetiBaseInputs.keepYearlyPayment : inputs.keepYearlyPayment}
                         onCheckedChange={(checked) => {
                           if (isSettingsEseti) {
