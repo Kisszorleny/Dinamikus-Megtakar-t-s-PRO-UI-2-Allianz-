@@ -3075,13 +3075,7 @@ export function SavingsCalculator() {
   const updateEsetiPayment = (year: number, displayValue: number) => {
     const rate = inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate
     const calcValue = convertFromDisplayToCalc(displayValue, results.currency, displayCurrency, rate)
-    if (calcValue === 0) {
-      const newMap = { ...esetiPaymentByYear }
-      delete newMap[year]
-      setEsetiPaymentByYear(newMap)
-    } else {
-      setEsetiPaymentByYear({ ...esetiPaymentByYear, [year]: calcValue })
-    }
+    setEsetiPaymentByYear({ ...esetiPaymentByYear, [year]: calcValue })
   }
 
   const updateEsetiWithdrawal = (year: number, displayValue: number) => {
@@ -5603,6 +5597,10 @@ export function SavingsCalculator() {
                                   onFocus={() => setFieldEditing(`payment-${row.year}`, true)}
                                   onBlur={() => setFieldEditing(`payment-${row.year}`, false)}
                                   onChange={(e) => {
+                                    if (e.target.value.trim() === "") {
+                                      updatePaymentForView(row.year, 0)
+                                      return
+                                    }
                                     const parsed = parseNumber(e.target.value)
                                     if (!isNaN(parsed)) updatePaymentForView(row.year, parsed)
                                   }}
