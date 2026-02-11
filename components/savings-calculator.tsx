@@ -2727,8 +2727,29 @@ export function SavingsCalculator() {
     main: "Fő",
     eseti: "Eseti",
   }
+  const summaryThemeByAccount: Record<
+    "summary" | "main" | "eseti",
+    { card: string; metric: string; final: string }
+  > = {
+    summary: {
+      card: "border-sky-300 bg-sky-50/70 dark:border-sky-700 dark:bg-sky-950/25",
+      metric: "bg-sky-50/65 dark:bg-sky-900/20",
+      final: "bg-sky-700 text-sky-50 dark:bg-sky-800",
+    },
+    main: {
+      card: "border-blue-300 bg-blue-50/65 dark:border-blue-700 dark:bg-blue-950/25",
+      metric: "bg-blue-50/60 dark:bg-blue-900/20",
+      final: "bg-primary text-primary-foreground",
+    },
+    eseti: {
+      card: "border-orange-300 bg-orange-50/70 dark:border-orange-700 dark:bg-orange-950/25",
+      metric: "bg-orange-50/60 dark:bg-orange-900/20",
+      final: "bg-orange-700 text-orange-50 dark:bg-orange-800",
+    },
+  }
   const summaryAccountsOrder: Array<"summary" | "main" | "eseti"> = ["summary", "main", "eseti"]
   const activeSummaryTotals = summaryTotalsByAccount[yearlyAccountView]
+  const activeSummaryTheme = summaryThemeByAccount[yearlyAccountView]
   const activeTaxCreditPenaltyAmount = shouldApplyTaxCreditPenalty ? activeSummaryTotals.totalTaxCredit * 1.2 : 0
   const summaryBaseBalance = enableNetting && finalNetData ? finalNetData.netBalance : activeSummaryTotals.endBalance
   const summaryBalanceWithPenalty = Math.max(0, summaryBaseBalance - activeTaxCreditPenaltyAmount)
@@ -4495,7 +4516,7 @@ export function SavingsCalculator() {
             </Card>
             <Card
               id="summary"
-              className={`w-full border-2 scroll-mt-28 ${enableNetting ? "border-yellow-300 bg-yellow-50/50 dark:border-yellow-700 dark:bg-yellow-950/20" : "bg-accent"}`}
+              className={`w-full border-2 scroll-mt-28 ${activeSummaryTheme.card}`}
             >
               <CardHeader className="pb-2 md:pb-4 flex flex-row items-center justify-between">
                 <CardTitle className="text-lg md:text-xl">
@@ -4651,14 +4672,14 @@ export function SavingsCalculator() {
                 </div>
 
                 <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-1">
-                  <div className="flex items-center justify-between rounded-lg bg-background p-3 md:p-4">
+                  <div className={`flex items-center justify-between rounded-lg p-3 md:p-4 ${activeSummaryTheme.metric}`}>
                     <span className="text-xs md:text-sm font-medium text-muted-foreground">Teljes befizetés</span>
                     <span className="text-lg md:text-xl font-bold tabular-nums">
                       {formatCurrency(getRealValue(activeSummaryTotals.totalContributions))}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between rounded-lg bg-background p-3 md:p-4">
+                  <div className={`flex items-center justify-between rounded-lg p-3 md:p-4 ${activeSummaryTheme.metric}`}>
                     <span className="text-xs md:text-sm font-medium text-muted-foreground">Összes költség</span>
                     <span className="text-lg md:text-xl font-bold text-destructive tabular-nums">
                       {formatCurrency(getRealValue(activeSummaryTotals.totalCosts))}
@@ -4666,7 +4687,7 @@ export function SavingsCalculator() {
                   </div>
 
                   {enableRiskInsurance && activeSummaryTotals.totalRiskInsuranceCost > 0 && (
-                    <div className="flex items-center justify-between rounded-lg bg-background p-3 md:p-4">
+                    <div className={`flex items-center justify-between rounded-lg p-3 md:p-4 ${activeSummaryTheme.metric}`}>
                       <span className="text-xs md:text-sm font-medium text-muted-foreground">
                         Ebből kockázati bizt.
                       </span>
@@ -4676,28 +4697,28 @@ export function SavingsCalculator() {
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between rounded-lg bg-background p-3 md:p-4">
+                  <div className={`flex items-center justify-between rounded-lg p-3 md:p-4 ${activeSummaryTheme.metric}`}>
                     <span className="text-xs md:text-sm font-medium text-muted-foreground">Összes bónusz</span>
                     <span className="text-lg md:text-xl font-bold text-chart-2 tabular-nums">
                       {formatCurrency(getRealValue(activeSummaryTotals.totalBonus))}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between rounded-lg bg-background p-3 md:p-4">
+                  <div className={`flex items-center justify-between rounded-lg p-3 md:p-4 ${activeSummaryTheme.metric}`}>
                     <span className="text-xs md:text-sm font-medium text-muted-foreground">Összes adójóváírás</span>
                     <span className="text-lg md:text-xl font-bold text-chart-3 tabular-nums">
                       {formatCurrency(getRealValue(activeSummaryTotals.totalTaxCredit))}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between rounded-lg bg-background p-3 md:p-4">
+                  <div className={`flex items-center justify-between rounded-lg p-3 md:p-4 ${activeSummaryTheme.metric}`}>
                     <span className="text-xs md:text-sm font-medium text-muted-foreground">Teljes nettó hozam</span>
                     <span className="text-lg md:text-xl font-bold text-chart-1 tabular-nums">
                       {formatCurrency(getRealValue(activeSummaryTotals.totalInterestNet))}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between rounded-lg bg-primary p-3 md:p-4 text-primary-foreground sm:col-span-2 lg:col-span-1">
+                  <div className={`flex items-center justify-between rounded-lg p-3 md:p-4 sm:col-span-2 lg:col-span-1 ${activeSummaryTheme.final}`}>
                     <span className="text-xs md:text-sm font-medium">Egyenleg a futamidő végén</span>
                     <span className="text-xl md:text-2xl font-bold tabular-nums">
                       {formatCurrency(
