@@ -52,6 +52,7 @@ export interface InputsDaily {
   taxCreditEndYear?: number
   isTaxBonusSeparateAccount?: boolean // New flag for separate tax bonus account
   taxCreditToInvestedAccount?: boolean // If true, tax credit goes to invested account (yields apply)
+  taxCreditLimitByYear?: Record<number, number>
   taxCreditAmountByYear?: Record<number, number>
   taxCreditYieldPercent?: number
   adminFeeMonthlyAmount?: number
@@ -226,6 +227,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   const taxEnd = inputs.taxCreditEndYear
   const isTaxBonusSeparate = inputs.isTaxBonusSeparateAccount ?? false
   const isTaxCreditInvested = inputs.taxCreditToInvestedAccount ?? false
+  const taxCreditLimitByYear = inputs.taxCreditLimitByYear ?? {}
   const taxCreditAmountByYear = inputs.taxCreditAmountByYear ?? {}
 
   let startDate: Date | null = null
@@ -704,8 +706,12 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
     if (isYearEnd || isLastDay) {
       if (enableTax && currentYear >= taxStart && (!taxEnd || currentYear <= taxEnd)) {
         const manualTotalForYear = taxCreditAmountByYear[currentYear]
+        const manualLimitForYear = taxCreditLimitByYear[currentYear]
+        const effectiveYearCap = Math.min(taxCap, manualLimitForYear ?? Number.POSITIVE_INFINITY)
         const plannedTotal =
-          manualTotalForYear !== undefined ? manualTotalForYear : Math.min(plannedTaxCreditThisYear, taxCap)
+          manualTotalForYear !== undefined
+            ? Math.min(Math.max(0, manualTotalForYear), effectiveYearCap)
+            : Math.min(Math.max(0, plannedTaxCreditThisYear), effectiveYearCap)
         if (plannedTotal > 0) {
           applyTaxCredit(plannedTotal)
         }

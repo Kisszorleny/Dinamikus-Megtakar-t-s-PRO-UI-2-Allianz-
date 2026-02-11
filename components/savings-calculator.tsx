@@ -5149,6 +5149,10 @@ export function SavingsCalculator() {
                           displayCurrency,
                           inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
                         )
+                        const effectiveTaxCreditAmountForRow = Math.min(
+                          taxCreditAmountByYear[row.year] ?? row.taxCreditForYear,
+                          remainingTaxCreditCapForYear,
+                        )
 
                         const isIndexModified = (isEsetiView ? esetiIndexByYear : indexByYear)[row.year] !== undefined
                         const isPaymentModified = (isEsetiView ? esetiPaymentByYear : paymentByYear)[row.year] !== undefined
@@ -5521,7 +5525,7 @@ export function SavingsCalculator() {
                                         ? String(
                                             Math.round(
                                               convertForDisplay(
-                                                taxCreditAmountByYear[row.year] ?? row.taxCreditForYear,
+                                                effectiveTaxCreditAmountForRow,
                                                 results.currency,
                                                 displayCurrency,
                                                 inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
@@ -5531,7 +5535,7 @@ export function SavingsCalculator() {
                                         : formatNumber(
                                             Math.round(
                                               convertForDisplay(
-                                                taxCreditAmountByYear[row.year] ?? row.taxCreditForYear,
+                                                effectiveTaxCreditAmountForRow,
                                                 results.currency,
                                                 displayCurrency,
                                                 inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
