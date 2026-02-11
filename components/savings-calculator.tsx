@@ -137,23 +137,36 @@ type YearRow = {
 }
 // </CHANGE>
 
-function calculateNetValues(
+type NetRow = {
+  year: number
+  grossBalance: number
+  grossProfit: number
+  taxRate: number
+  taxDeduction: number
+  netProfit: number
+  netBalance: number
+}
+
+const mainTaxRateByYear = (year: number, isCorporate: boolean) => {
+  if (year <= 5) return isCorporate ? 0.15 : 0.28
+  if (year <= 10) return isCorporate ? 0.075 : 0.14
+  return 0
+}
+
+const esetiTaxRateByLotAge = (ageYears: number, isCorporate: boolean) => {
+  if (ageYears <= 3) return isCorporate ? 0.15 : 0.28
+  if (ageYears <= 5) return isCorporate ? 0.075 : 0.14
+  return 0
+}
+
+function calculateNetValuesMain(
   yearlyBreakdown: Array<{ year: number; endBalance: number; totalContributions: number }>,
   isCorporate: boolean,
-) {
+): NetRow[] {
   return yearlyBreakdown.map((row) => {
     const totalContributions = Number.isFinite(row.totalContributions) ? row.totalContributions : 0
     const grossProfit = row.endBalance - totalContributions
-
-    // Determine tax rate based on year
-    let taxRate = 0
-    if (row.year <= 5) {
-      taxRate = isCorporate ? 0.15 : 0.28 // 15% vs 28%
-    } else if (row.year <= 10) {
-      taxRate = isCorporate ? 0.075 : 0.14 // 7.5% vs 14%
-    }
-    // 10+ years: 0% (tax free)
-
+    const taxRate = mainTaxRateByYear(row.year, isCorporate)
     const taxDeduction = grossProfit > 0 ? grossProfit * taxRate : 0
     const netProfit = grossProfit - taxDeduction
     const netBalance = totalContributions + netProfit
@@ -168,6 +181,84 @@ function calculateNetValues(
       netBalance,
     }
   })
+}
+
+function calculateNetValuesEseti(
+  yearlyBreakdown: Array<{ year: number; endBalance: number; totalContributions: number; withdrawalForYear?: number }>,
+  isCorporate: boolean,
+): NetRow[] {
+  type Lot = { year: number; principalRemaining: number }
+  const lots: Lot[] = []
+  let previousTotalContributions = 0
+
+  return yearlyBreakdown.map((row) => {
+    const totalContributions = Number.isFinite(row.totalContributions) ? row.totalContributions : 0
+    const paymentThisYear = Math.max(0, totalContributions - previousTotalContributions)
+    previousTotalContributions = totalContributions
+
+    if (paymentThisYear > 0) {
+      lots.push({ year: row.year, principalRemaining: paymentThisYear })
+    }
+
+    const withdrawalThisYear = Math.max(0, row.withdrawalForYear ?? 0)
+    if (withdrawalThisYear > 0) {
+      const principalBeforeWithdrawal = lots.reduce((sum, lot) => sum + lot.principalRemaining, 0)
+      if (principalBeforeWithdrawal > 0) {
+        const reductionFactor = Math.max(0, (principalBeforeWithdrawal - withdrawalThisYear) / principalBeforeWithdrawal)
+        for (const lot of lots) {
+          lot.principalRemaining *= reductionFactor
+        }
+      }
+    }
+
+    const remainingPrincipal = lots.reduce((sum, lot) => sum + lot.principalRemaining, 0)
+    const grossProfit = row.endBalance - remainingPrincipal
+
+    const weightedTaxBase = lots.reduce((sum, lot) => {
+      if (lot.principalRemaining <= 0) return sum
+      const lotAge = row.year - lot.year + 1
+      return sum + lot.principalRemaining * esetiTaxRateByLotAge(lotAge, isCorporate)
+    }, 0)
+    const taxRate = remainingPrincipal > 0 ? weightedTaxBase / remainingPrincipal : 0
+
+    const taxDeduction = grossProfit > 0 ? grossProfit * taxRate : 0
+    const netProfit = grossProfit - taxDeduction
+    const netBalance = remainingPrincipal + netProfit
+
+    return {
+      year: row.year,
+      grossBalance: row.endBalance,
+      grossProfit,
+      taxRate,
+      taxDeduction,
+      netProfit,
+      netBalance,
+    }
+  })
+}
+
+function combineNetRows(mainRows: NetRow[], esetiRows: NetRow[]): NetRow[] {
+  const maxLength = Math.max(mainRows.length, esetiRows.length)
+  const rows: NetRow[] = []
+  for (let index = 0; index < maxLength; index++) {
+    const main = mainRows[index]
+    const eseti = esetiRows[index]
+    const grossBalance = (main?.grossBalance ?? 0) + (eseti?.grossBalance ?? 0)
+    const grossProfit = (main?.grossProfit ?? 0) + (eseti?.grossProfit ?? 0)
+    const taxDeduction = (main?.taxDeduction ?? 0) + (eseti?.taxDeduction ?? 0)
+    const netProfit = grossProfit - taxDeduction
+    const netBalance = (main?.netBalance ?? 0) + (eseti?.netBalance ?? 0)
+    rows.push({
+      year: main?.year ?? eseti?.year ?? index + 1,
+      grossBalance,
+      grossProfit,
+      taxRate: grossProfit > 0 ? taxDeduction / grossProfit : 0,
+      taxDeduction,
+      netProfit,
+      netBalance,
+    })
+  }
+  return rows
 }
 
 const buildCumulativeByYear = (yearlyBreakdown: Array<any> = []) => {
@@ -2659,18 +2750,20 @@ export function SavingsCalculator() {
     () => buildCumulativeByYear(summaryYearlyBreakdown),
     [summaryYearlyBreakdown],
   )
-  const yearlyBreakdownForView = useMemo(() => {
-    if (yearlyAccountView === "summary") return summaryYearlyBreakdown
-    if (yearlyAccountView === "eseti") return resultsEseti.yearlyBreakdown
-    return results.yearlyBreakdown
-  }, [yearlyAccountView, summaryYearlyBreakdown, resultsEseti.yearlyBreakdown, results.yearlyBreakdown])
-
-  const netCalculations = useMemo(() => {
-    return calculateNetValues(results.yearlyBreakdown, isCorporateBond)
+  const netCalculationsMain = useMemo(() => {
+    return calculateNetValuesMain(results.yearlyBreakdown, isCorporateBond)
   }, [results.yearlyBreakdown, isCorporateBond])
+  const netCalculationsEseti = useMemo(() => {
+    return calculateNetValuesEseti(resultsEseti.yearlyBreakdown, isCorporateBond)
+  }, [resultsEseti.yearlyBreakdown, isCorporateBond])
+  const netCalculationsSummary = useMemo(() => {
+    return combineNetRows(netCalculationsMain, netCalculationsEseti)
+  }, [netCalculationsMain, netCalculationsEseti])
   const yearlyNetCalculations = useMemo(() => {
-    return calculateNetValues(yearlyBreakdownForView, isCorporateBond)
-  }, [yearlyBreakdownForView, isCorporateBond])
+    if (yearlyAccountView === "eseti") return netCalculationsEseti
+    if (yearlyAccountView === "summary") return netCalculationsSummary
+    return netCalculationsMain
+  }, [yearlyAccountView, netCalculationsEseti, netCalculationsSummary, netCalculationsMain])
 
   const finalNetData = useMemo(() => {
     if (yearlyNetCalculations.length === 0) return null
