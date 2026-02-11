@@ -1121,6 +1121,15 @@ export function SavingsCalculator() {
     }
     return {}
   })
+  const [esetiFrequency, setEsetiFrequency] = useState<PaymentFrequency>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-esetiFrequency")
+      if (stored === "havi" || stored === "negyedéves" || stored === "féléves" || stored === "éves") {
+        return stored
+      }
+    }
+    return "éves"
+  })
 
   const [taxCreditAmountByYear, setTaxCreditAmountByYear] = useState<Record<number, number>>(() => {
     if (typeof window !== "undefined") {
@@ -2123,6 +2132,11 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-esetiPaymentByYear", JSON.stringify(esetiPaymentByYear))
     }
   }, [esetiPaymentByYear])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-esetiFrequency", esetiFrequency)
+    }
+  }, [esetiFrequency])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -2477,6 +2491,7 @@ export function SavingsCalculator() {
     () => ({
       ...dailyInputs,
       disableProductDefaults: true,
+      frequency: esetiFrequency,
       yearlyPaymentsPlan: esetiPlan.yearlyPaymentsPlan,
       yearlyWithdrawalsPlan: esetiPlan.yearlyWithdrawalsPlan,
       annualIndexPercent: 0,
@@ -2501,7 +2516,7 @@ export function SavingsCalculator() {
       riskInsuranceFeePercentOfMonthlyPayment: 0,
       riskInsuranceAnnualIndexPercent: 0,
     }),
-    [dailyInputs, esetiPlan],
+    [dailyInputs, esetiPlan, esetiFrequency],
   )
 
   const productId = useMemo(
@@ -4791,7 +4806,30 @@ export function SavingsCalculator() {
                       <tr className="border-b">
                         <th className="py-3 px-3 text-center font-medium w-16 sticky left-0 z-20 bg-background/95">Év</th>
                         <th className="py-3 px-3 text-right font-medium whitespace-nowrap">Index (%)</th>
-                        <th className="py-3 px-3 text-right font-medium whitespace-nowrap">Befizetés/év</th>
+                        <th className="py-3 px-3 text-right font-medium whitespace-nowrap">
+                          {isEsetiView ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <span>Befizetés/év</span>
+                              <Select
+                                value={esetiFrequency}
+                                onValueChange={(value) => setEsetiFrequency(value as PaymentFrequency)}
+                                disabled={isYearlyReadOnly}
+                              >
+                                <SelectTrigger className="h-7 w-[118px] text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="éves">Éves</SelectItem>
+                                  <SelectItem value="féléves">Féléves</SelectItem>
+                                  <SelectItem value="negyedéves">Negyedéves</SelectItem>
+                                  <SelectItem value="havi">Havi</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ) : (
+                            "Befizetés/év"
+                          )}
+                        </th>
                         <th className="py-3 px-3 text-right font-medium whitespace-nowrap">Hozam</th>
                         <th className="py-3 px-2 text-right font-medium">
                           <button
