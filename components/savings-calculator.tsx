@@ -4808,26 +4808,23 @@ export function SavingsCalculator() {
                         <th className="py-3 px-3 text-right font-medium whitespace-nowrap">Index (%)</th>
                         <th className="py-3 px-3 text-right font-medium whitespace-nowrap">
                           {isEsetiView ? (
-                            <Select
-                              value={esetiFrequency}
-                              onValueChange={(value) => setEsetiFrequency(value as PaymentFrequency)}
-                              disabled={isYearlyReadOnly}
-                            >
-                              <SelectTrigger className="h-auto w-auto border-0 bg-transparent p-0 shadow-none ring-0 hover:bg-transparent focus:ring-0 focus:ring-offset-0">
-                                <span className="inline-flex items-center gap-1">
-                                  <span className="border-b border-dashed border-muted-foreground/40 leading-tight">
-                                    Befizetés/év
-                                  </span>
-                                  <ChevronDown className="h-3 w-3 text-muted-foreground/70" />
-                                </span>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="éves">Éves</SelectItem>
-                                <SelectItem value="féléves">Féléves</SelectItem>
-                                <SelectItem value="negyedéves">Negyedéves</SelectItem>
-                                <SelectItem value="havi">Havi</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <div className="flex items-center justify-end">
+                              <Select
+                                value={esetiFrequency}
+                                onValueChange={(value) => setEsetiFrequency(value as PaymentFrequency)}
+                                disabled={isYearlyReadOnly}
+                              >
+                                <SelectTrigger className="h-5 w-auto border-0 bg-transparent px-0 py-0 text-sm font-medium shadow-none ring-0 hover:bg-transparent focus:ring-0 focus:ring-offset-0 data-[size=default]:h-5 [&>svg]:size-3.5 [&>svg]:opacity-50">
+                                  <span className="leading-none">Befizetés/év</span>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="éves">Éves</SelectItem>
+                                  <SelectItem value="féléves">Féléves</SelectItem>
+                                  <SelectItem value="negyedéves">Negyedéves</SelectItem>
+                                  <SelectItem value="havi">Havi</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                           ) : (
                             "Befizetés/év"
                           )}
