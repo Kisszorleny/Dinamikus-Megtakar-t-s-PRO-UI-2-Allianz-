@@ -76,6 +76,11 @@ type FundSeriesApiResponse = {
   stats?: {
     annualizedReturnPercent?: number
   }
+  page?: {
+    nextCursorTo?: string | null
+    earliestTerm?: string
+    latestTerm?: string
+  }
   error?: string
 }
 
@@ -2695,28 +2700,83 @@ export function SavingsCalculator() {
     const query = new URLSearchParams({ fundId: selectedFundId })
     if (from) query.set("from", from)
     if (to) query.set("to", to)
+    if (isAllianzFundMode) {
+      query.set("provider", "allianz-ulexchange")
+      query.set("program", "ul2005")
+      query.set("currency", inputs.currency)
+    }
+    query.set("mode", fundCalculationMode)
 
     const load = async () => {
       setFundSeriesLoading(true)
       setFundSeriesError(null)
       try {
-        const response = await fetch(`/api/funds/prices?${query.toString()}`, { signal: controller.signal })
-        const data = (await response.json()) as FundSeriesApiResponse
-        if (!response.ok || data.error) {
-          throw new Error(data.error || "Eszközalap idősor nem elérhető")
+        // Replay mode can require paging (multi-decade ranges). We loop client-side to avoid serverless timeouts.
+        if (fundCalculationMode === "replay" && isAllianzFundMode && from && to) {
+          const all: FundSeriesPoint[] = []
+          const byDate = new Map<string, number>()
+          let cursorTo: string | null = null
+          let guard = 0
+
+          while (!cancelled) {
+            guard += 1
+            if (guard > 400) break
+
+            const paged = new URLSearchParams(query)
+            if (cursorTo) paged.set("cursorTo", cursorTo)
+
+            const response = await fetch(`/api/funds/prices?${paged.toString()}`, { signal: controller.signal })
+            const data = (await response.json()) as FundSeriesApiResponse
+            if (!response.ok || data.error) {
+              throw new Error(data.error || "Eszközalap idősor nem elérhető")
+            }
+
+            const points = Array.isArray(data.points) ? data.points : []
+            for (const p of points) {
+              if (!p || typeof p.date !== "string" || typeof p.price !== "number") continue
+              if (!Number.isFinite(p.price) || p.price <= 0) continue
+              if (!byDate.has(p.date)) all.push(p)
+              byDate.set(p.date, p.price)
+            }
+
+            setFundSeriesPoints(
+              all
+                .slice()
+                .sort((a, b) => a.date.localeCompare(b.date))
+                .map((p) => ({ date: p.date, price: byDate.get(p.date) ?? p.price })),
+            )
+            setFundSeriesSource(data.source ?? null)
+            setFundSeriesUpdatedAt(data.updatedAt ?? null)
+
+            const next = data.page?.nextCursorTo ?? null
+            if (!next) {
+              setFundSeriesAnnualizedReturn(
+                typeof data.stats?.annualizedReturnPercent === "number" ? data.stats.annualizedReturnPercent : null,
+              )
+              break
+            }
+            cursorTo = next
+          }
+        } else {
+          const response = await fetch(`/api/funds/prices?${query.toString()}`, { signal: controller.signal })
+          const data = (await response.json()) as FundSeriesApiResponse
+          if (!response.ok || data.error) {
+            throw new Error(data.error || "Eszközalap idősor nem elérhető")
+          }
+          if (cancelled) return
+          const points = Array.isArray(data.points) ? data.points : []
+          setFundSeriesPoints(points)
+          setFundSeriesSource(data.source ?? null)
+          setFundSeriesUpdatedAt(data.updatedAt ?? null)
+          setFundSeriesAnnualizedReturn(
+            typeof data.stats?.annualizedReturnPercent === "number" ? data.stats.annualizedReturnPercent : null,
+          )
         }
-        if (cancelled) return
-        const points = Array.isArray(data.points) ? data.points : []
-        setFundSeriesPoints(points)
-        setFundSeriesSource(data.source ?? null)
-        setFundSeriesUpdatedAt(data.updatedAt ?? null)
-        setFundSeriesAnnualizedReturn(
-          typeof data.stats?.annualizedReturnPercent === "number" ? data.stats.annualizedReturnPercent : null,
-        )
       } catch (error) {
         if (cancelled) return
         if (error instanceof DOMException && error.name === "AbortError") return
-        setFundSeriesError(error instanceof Error ? error.message : "Eszközalap idősor nem elérhető")
+        const message = error instanceof Error ? error.message : "Eszközalap idősor nem elérhető"
+        setFundSeriesError(message)
         setFundSeriesPoints([])
         setFundSeriesSource(null)
         setFundSeriesUpdatedAt(null)
@@ -2733,7 +2793,18 @@ export function SavingsCalculator() {
       cancelled = true
       controller.abort()
     }
-  }, [annualYieldMode, selectedFundId, selectedProduct, parsedDurationFrom, parsedDurationTo])
+  }, [annualYieldMode, selectedFundId, selectedProduct, parsedDurationFrom, parsedDurationTo, fundCalculationMode, inputs.currency, isAllianzFundMode])
+
+  useEffect(() => {
+    if (annualYieldMode !== "fund") return
+    if (fundCalculationMode !== "averaged") return
+    if (typeof fundSeriesAnnualizedReturn !== "number") return
+    setInputs((prev) =>
+      prev.annualYieldPercent === fundSeriesAnnualizedReturn
+        ? prev
+        : { ...prev, annualYieldPercent: fundSeriesAnnualizedReturn },
+    )
+  }, [annualYieldMode, fundCalculationMode, fundSeriesAnnualizedReturn, setInputs])
 
   const totalYearsForPlan = useMemo(() => toYearsFromDuration(durationUnit, durationValue), [durationUnit, durationValue])
   const esetiDurationMaxByUnit = useMemo(() => {
@@ -2868,7 +2939,7 @@ export function SavingsCalculator() {
     )
 
     const exchangeRate = inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate
-    const useFundSeries = annualYieldMode === "fund" && fundSeriesPoints.length > 1
+    const useFundSeries = annualYieldMode === "fund" && fundCalculationMode === "replay" && fundSeriesPoints.length > 1
 
     return {
       currency: inputs.currency,
