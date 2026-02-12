@@ -3599,8 +3599,8 @@ export function SavingsCalculator() {
                 <CardContent className="space-y-4">
                   <div className={`space-y-3 ${isSettingsEseti ? "opacity-60" : ""}`}>
                     {/* Compact row 1: frequency / payment / currency / index */}
-                    <div className="grid items-end gap-2 grid-cols-[1fr_1.6fr_1fr_0.8fr] md:grid-cols-12">
-                      <div className="min-w-0 space-y-1 md:col-span-2">
+                    <div className="grid items-end gap-2 grid-cols-10 md:grid-cols-12">
+                      <div className="col-span-2 min-w-0 space-y-1 md:col-span-2">
                         <Label htmlFor="frequency" className="text-xs text-muted-foreground">
                           Fiz. gyak.
                         </Label>
@@ -3628,7 +3628,7 @@ export function SavingsCalculator() {
                         </Select>
                       </div>
 
-                      <div className="min-w-0 space-y-1 md:col-span-6">
+                      <div className="col-span-4 min-w-0 space-y-1 md:col-span-6">
                         <Label htmlFor="regularPayment" className="text-xs text-muted-foreground">
                           Befizetés
                         </Label>
@@ -3657,7 +3657,7 @@ export function SavingsCalculator() {
                         />
                       </div>
 
-                      <div className="min-w-0 space-y-1 md:col-span-2">
+                      <div className="col-span-2 min-w-0 space-y-1 md:col-span-2">
                         <Label htmlFor="currency" className="text-xs text-muted-foreground">
                           Deviza
                         </Label>
@@ -3673,7 +3673,7 @@ export function SavingsCalculator() {
                         </Select>
                       </div>
 
-                      <div className="min-w-0 space-y-1 md:col-span-2">
+                      <div className="col-span-2 min-w-0 space-y-1 md:col-span-2">
                         <Label htmlFor="annualIndex" className="text-xs text-muted-foreground">
                           Index %
                         </Label>
@@ -3698,8 +3698,8 @@ export function SavingsCalculator() {
                     </div>
 
                     {/* Compact row 2: duration value / unit / yield */}
-                    <div className="grid items-end gap-2 grid-cols-[0.9fr_0.9fr_1.8fr] md:grid-cols-12">
-                      <div className={`min-w-0 space-y-1 md:col-span-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
+                    <div className="grid items-end gap-2 grid-cols-10 md:grid-cols-12">
+                      <div className={`col-span-2 min-w-0 space-y-1 md:col-span-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
                         <Label className="text-xs text-muted-foreground">Futamidő</Label>
                         <Input
                           type="number"
@@ -3718,7 +3718,7 @@ export function SavingsCalculator() {
                         />
                       </div>
 
-                      <div className={`min-w-0 space-y-1 md:col-span-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
+                      <div className={`col-span-2 min-w-0 space-y-1 md:col-span-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
                         <Label className="text-xs text-muted-foreground">Egység</Label>
                         <Select
                           value={settingsDurationUnit}
@@ -3745,7 +3745,7 @@ export function SavingsCalculator() {
                         </Select>
                       </div>
 
-                      <div className="min-w-0 space-y-1 md:col-span-8">
+                      <div className="col-span-6 min-w-0 space-y-1 md:col-span-8">
                         <div className="flex items-center justify-between gap-2">
                           <Label htmlFor="annualYield" className="text-xs text-muted-foreground">
                             Hozam (%)
