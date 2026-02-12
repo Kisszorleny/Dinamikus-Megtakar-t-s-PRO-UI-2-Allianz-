@@ -2734,6 +2734,23 @@ export function SavingsCalculator() {
             }
 
             const points = Array.isArray(data.points) ? data.points : []
+            if (points.length === 0) {
+              // If the very first page has no points, it's almost certainly a configuration mismatch (fund/currency/provider).
+              // For later pages (older history), the fund might not exist yet; stop paging in that case.
+              if (all.length === 0) {
+                const details = [
+                  data.source ? `source=${data.source}` : null,
+                  inputs.currency ? `currency=${inputs.currency}` : null,
+                  selectedFundId ? `fund=${selectedFundId}` : null,
+                  from ? `from=${from}` : null,
+                  (cursorTo || to) ? `to=${cursorTo || to}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(", ")
+                throw new Error(`Allianz idősor: 0 pont érkezett (${details}).`)
+              }
+              break
+            }
             for (const p of points) {
               if (!p || typeof p.date !== "string" || typeof p.price !== "number") continue
               if (!Number.isFinite(p.price) || p.price <= 0) continue
