@@ -361,7 +361,6 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   let taxBonusWealthBonusThisYear = 0
   let taxBonusPlusCostThisYear = 0
 
-  let currentMonth = 1
   let cumulativeMonth = 0
   let paymentThisMonth = 0
   let upfrontCostThisMonth = 0
@@ -1001,7 +1000,6 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         endingTaxBonusValue: taxBonusUnits * taxBonusPrice,
       })
 
-      currentMonth = monthOfYear
       paymentThisMonth = 0
       upfrontCostThisMonth = 0
       adminFeeCostThisMonth = 0
