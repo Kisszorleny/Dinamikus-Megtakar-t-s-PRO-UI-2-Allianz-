@@ -625,6 +625,7 @@ function MobileYearCard({
   const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
   const effectiveCurrentIndex = isEsetiView ? indexByYear?.[row.year] ?? currentIndex ?? 0 : currentIndex
   const effectiveCurrentPayment = isEsetiView ? paymentByYear?.[row.year] ?? currentPayment ?? 0 : currentPayment
+  const paymentInputValue = isPartialReadOnly ? row.yearlyPayment ?? 0 : effectiveCurrentPayment
 
   let displayData = {
     endBalance: row.endBalance,
@@ -774,10 +775,10 @@ function MobileYearCard({
             value={
               editingFields[`payment-${row.year}`]
                 ? String(
-                    Math.round(convertForDisplay(effectiveCurrentPayment, resultsCurrency, displayCurrency, eurToHufRate)),
+                    Math.round(convertForDisplay(paymentInputValue, resultsCurrency, displayCurrency, eurToHufRate)),
                   )
                 : formatNumber(
-                    Math.round(convertForDisplay(effectiveCurrentPayment, resultsCurrency, displayCurrency, eurToHufRate)),
+                    Math.round(convertForDisplay(paymentInputValue, resultsCurrency, displayCurrency, eurToHufRate)),
                   )
             }
             onFocus={() => setFieldEditing(`payment-${row.year}`, true)}
@@ -5690,7 +5691,7 @@ export function SavingsCalculator() {
                             ? cumulativeByYearSummary
                             : cumulativeByYear
                         const sourceRow = yearlyAggregationMode === "sum" ? sourceCumulativeByYear[row.year] ?? row : row
-                        const displayPaymentValue = isEsetiView ? currentPayment : row.yearlyPayment ?? currentPayment
+                        const displayPaymentValue = sourceRow.yearlyPayment ?? currentPayment
 
                         let displayData = {
                           endBalance: sourceRow.endBalance,

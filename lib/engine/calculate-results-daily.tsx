@@ -350,6 +350,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   }
 
   let lastPaymentMonth = 0
+  let lastPaymentPeriodKey = -1
   let nextManagementFeeDay = 0
 
   const getInvestedSharePercent = (year: number): number => {
@@ -399,10 +400,6 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   for (let day = 0; day < totalDays; day++) {
     currentYear = Math.floor(day / DAYS_PER_YEAR) + 1
     const dayOfYear = (day % DAYS_PER_YEAR) + 1
-    if (dayOfYear === 1) {
-      lastPaymentMonth = 0
-    }
-
     const monthOfYear = Math.min(12, Math.floor((dayOfYear - 1) / daysPerMonth) + 1)
     const nextMonthOfYear = Math.min(12, Math.floor(dayOfYear / daysPerMonth) + 1)
     const isMonthEnd = day === totalDays - 1 || dayOfYear === DAYS_PER_YEAR || monthOfYear !== nextMonthOfYear
@@ -436,8 +433,31 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       }
     }
 
-    const shouldPayThisMonth =
-      monthOfYear !== lastPaymentMonth && ((monthOfYear - 1) % monthsPerPayment === 0)
+    let shouldPayThisMonth = false
+    if (
+      inputs.calculationMode === "calendar" &&
+      startDate &&
+      currentCalendarYear !== null &&
+      currentMonth !== null &&
+      currentDayOfMonth !== null
+    ) {
+      const startMonthIndex = startDate.getFullYear() * 12 + startDate.getMonth()
+      const currentMonthIndex = currentCalendarYear * 12 + (currentMonth - 1)
+      const monthsElapsed = currentMonthIndex - startMonthIndex
+      const daysInCurrentMonth = new Date(currentCalendarYear, currentMonth, 0).getDate()
+      const dueDayOfMonth = Math.min(startDate.getDate(), daysInCurrentMonth)
+      const isDueMonth = monthsElapsed >= 0 && monthsElapsed % monthsPerPayment === 0
+
+      if (isDueMonth && currentDayOfMonth === dueDayOfMonth && currentMonthIndex !== lastPaymentPeriodKey) {
+        shouldPayThisMonth = true
+        lastPaymentPeriodKey = currentMonthIndex
+      }
+    } else {
+      if (dayOfYear === 1) {
+        lastPaymentMonth = 0
+      }
+      shouldPayThisMonth = monthOfYear !== lastPaymentMonth && ((monthOfYear - 1) % monthsPerPayment === 0)
+    }
 
     if (shouldPayThisMonth) {
       const yearlyPayment = inputs.yearlyPaymentsPlan[currentYear] ?? 0
@@ -524,7 +544,9 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       costThisYear += upfrontCost + riskInsuranceCost
       totalRiskInsuranceCost += riskInsuranceCost
       riskInsuranceCostThisYear += riskInsuranceCost
-      lastPaymentMonth = monthOfYear
+      if (inputs.calculationMode !== "calendar") {
+        lastPaymentMonth = monthOfYear
+      }
     }
 
     if (day >= Math.round(nextManagementFeeDay)) {
