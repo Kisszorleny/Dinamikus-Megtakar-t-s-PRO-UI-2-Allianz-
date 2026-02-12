@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Loader2, Table2, LayoutGrid, Mail, Copy } from "lucide-react"
+import { ArrowLeft, Loader2, Table2, LayoutGrid, Copy } from "lucide-react"
 import { useCalculatorData } from "@/lib/calculator-context"
 import { convertForDisplay } from "@/lib/currency-conversion"
 import { formatNumber, parseNumber } from "@/lib/format-number"
@@ -1325,22 +1325,6 @@ export default function OsszesitesPage() {
             >
               <Copy className="w-4 h-4 mr-2" />
               Másol + e-mail
-            </Button>
-
-            <Button
-              variant="outline"
-              className="h-9"
-              onClick={() => {
-                const subjectText = getEmailSubject()
-                const subject = encodeURIComponent(subjectText)
-                const body = encodeURIComponent(
-                  "A formázott sablont előbb másold a vágólapra a „Formázott sablon másolása” gombbal, majd illeszd be ide (Ctrl/Cmd+V).",
-                )
-                window.location.href = `mailto:?subject=${subject}&body=${body}`
-              }}
-            >
-              <Mail className="w-4 h-4 mr-2" />
-              Új e-mail megnyitása
             </Button>
 
             <div className="text-xs text-muted-foreground max-w-[520px]">
