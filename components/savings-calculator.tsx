@@ -147,26 +147,31 @@ type NetRow = {
   netBalance: number
 }
 
-const mainTaxRateByYear = (year: number, isCorporate: boolean) => {
-  if (year <= 5) return isCorporate ? 0.15 : 0.28
-  if (year <= 10) return isCorporate ? 0.075 : 0.14
+const DAYS_IN_TAX_YEAR = 365
+
+const mainTaxRateByDays = (holdingDays: number, isCorporate: boolean) => {
+  if (holdingDays <= 5 * DAYS_IN_TAX_YEAR) return isCorporate ? 0.15 : 0.28
+  if (holdingDays <= 10 * DAYS_IN_TAX_YEAR) return isCorporate ? 0.075 : 0.14
   return 0
 }
 
-const esetiTaxRateByLotAge = (ageYears: number, isCorporate: boolean) => {
-  if (ageYears <= 3) return isCorporate ? 0.15 : 0.28
-  if (ageYears <= 5) return isCorporate ? 0.075 : 0.14
+const esetiTaxRateByLotAgeDays = (ageDays: number, isCorporate: boolean) => {
+  if (ageDays <= 3 * DAYS_IN_TAX_YEAR) return isCorporate ? 0.15 : 0.28
+  if (ageDays <= 5 * DAYS_IN_TAX_YEAR) return isCorporate ? 0.075 : 0.14
   return 0
 }
 
 function calculateNetValuesMain(
-  yearlyBreakdown: Array<{ year: number; endBalance: number; totalContributions: number }>,
+  yearlyBreakdown: Array<{ year: number; endBalance: number; totalContributions: number; periodDays?: number }>,
   isCorporate: boolean,
 ): NetRow[] {
+  let elapsedDays = 0
   return yearlyBreakdown.map((row) => {
+    const rowDays = Math.max(0, Number.isFinite(row.periodDays) ? Number(row.periodDays) : DAYS_IN_TAX_YEAR)
+    elapsedDays += rowDays
     const totalContributions = Number.isFinite(row.totalContributions) ? row.totalContributions : 0
     const grossProfit = row.endBalance - totalContributions
-    const taxRate = mainTaxRateByYear(row.year, isCorporate)
+    const taxRate = mainTaxRateByDays(elapsedDays, isCorporate)
     const taxDeduction = grossProfit > 0 ? grossProfit * taxRate : 0
     const netProfit = grossProfit - taxDeduction
     const netBalance = totalContributions + netProfit
@@ -184,20 +189,29 @@ function calculateNetValuesMain(
 }
 
 function calculateNetValuesEseti(
-  yearlyBreakdown: Array<{ year: number; endBalance: number; totalContributions: number; withdrawalForYear?: number }>,
+  yearlyBreakdown: Array<{
+    year: number
+    endBalance: number
+    totalContributions: number
+    withdrawalForYear?: number
+    periodDays?: number
+  }>,
   isCorporate: boolean,
 ): NetRow[] {
-  type Lot = { year: number; principalRemaining: number }
+  type Lot = { contributionDay: number; principalRemaining: number }
   const lots: Lot[] = []
   let previousTotalContributions = 0
+  let elapsedDays = 0
 
   return yearlyBreakdown.map((row) => {
+    const rowDays = Math.max(0, Number.isFinite(row.periodDays) ? Number(row.periodDays) : DAYS_IN_TAX_YEAR)
+    elapsedDays += rowDays
     const totalContributions = Number.isFinite(row.totalContributions) ? row.totalContributions : 0
     const paymentThisYear = Math.max(0, totalContributions - previousTotalContributions)
     previousTotalContributions = totalContributions
 
     if (paymentThisYear > 0) {
-      lots.push({ year: row.year, principalRemaining: paymentThisYear })
+      lots.push({ contributionDay: elapsedDays, principalRemaining: paymentThisYear })
     }
 
     const withdrawalThisYear = Math.max(0, row.withdrawalForYear ?? 0)
@@ -216,8 +230,8 @@ function calculateNetValuesEseti(
 
     const weightedTaxBase = lots.reduce((sum, lot) => {
       if (lot.principalRemaining <= 0) return sum
-      const lotAge = row.year - lot.year + 1
-      return sum + lot.principalRemaining * esetiTaxRateByLotAge(lotAge, isCorporate)
+      const lotAgeDays = Math.max(0, elapsedDays - lot.contributionDay)
+      return sum + lot.principalRemaining * esetiTaxRateByLotAgeDays(lotAgeDays, isCorporate)
     }, 0)
     const taxRate = remainingPrincipal > 0 ? weightedTaxBase / remainingPrincipal : 0
 
