@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -63,9 +63,31 @@ export default function OsszesitesPage() {
   const [isActivelyEditing, setIsActivelyEditing] = useState(false)
 
   const [emailClientName, setEmailClientName] = useState("Viktor")
-  const [emailOfferUntil, setEmailOfferUntil] = useState("2026.02.14")
+  const [emailOfferUntil, setEmailOfferUntil] = useState(() => {
+    // Avoid SSR/client timezone mismatch: compute only in browser.
+    if (typeof window === "undefined") return ""
+
+    const pad2 = (n: number) => String(n).padStart(2, "0")
+    const now = new Date()
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    d.setDate(d.getDate() + 7)
+    return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`
+  })
   const [emailCopyStatus, setEmailCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
   const [emailTegezo, setEmailTegezo] = useState(false)
+
+  const emailOfferUntilWeekday = useMemo(() => {
+    const raw = (emailOfferUntil || "").trim()
+    const m = raw.match(/^(\d{4})\.(\d{2})\.(\d{2})$/)
+    if (!m) return ""
+    const year = Number(m[1])
+    const month = Number(m[2])
+    const day = Number(m[3])
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return ""
+    const dt = new Date(year, month - 1, day)
+    if (Number.isNaN(dt.getTime())) return ""
+    return new Intl.DateTimeFormat("hu-HU", { weekday: "long" }).format(dt)
+  }, [emailOfferUntil])
 
   const copyHtmlToClipboard = async (html: string, plain: string) => {
     // 1) Modern Clipboard API (works on most desktops; limited on mobile)
@@ -1276,13 +1298,18 @@ export default function OsszesitesPage() {
               <Label className="text-xs text-muted-foreground" htmlFor="emailOfferUntil">
                 Ajánlat érvényes (YYYY.MM.DD)
               </Label>
-              <Input
-                id="emailOfferUntil"
-                value={emailOfferUntil}
-                onChange={(e) => setEmailOfferUntil(e.target.value)}
-                className="h-9 w-[160px]"
-                placeholder="2026.02.14"
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  id="emailOfferUntil"
+                  value={emailOfferUntil}
+                  onChange={(e) => setEmailOfferUntil(e.target.value)}
+                  className="h-9 w-[160px]"
+                  placeholder="2026.02.14"
+                />
+                {emailOfferUntilWeekday ? (
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">({emailOfferUntilWeekday})</span>
+                ) : null}
+              </div>
             </div>
             <div className="grid gap-1">
               <Label className="text-xs text-muted-foreground" htmlFor="emailTegezo">
