@@ -6,6 +6,9 @@ export type ManagementFeeValueType = "percent" | "amount"
 export interface InputsDaily {
   currency: Currency
   disableProductDefaults?: boolean
+  calculationMode?: "simple" | "calendar"
+  startDate?: string
+  referenceYear?: number
 
   // Duration
   durationUnit: "year" | "month" | "day"
@@ -167,10 +170,40 @@ export interface ResultsDaily {
   monthlyBreakdown: MonthRow[]
 }
 
-function toTotalDays(unit: "year" | "month" | "day", value: number): number {
-  if (unit === "year") return Math.max(0, Math.round(value * 365))
-  if (unit === "month") return Math.max(0, Math.round(value * (365 / 12)))
-  return Math.max(0, Math.round(value))
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+function parseIsoDate(value?: string): Date | null {
+  if (!value) return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim())
+  if (!m) return null
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const d = Number(m[3])
+  const parsed = new Date(y, mo - 1, d, 12, 0, 0, 0)
+  if (parsed.getFullYear() !== y || parsed.getMonth() !== mo - 1 || parsed.getDate() !== d) return null
+  return parsed
+}
+
+function addMonthsClamped(base: Date, months: number): Date {
+  const targetMonth = base.getMonth() + months
+  const targetYear = base.getFullYear() + Math.floor(targetMonth / 12)
+  const normalizedMonth = ((targetMonth % 12) + 12) % 12
+  const maxDay = new Date(targetYear, normalizedMonth + 1, 0).getDate()
+  const day = Math.min(base.getDate(), maxDay)
+  return new Date(targetYear, normalizedMonth, day, 12, 0, 0, 0)
+}
+
+function addDurationFromStart(start: Date, unit: "year" | "month" | "day", value: number): Date {
+  const safe = Math.max(0, Math.round(value))
+  if (unit === "year") return addMonthsClamped(start, safe * 12)
+  if (unit === "month") return addMonthsClamped(start, safe)
+  const out = new Date(start)
+  out.setDate(out.getDate() + safe)
+  return out
+}
+
+function diffDays(start: Date, endExclusive: Date): number {
+  return Math.max(0, Math.round((endExclusive.getTime() - start.getTime()) / MS_PER_DAY))
 }
 
 function formatPartialPeriodLabelFromDays(days: number): string {
@@ -209,9 +242,27 @@ function getAssetBasedFeePercent(inputs: InputsDaily, year: number): number {
 export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   const DAYS_PER_YEAR = 365
 
-  const totalDays = toTotalDays(inputs.durationUnit, inputs.durationValue)
-  const totalYears = Math.max(1, Math.ceil(totalDays / DAYS_PER_YEAR))
-  const hasPartialFinalPeriod = totalDays % DAYS_PER_YEAR !== 0
+  const fallbackReferenceYear =
+    typeof inputs.referenceYear === "number" && Number.isFinite(inputs.referenceYear)
+      ? Math.max(1970, Math.round(inputs.referenceYear))
+      : new Date().getFullYear()
+  const referenceStartDate = new Date(fallbackReferenceYear, 0, 1, 12, 0, 0, 0)
+  const parsedStartDate = parseIsoDate(inputs.startDate)
+  const startDate =
+    inputs.calculationMode === "calendar" && parsedStartDate ? parsedStartDate : referenceStartDate
+  const endExclusiveDate = addDurationFromStart(startDate, inputs.durationUnit, inputs.durationValue)
+  const totalDays = diffDays(startDate, endExclusiveDate)
+
+  const fullYearEndOffsets: number[] = []
+  for (let y = 1; y <= 300; y++) {
+    const anniversary = addMonthsClamped(startDate, y * 12)
+    const anniversaryOffset = diffDays(startDate, anniversary)
+    if (anniversaryOffset > totalDays) break
+    fullYearEndOffsets.push(anniversaryOffset - 1)
+  }
+  const lastFullYearEnd = fullYearEndOffsets.length > 0 ? fullYearEndOffsets[fullYearEndOffsets.length - 1] : -1
+  const hasPartialFinalPeriod = totalDays - (lastFullYearEnd + 1) > 0
+  const totalYears = fullYearEndOffsets.length + (hasPartialFinalPeriod ? 1 : 0)
 
   const ppy = periodsPerYear(inputs.frequency)
   const daysBetweenPayments = DAYS_PER_YEAR / ppy
@@ -253,11 +304,6 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   const isTaxCreditInvested = inputs.taxCreditToInvestedAccount ?? false
   const taxCreditLimitByYear = inputs.taxCreditLimitByYear ?? {}
   const taxCreditAmountByYear = inputs.taxCreditAmountByYear ?? {}
-
-  let startDate: Date | null = null
-  if (inputs.calculationMode === "calendar" && inputs.startDate) {
-    startDate = new Date(inputs.startDate)
-  }
 
   const initialCostTotalByYear: Record<number, number> = {}
 
@@ -315,7 +361,6 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   let taxBonusWealthBonusThisYear = 0
   let taxBonusPlusCostThisYear = 0
 
-  const daysPerMonth = DAYS_PER_YEAR / 12
   let currentMonth = 1
   let cumulativeMonth = 0
   let paymentThisMonth = 0
@@ -350,10 +395,10 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
     }
   }
 
-  let lastPaymentMonth = 0
   let lastPaymentPeriodKey = -1
   let lastRefundInitialCostBonusAppliedYear = 0
   let nextManagementFeeDay = 0
+  let currentFullYearIndex = 0
 
   const getInvestedSharePercent = (year: number): number => {
     // If account split is collapsed, always use 100%
@@ -400,34 +445,33 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   const monthsPerPayment = 12 / ppy
 
   for (let day = 0; day < totalDays; day++) {
-    currentYear = Math.floor(day / DAYS_PER_YEAR) + 1
-    const dayOfYear = (day % DAYS_PER_YEAR) + 1
-    const monthOfYear = Math.min(12, Math.floor((dayOfYear - 1) / daysPerMonth) + 1)
-    const nextMonthOfYear = Math.min(12, Math.floor(dayOfYear / daysPerMonth) + 1)
-    const isMonthEnd = day === totalDays - 1 || dayOfYear === DAYS_PER_YEAR || monthOfYear !== nextMonthOfYear
-
-    let currentCalendarYear: number | null = null
-    let currentMonth: number | null = null
-    let currentDayOfMonth: number | null = null
-
-    if (inputs.calculationMode === "calendar" && startDate) {
-      const currentDate = new Date(startDate)
-      currentDate.setDate(currentDate.getDate() + day)
-      currentCalendarYear = currentDate.getFullYear()
-      currentMonth = currentDate.getMonth() + 1
-      currentDayOfMonth = currentDate.getDate()
+    while (currentFullYearIndex < fullYearEndOffsets.length && day > fullYearEndOffsets[currentFullYearIndex]) {
+      currentFullYearIndex += 1
     }
+
+    currentYear = currentFullYearIndex + 1
+    const prevYearEnd = currentFullYearIndex === 0 ? -1 : fullYearEndOffsets[currentFullYearIndex - 1]
+    const dayOfYear = day - prevYearEnd
+    const currentYearEnd =
+      currentFullYearIndex < fullYearEndOffsets.length ? fullYearEndOffsets[currentFullYearIndex] : totalDays - 1
+    const currentYearLength = Math.max(1, currentYearEnd - prevYearEnd)
+
+    const currentDate = new Date(startDate)
+    currentDate.setDate(currentDate.getDate() + day)
+    const nextDate = new Date(currentDate)
+    nextDate.setDate(nextDate.getDate() + 1)
+
+    const monthOfYear = currentDate.getMonth() + 1
+    const isMonthEnd = day === totalDays - 1 || currentDate.getMonth() !== nextDate.getMonth()
+
+    const currentCalendarYear = currentDate.getFullYear()
+    const currentMonth = currentDate.getMonth() + 1
+    const currentDayOfMonth = currentDate.getDate()
 
     if (currentYear >= 2 && !(hasPartialFinalPeriod && currentYear === totalYears)) {
       if (bonusMode === "refundInitialCostIncreasing" && lastRefundInitialCostBonusAppliedYear !== currentYear) {
         const shouldApplyToday = (() => {
-          if (
-            inputs.bonusCreditOnAnniversaryDay20 === true &&
-            inputs.calculationMode === "calendar" &&
-            startDate &&
-            currentMonth !== null &&
-            currentDayOfMonth !== null
-          ) {
+          if (inputs.bonusCreditOnAnniversaryDay20 === true) {
             const anniversaryMonth = startDate.getMonth() + 1
             return currentMonth === anniversaryMonth && currentDayOfMonth === 20
           }
@@ -453,29 +497,16 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
     }
 
     let shouldPayThisMonth = false
-    if (
-      inputs.calculationMode === "calendar" &&
-      startDate &&
-      currentCalendarYear !== null &&
-      currentMonth !== null &&
-      currentDayOfMonth !== null
-    ) {
-      const startMonthIndex = startDate.getFullYear() * 12 + startDate.getMonth()
-      const currentMonthIndex = currentCalendarYear * 12 + (currentMonth - 1)
-      const monthsElapsed = currentMonthIndex - startMonthIndex
-      const daysInCurrentMonth = new Date(currentCalendarYear, currentMonth, 0).getDate()
-      const dueDayOfMonth = Math.min(startDate.getDate(), daysInCurrentMonth)
-      const isDueMonth = monthsElapsed >= 0 && monthsElapsed % monthsPerPayment === 0
+    const startMonthIndex = startDate.getFullYear() * 12 + startDate.getMonth()
+    const currentMonthIndex = currentCalendarYear * 12 + (currentMonth - 1)
+    const monthsElapsed = currentMonthIndex - startMonthIndex
+    const daysInCurrentMonth = new Date(currentCalendarYear, currentMonth, 0).getDate()
+    const dueDayOfMonth = Math.min(startDate.getDate(), daysInCurrentMonth)
+    const isDueMonth = monthsElapsed >= 0 && monthsElapsed % monthsPerPayment === 0
 
-      if (isDueMonth && currentDayOfMonth === dueDayOfMonth && currentMonthIndex !== lastPaymentPeriodKey) {
-        shouldPayThisMonth = true
-        lastPaymentPeriodKey = currentMonthIndex
-      }
-    } else {
-      if (dayOfYear === 1) {
-        lastPaymentMonth = 0
-      }
-      shouldPayThisMonth = monthOfYear !== lastPaymentMonth && ((monthOfYear - 1) % monthsPerPayment === 0)
+    if (isDueMonth && currentDayOfMonth === dueDayOfMonth && currentMonthIndex !== lastPaymentPeriodKey) {
+      shouldPayThisMonth = true
+      lastPaymentPeriodKey = currentMonthIndex
     }
 
     if (shouldPayThisMonth) {
@@ -563,9 +594,6 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       costThisYear += upfrontCost + riskInsuranceCost
       totalRiskInsuranceCost += riskInsuranceCost
       riskInsuranceCostThisYear += riskInsuranceCost
-      if (inputs.calculationMode !== "calendar") {
-        lastPaymentMonth = monthOfYear
-      }
     }
 
     if (day >= Math.round(nextManagementFeeDay)) {
@@ -735,7 +763,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       }
     }
 
-    const isYearEnd = dayOfYear === DAYS_PER_YEAR
+    const isYearEnd = day === currentYearEnd && currentFullYearIndex < fullYearEndOffsets.length
     const isLastDay = day === totalDays - 1
 
     if (isMonthEnd) {
@@ -769,7 +797,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
 
     const isPeriodClose = isYearEnd || isLastDay
     const isPartialPeriod = isLastDay && !isYearEnd
-    const periodDays = isPartialPeriod ? dayOfYear : DAYS_PER_YEAR
+    const periodDays = isPartialPeriod ? dayOfYear : currentYearLength
     const periodMonths = isPartialPeriod ? Math.max(0, Math.floor((periodDays * 12) / DAYS_PER_YEAR)) : 12
 
     if (isPeriodClose) {
