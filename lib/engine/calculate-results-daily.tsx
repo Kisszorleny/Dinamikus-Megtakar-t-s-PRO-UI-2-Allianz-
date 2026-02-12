@@ -80,6 +80,10 @@ export interface InputsDaily {
 
 export interface YearRow {
   year: number
+  periodType?: "year" | "partial"
+  periodMonths?: number
+  periodDays?: number
+  periodLabel?: string
   yearlyPayment: number
   totalContributions: number
   interestForYear: number
@@ -188,6 +192,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
 
   const totalDays = toTotalDays(inputs.durationUnit, inputs.durationValue)
   const totalYears = Math.max(1, Math.ceil(totalDays / DAYS_PER_YEAR))
+  const hasPartialFinalPeriod = totalDays % DAYS_PER_YEAR !== 0
 
   const ppy = periodsPerYear(inputs.frequency)
   const daysBetweenPayments = DAYS_PER_YEAR / ppy
@@ -396,7 +401,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       currentDayOfMonth = currentDate.getDate()
     }
 
-    if (dayOfYear === 1 && currentYear >= 2) {
+    if (dayOfYear === 1 && currentYear >= 2 && !(hasPartialFinalPeriod && currentYear === totalYears)) {
       if (bonusMode === "refundInitialCostIncreasing") {
         const prevYearInitialCostTotal = initialCostTotalByYear[1] ?? 0
         if (prevYearInitialCostTotal > 0) {
@@ -703,8 +708,13 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       }
     }
 
-    if (isYearEnd || isLastDay) {
-      if (enableTax && currentYear >= taxStart && (!taxEnd || currentYear <= taxEnd)) {
+    const isPeriodClose = isYearEnd || isLastDay
+    const isPartialPeriod = isLastDay && !isYearEnd
+    const periodDays = isPartialPeriod ? dayOfYear : DAYS_PER_YEAR
+    const periodMonths = isPartialPeriod ? Math.max(1, Math.round((periodDays * 12) / DAYS_PER_YEAR)) : 12
+
+    if (isPeriodClose) {
+      if (!isPartialPeriod && enableTax && currentYear >= taxStart && (!taxEnd || currentYear <= taxEnd)) {
         const manualTotalForYear = taxCreditAmountByYear[currentYear]
         const manualLimitForYear = taxCreditLimitByYear[currentYear]
         const effectiveYearCap = Math.min(taxCap, manualLimitForYear ?? Number.POSITIVE_INFINITY)
@@ -717,7 +727,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         }
       }
       // Handle withdrawals (proportional reduction from all accounts)
-      const plannedW = Math.max(0, inputs.yearlyWithdrawalsPlan[currentYear] ?? 0)
+      const plannedW = !isPartialPeriod ? Math.max(0, inputs.yearlyWithdrawalsPlan[currentYear] ?? 0) : 0
       if (plannedW > 0) {
         const totalBalance = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
         const w = Math.min(plannedW, totalBalance)
@@ -734,7 +744,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       }
 
       // Handle plusCost for this year
-      const plusCostForCurrentYear = inputs.plusCostByYear?.[currentYear] ?? 0
+      const plusCostForCurrentYear = !isPartialPeriod ? (inputs.plusCostByYear?.[currentYear] ?? 0) : 0
       if (plusCostForCurrentYear > 0) {
         costThisYear += plusCostForCurrentYear
         totalCosts += plusCostForCurrentYear
@@ -757,7 +767,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         }
       }
 
-      const bonusPercent = inputs.bonusPercentByYear?.[currentYear] ?? 0
+      const bonusPercent = !isPartialPeriod ? (inputs.bonusPercentByYear?.[currentYear] ?? 0) : 0
       if (bonusPercent > 0) {
         // Calculate current total wealth BEFORE bonus
         const totalWealthBeforeBonus =
@@ -800,6 +810,10 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
 
       yearlyBreakdown.push({
         year: currentYear,
+        periodType: isPartialPeriod ? "partial" : "year",
+        periodMonths,
+        periodDays,
+        periodLabel: isPartialPeriod ? `+${periodMonths} hó` : `${currentYear}. év`,
         yearlyPayment: payThisYear,
         totalContributions,
         interestForYear: interestThisYear,

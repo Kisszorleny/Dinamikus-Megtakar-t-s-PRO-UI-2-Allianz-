@@ -386,9 +386,18 @@ const numeric = (value: unknown) => (typeof value === "number" && Number.isFinit
 const mergeYearRows = (mainRow?: any, esetiRow?: any) => {
   const main = mainRow ?? {}
   const eseti = esetiRow ?? {}
+  const periodType = main.periodType === "partial" || eseti.periodType === "partial" ? "partial" : "year"
+  const periodMonths = Math.max(0, Number(main.periodMonths ?? 0), Number(eseti.periodMonths ?? 0))
+  const periodDays = Math.max(0, Number(main.periodDays ?? 0), Number(eseti.periodDays ?? 0))
+  const periodLabel =
+    periodType === "partial" ? `+${Math.max(1, periodMonths || Math.round((periodDays * 12) / 365) || 1)} hó` : undefined
 
   return {
     year: main.year ?? eseti.year ?? 0,
+    periodType,
+    periodMonths: periodType === "partial" ? Math.max(1, periodMonths || Math.round((periodDays * 12) / 365) || 1) : 12,
+    periodDays: periodType === "partial" ? periodDays || Math.round((periodMonths * 365) / 12) : 365,
+    periodLabel,
     yearlyPayment: numeric(main.yearlyPayment) + numeric(eseti.yearlyPayment),
     totalContributions: numeric(main.totalContributions) + numeric(eseti.totalContributions),
     interestForYear: numeric(main.interestForYear) + numeric(eseti.interestForYear),
@@ -461,6 +470,15 @@ const SETTINGS_UI = {
   label: "text-xs text-muted-foreground",
   helper: "text-[11px] text-muted-foreground",
 } as const
+
+const getYearRowLabel = (row: any) => {
+  if (row?.periodLabel) return row.periodLabel
+  if (row?.periodType === "partial") {
+    const months = Math.max(1, Number(row?.periodMonths ?? 0) || 1)
+    return `+${months} hó`
+  }
+  return `${row?.year ?? 0}. év`
+}
 
 function MobileYearCard({
   row,
@@ -556,6 +574,8 @@ function MobileYearCard({
   const isWithdrawalModified = withdrawalByYear[row.year] !== undefined
   const isTaxCreditLimited = currentTaxCreditLimit !== undefined
   const isYearlyReadOnly = yearlyAccountView === "summary"
+  const isPartialReadOnly = row.periodType === "partial"
+  const isRowReadOnly = isYearlyReadOnly || isPartialReadOnly
   const isEsetiView = yearlyAccountView === "eseti"
   const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
   const effectiveCurrentIndex = isEsetiView ? indexByYear?.[row.year] ?? currentIndex ?? 0 : currentIndex
@@ -628,7 +648,7 @@ function MobileYearCard({
     <Card className="p-4">
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
-          <div className="font-semibold text-lg">{row.year}. év</div>
+          <div className="font-semibold text-lg">{getYearRowLabel(row)}</div>
           <div className="text-2xl font-bold tabular-nums">
             {formatValue(applyRealValue(displayBalance), displayCurrency)}
           </div>
@@ -677,13 +697,14 @@ function MobileYearCard({
       </div>
 
       {/* Always visible: editable fields */}
-      <div className={`${isYearlyReadOnly ? "grid grid-cols-1" : MOBILE_LAYOUT.yearlyEditableGrid} ${isYearlyReadOnly ? "opacity-60 pointer-events-none" : ""}`}>
+      <div className={`${isYearlyReadOnly ? "grid grid-cols-1" : MOBILE_LAYOUT.yearlyEditableGrid} ${isRowReadOnly ? "opacity-60 pointer-events-none" : ""}`}>
         {!isYearlyReadOnly && (
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Indexálás (%)</Label>
             <Input
               type="text"
               inputMode="numeric"
+              disabled={isRowReadOnly}
               value={
                 editingFields[`index-${row.year}`]
                   ? String(effectiveCurrentIndex)
@@ -704,6 +725,7 @@ function MobileYearCard({
           <Input
             type="text"
             inputMode="numeric"
+            disabled={isRowReadOnly}
             value={
               editingFields[`payment-${row.year}`]
                 ? String(
@@ -724,12 +746,13 @@ function MobileYearCard({
         </div>
       </div>
 
-      <div className={enableTaxCredit ? MOBILE_LAYOUT.yearlySecondaryGrid : "grid gap-3 grid-cols-1"}>
+      <div className={`${enableTaxCredit ? MOBILE_LAYOUT.yearlySecondaryGrid : "grid gap-3 grid-cols-1"} ${isPartialReadOnly ? "opacity-60" : ""}`}>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Pénzkivonás</Label>
           <Input
             type="text"
             inputMode="numeric"
+            disabled={isRowReadOnly}
             value={
               editingFields[`withdrawal-${row.year}`]
                 ? String(
@@ -758,6 +781,7 @@ function MobileYearCard({
               <Input
                 type="text"
                 inputMode="numeric"
+                disabled={isRowReadOnly}
                 value={
                   editingFields[`taxLimit-${row.year}`]
                     ? currentTaxCreditLimit !== undefined
@@ -2493,12 +2517,6 @@ export function SavingsCalculator() {
     }
   }, [bonusPercentByYear])
   // </CHANGE>
-
-  useEffect(() => {
-    if (inputs.calculationMode === "simple" && durationUnit !== "year") {
-      setDurationUnit("year")
-    }
-  }, [inputs.calculationMode, durationUnit])
 
   const toYearsFromDuration = (unit: DurationUnit, value: number) => {
     const totalDays = unit === "year" ? value * 365 : unit === "month" ? Math.round(value * (365 / 12)) : value
@@ -5607,13 +5625,16 @@ export function SavingsCalculator() {
                           displayCurrency,
                           inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
                         )
+                        const isPartialRow = row.periodType === "partial"
                         displayBalanceWithPenalty = Math.max(0, preWithdrawalBalanceWithPenalty - effectiveWithdrawn)
                         const applyRealValueForYear = (value: number) => getRealValueForYear(value, row.year)
                         // </CHANGE>
 
                         return (
                           <tr key={row.year} className="border-b hover:bg-muted/50">
-                            <td className="py-2 px-3 text-center font-medium sticky left-0 z-10 bg-background/95">{row.year}</td>
+                            <td className="py-2 px-3 text-center font-medium sticky left-0 z-10 bg-background/95">
+                              {row.periodType === "partial" ? getYearRowLabel(row) : row.year}
+                            </td>
 
                             {!isYearlyReadOnly && (
                               <td className="py-2 px-3 text-right align-top">
@@ -5621,6 +5642,7 @@ export function SavingsCalculator() {
                                   <Input
                                     type="text"
                                     inputMode="numeric"
+                                    disabled={isPartialRow}
                                     value={
                                       editingFields[`index-${row.year}`] ? String(currentIndex) : formatNumber(currentIndex)
                                     }
@@ -5642,6 +5664,7 @@ export function SavingsCalculator() {
                                 <Input
                                   type="text"
                                   inputMode="numeric"
+                                  disabled={isPartialRow}
                                   value={
                                     editingFields[`payment-${row.year}`]
                                       ? String(
@@ -5769,6 +5792,7 @@ export function SavingsCalculator() {
                                   <Input
                                     type="text"
                                     inputMode="numeric"
+                                    disabled={isPartialRow}
                                     value={
                                       editingFields[`plusCost-${row.year}`]
                                         ? String(
@@ -5890,6 +5914,7 @@ export function SavingsCalculator() {
                                   <Input
                                     type="text"
                                     inputMode="numeric"
+                                    disabled={isPartialRow}
                                     value={
                                       editingFields[`taxCreditAmount-${row.year}`]
                                         ? String(
@@ -5934,6 +5959,7 @@ export function SavingsCalculator() {
                                 <Input
                                   type="text"
                                   inputMode="numeric"
+                                  disabled={isPartialRow}
                                   value={
                                     editingFields[`withdrawal-${row.year}`]
                                       ? String(
