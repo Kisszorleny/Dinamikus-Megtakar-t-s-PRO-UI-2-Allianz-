@@ -69,6 +69,35 @@ type FundSeriesPoint = {
   price: number
 }
 
+function addDaysIsoClient(dateIso: string, deltaDays: number): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateIso)
+  if (!m) return dateIso
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const d = Number(m[3])
+  const dt = new Date(y, mo - 1, d, 12, 0, 0, 0)
+  dt.setDate(dt.getDate() + deltaDays)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`
+}
+
+function addMonthsIsoClient(dateIso: string, deltaMonths: number): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateIso)
+  if (!m) return dateIso
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const d = Number(m[3])
+  const dt = new Date(y, mo - 1, d, 12, 0, 0, 0)
+  const originalDay = dt.getDate()
+  dt.setMonth(dt.getMonth() + deltaMonths)
+  // clamp overflow (e.g. Jan 31 -> Feb)
+  if (dt.getDate() !== originalDay) dt.setDate(0)
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`
+}
+
+function minIsoDate(a: string, b: string): string {
+  return a <= b ? a : b
+}
+
 type FundSeriesApiResponse = {
   source?: string
   updatedAt?: string
@@ -1194,13 +1223,13 @@ export function SavingsCalculator() {
 
   const [fundSeriesPoints, setFundSeriesPoints] = useState<FundSeriesPoint[]>([])
   const [fundSeriesSource, setFundSeriesSource] = useState<string | null>(null)
-  const [fundSeriesUpdatedAt, setFundSeriesUpdatedAt] = useState<string | null>(null)
   const [fundSeriesAnnualizedReturn, setFundSeriesAnnualizedReturn] = useState<number | null>(null)
   const [fundSeriesLoading, setFundSeriesLoading] = useState(false)
   const [fundSeriesError, setFundSeriesError] = useState<string | null>(null)
   const [fundSeriesAvailableRange, setFundSeriesAvailableRange] = useState<{ startDate: string; endDate: string } | null>(
     null,
   )
+  const [fundSeriesFundEarliestAvailable, setFundSeriesFundEarliestAvailable] = useState<string | null>(null)
 
   const fundSeriesComputedStats = useMemo(() => {
     if (!fundSeriesPoints || fundSeriesPoints.length < 2) return null
@@ -1225,6 +1254,84 @@ export function SavingsCalculator() {
       annualizedReturnPercent,
     }
   }, [fundSeriesPoints])
+
+  useEffect(() => {
+    if (annualYieldMode !== "fund") return
+    if (fundCalculationMode !== "replay") return
+    if (!isAllianzFundMode) return
+    if (!selectedFundId) return
+    if (!(inputs.currency === "HUF" || inputs.currency === "EUR")) return
+    if (!fundSeriesAvailableRange?.startDate || !fundSeriesAvailableRange?.endDate) return
+
+    if (typeof window !== "undefined") {
+      const key = `fundEarliest:${inputs.currency}:${selectedFundId}`
+      const stored = sessionStorage.getItem(key)
+      if (stored) {
+        setFundSeriesFundEarliestAvailable(stored)
+        return
+      }
+    }
+
+    let cancelled = false
+    const controller = new AbortController()
+
+    const run = async () => {
+      try {
+        const programStart = fundSeriesAvailableRange.startDate
+        const programEnd = fundSeriesAvailableRange.endDate
+
+        let probeFrom = programStart
+        for (let guard = 0; guard < 40 && !cancelled; guard++) {
+          const probeTo = minIsoDate(addMonthsIsoClient(probeFrom, 18), programEnd)
+
+          const query = new URLSearchParams({
+            fundId: selectedFundId,
+            from: probeFrom,
+            to: probeTo,
+            provider: "allianz-ulexchange",
+            program: "ul2005",
+            currency: inputs.currency,
+            mode: "replay",
+          })
+          const response = await fetch(`/api/funds/prices?${query.toString()}`, { signal: controller.signal })
+          const data = (await response.json()) as FundSeriesApiResponse
+          if (!response.ok || data.error) {
+            throw new Error(data.error || "Eszközalap idősor nem elérhető")
+          }
+
+          const points = Array.isArray(data.points) ? data.points : []
+          if (points.length > 0) {
+            const earliest = points.reduce((min, p) => (p?.date && p.date < min ? p.date : min), points[0]!.date)
+            setFundSeriesFundEarliestAvailable(earliest)
+            if (typeof window !== "undefined") {
+              const key = `fundEarliest:${inputs.currency}:${selectedFundId}`
+              sessionStorage.setItem(key, earliest)
+            }
+            return
+          }
+
+          if (probeTo >= programEnd) return
+          probeFrom = addDaysIsoClient(probeTo, 1)
+        }
+      } catch {
+        // ignore probe errors; UI still shows loaded span and program range
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [
+    annualYieldMode,
+    fundCalculationMode,
+    isAllianzFundMode,
+    selectedFundId,
+    inputs.currency,
+    fundSeriesAvailableRange?.startDate,
+    fundSeriesAvailableRange?.endDate,
+  ])
 
   // Default fund data (non-Allianz or non-HUF)
   const baseFundOptions = [
@@ -2720,9 +2827,9 @@ export function SavingsCalculator() {
       setFundSeriesError(null)
       setFundSeriesPoints([])
       setFundSeriesSource(null)
-      setFundSeriesUpdatedAt(null)
       setFundSeriesAnnualizedReturn(null)
       setFundSeriesAvailableRange(null)
+      setFundSeriesFundEarliestAvailable(null)
       return
     }
 
@@ -2804,7 +2911,6 @@ export function SavingsCalculator() {
                 .map((p) => ({ date: p.date, price: byDate.get(p.date) ?? p.price })),
             )
             setFundSeriesSource(data.source ?? null)
-            setFundSeriesUpdatedAt(data.updatedAt ?? null)
 
             const next = data.page?.nextCursorTo ?? null
             if (!next) {
@@ -2828,7 +2934,6 @@ export function SavingsCalculator() {
           const points = Array.isArray(data.points) ? data.points : []
           setFundSeriesPoints(points)
           setFundSeriesSource(data.source ?? null)
-          setFundSeriesUpdatedAt(data.updatedAt ?? null)
           setFundSeriesAnnualizedReturn(
             typeof data.stats?.annualizedReturnPercent === "number" ? data.stats.annualizedReturnPercent : null,
           )
@@ -2840,9 +2945,9 @@ export function SavingsCalculator() {
         setFundSeriesError(message)
         setFundSeriesPoints([])
         setFundSeriesSource(null)
-        setFundSeriesUpdatedAt(null)
         setFundSeriesAnnualizedReturn(null)
         setFundSeriesAvailableRange(null)
+        setFundSeriesFundEarliestAvailable(null)
       } finally {
         if (!cancelled) {
           setFundSeriesLoading(false)
@@ -4213,8 +4318,6 @@ export function SavingsCalculator() {
                                 ? "Eszközalap idősor betöltése..."
                                 : fundSeriesPoints.length > 1
                                   ? `Valós idősor aktív: ${fundSeriesPoints.length} pont${
-                                      fundSeriesUpdatedAt ? `, frissítve: ${fundSeriesUpdatedAt}` : ""
-                                    }${
                                       typeof fundSeriesComputedStats?.annualizedReturnPercent === "number"
                                         ? `, évesített: ${fundSeriesComputedStats.annualizedReturnPercent.toFixed(2)}%`
                                         : ""
@@ -4243,6 +4346,11 @@ export function SavingsCalculator() {
                                 Program elérhető idősor:{" "}
                                 {fundSeriesAvailableRange.startDate.replaceAll("-", ".")} →{" "}
                                 {fundSeriesAvailableRange.endDate.replaceAll("-", ".")}
+                              </p>
+                            ) : null}
+                            {fundSeriesFundEarliestAvailable ? (
+                              <p className={SETTINGS_UI.helper}>
+                                Eszközalap legkorábbi adat: {fundSeriesFundEarliestAvailable.replaceAll("-", ".")}
                               </p>
                             ) : null}
                           </div>
