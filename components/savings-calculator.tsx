@@ -2677,7 +2677,9 @@ export function SavingsCalculator() {
   }, [parsedDurationFrom, parsedDurationTo, durationUnit, durationValue, setInputs])
 
   useEffect(() => {
-    const canLoadFundSeries = Boolean(selectedProduct)
+    // For real fund series (Allianz ulexchange), we can load without requiring a product selection,
+    // as long as we are in Allianz fund mode and have a fund selected.
+    const canLoadFundSeries = isAllianzFundMode && (inputs.currency === "HUF" || inputs.currency === "EUR")
     if (annualYieldMode !== "fund" || !selectedFundId || !canLoadFundSeries) {
       setFundSeriesLoading(false)
       setFundSeriesError(null)
