@@ -480,6 +480,26 @@ const getYearRowLabel = (row: any) => {
   return `${row?.year ?? 0}. év`
 }
 
+const parseHuDateInput = (raw: string): Date | null => {
+  const value = raw.trim()
+  const match = value.match(/^(\d{4})\.(\d{2})\.(\d{2})$/)
+  if (!match) return null
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null
+  const date = new Date(year, month - 1, day)
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null
+  }
+  return date
+}
+
 function MobileYearCard({
   row,
   planIndex,
@@ -1262,6 +1282,20 @@ export function SavingsCalculator() {
 
     // Default values if nothing stored
     return defaultInputs
+  })
+  const [durationFromInput, setDurationFromInput] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-durationFromInput")
+      if (stored) return stored
+    }
+    return ""
+  })
+  const [durationToInput, setDurationToInput] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-durationToInput")
+      if (stored) return stored
+    }
+    return ""
   })
   const [esetiBaseInputs, setEsetiBaseInputs] = useState<{
     regularPayment: number
@@ -2351,6 +2385,16 @@ export function SavingsCalculator() {
   }, [durationValue])
   useEffect(() => {
     if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-durationFromInput", durationFromInput)
+    }
+  }, [durationFromInput])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-durationToInput", durationToInput)
+    }
+  }, [durationToInput])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
       sessionStorage.setItem("calculator-esetiDurationUnit", JSON.stringify(esetiDurationUnit))
     }
   }, [esetiDurationUnit])
@@ -2522,6 +2566,34 @@ export function SavingsCalculator() {
     const totalDays = unit === "year" ? value * 365 : unit === "month" ? Math.round(value * (365 / 12)) : value
     return Math.max(1, Math.ceil(totalDays / 365))
   }
+
+  const parsedDurationFrom = useMemo(() => parseHuDateInput(durationFromInput), [durationFromInput])
+  const parsedDurationTo = useMemo(() => parseHuDateInput(durationToInput), [durationToInput])
+  const durationDateError = useMemo(() => {
+    if (!durationFromInput.trim() || !durationToInput.trim()) return ""
+    if (!parsedDurationFrom || !parsedDurationTo) return "Dátum formátum: ÉÉÉÉ.HH.NN"
+    if (parsedDurationTo.getTime() < parsedDurationFrom.getTime()) return "Az \"ig\" dátum nem lehet korábbi a \"tól\" dátumnál."
+    return ""
+  }, [durationFromInput, durationToInput, parsedDurationFrom, parsedDurationTo])
+
+  useEffect(() => {
+    if (!parsedDurationFrom || !parsedDurationTo) return
+    if (parsedDurationTo.getTime() < parsedDurationFrom.getTime()) return
+
+    const dayMs = 24 * 60 * 60 * 1000
+    const inclusiveDays = Math.floor((parsedDurationTo.getTime() - parsedDurationFrom.getTime()) / dayMs) + 1
+    const safeDays = Math.max(1, inclusiveDays)
+
+    if (durationUnit !== "day") setDurationUnit("day")
+    if (durationValue !== safeDays) setDurationValue(safeDays)
+
+    const fromIso = `${parsedDurationFrom.getFullYear()}-${String(parsedDurationFrom.getMonth() + 1).padStart(2, "0")}-${String(parsedDurationFrom.getDate()).padStart(2, "0")}`
+    setInputs((prev) => {
+      const nextMode = prev.calculationMode === "calendar" ? prev.calculationMode : "calendar"
+      if (prev.startDate === fromIso && prev.calculationMode === nextMode) return prev
+      return { ...prev, startDate: fromIso, calculationMode: nextMode }
+    })
+  }, [parsedDurationFrom, parsedDurationTo, durationUnit, durationValue, setInputs])
 
   const totalYearsForPlan = useMemo(() => toYearsFromDuration(durationUnit, durationValue), [durationUnit, durationValue])
   const esetiDurationMaxByUnit = useMemo(() => {
@@ -3853,6 +3925,46 @@ export function SavingsCalculator() {
                           </p>
                         ) : null}
                       </div>
+                    </div>
+
+                    <div className={`pt-2 border-t ${isSettingsEseti ? "opacity-60" : ""}`}>
+                      <div className={MOBILE_LAYOUT.yearlySecondaryGrid}>
+                        <div className="space-y-1">
+                          <Label className={SETTINGS_UI.label} htmlFor="durationFromInput">
+                            Futamidő tól (ÉÉÉÉ.HH.NN)
+                          </Label>
+                          <Input
+                            id="durationFromInput"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="2019.04.05"
+                            value={durationFromInput}
+                            onChange={(e) => setDurationFromInput(e.target.value)}
+                            disabled={isSettingsEseti}
+                            className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field}`}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className={SETTINGS_UI.label} htmlFor="durationToInput">
+                            Futamidő ig (ÉÉÉÉ.HH.NN)
+                          </Label>
+                          <Input
+                            id="durationToInput"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="2026.04.07"
+                            value={durationToInput}
+                            onChange={(e) => setDurationToInput(e.target.value)}
+                            disabled={isSettingsEseti}
+                            className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field}`}
+                          />
+                        </div>
+                      </div>
+                      {durationDateError ? (
+                        <p className="mt-2 text-xs text-destructive">{durationDateError}</p>
+                      ) : (
+                        <p className={SETTINGS_UI.helper}>A dátumtartomány automatikusan napokra állítja a futamidőt.</p>
+                      )}
                     </div>
                   </div>
 
