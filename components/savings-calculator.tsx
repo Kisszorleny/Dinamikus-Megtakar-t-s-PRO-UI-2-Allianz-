@@ -69,6 +69,11 @@ type FundSeriesPoint = {
   price: number
 }
 
+function formatIsoDateDot(value: string): string {
+  // Avoid String.prototype.replaceAll for broader browser compatibility
+  return value.split("-").join(".")
+}
+
 function addDaysIsoClient(dateIso: string, deltaDays: number): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateIso)
   if (!m) return dateIso
@@ -1264,11 +1269,15 @@ export function SavingsCalculator() {
     if (!fundSeriesAvailableRange?.startDate || !fundSeriesAvailableRange?.endDate) return
 
     if (typeof window !== "undefined") {
-      const key = `fundEarliest:${inputs.currency}:${selectedFundId}`
-      const stored = sessionStorage.getItem(key)
-      if (stored) {
-        setFundSeriesFundEarliestAvailable(stored)
-        return
+      try {
+        const key = `fundEarliest:${inputs.currency}:${selectedFundId}`
+        const stored = sessionStorage.getItem(key)
+        if (stored) {
+          setFundSeriesFundEarliestAvailable(stored)
+          return
+        }
+      } catch {
+        // ignore storage access errors (private mode / blocked storage)
       }
     }
 
@@ -1304,8 +1313,12 @@ export function SavingsCalculator() {
             const earliest = points.reduce((min, p) => (p?.date && p.date < min ? p.date : min), points[0]!.date)
             setFundSeriesFundEarliestAvailable(earliest)
             if (typeof window !== "undefined") {
-              const key = `fundEarliest:${inputs.currency}:${selectedFundId}`
-              sessionStorage.setItem(key, earliest)
+              try {
+                const key = `fundEarliest:${inputs.currency}:${selectedFundId}`
+                sessionStorage.setItem(key, earliest)
+              } catch {
+                // ignore
+              }
             }
             return
           }
@@ -4331,7 +4344,7 @@ export function SavingsCalculator() {
                                         : ""
                                     }${
                                       fundSeriesComputedStats?.firstDate && fundSeriesComputedStats?.lastDate
-                                        ? `, idősor: ${fundSeriesComputedStats.firstDate.replaceAll("-", ".")} → ${fundSeriesComputedStats.lastDate.replaceAll("-", ".")}`
+                                        ? `, idősor: ${formatIsoDateDot(fundSeriesComputedStats.firstDate)} → ${formatIsoDateDot(fundSeriesComputedStats.lastDate)}`
                                         : ""
                                     }${fundSeriesSource ? `, forrás: ${(() => {
                                       try { return new URL(fundSeriesSource).host } catch { return "publikus biztosítói adat" }
@@ -4344,13 +4357,13 @@ export function SavingsCalculator() {
                             {fundSeriesAvailableRange?.startDate && fundSeriesAvailableRange?.endDate ? (
                               <p className={SETTINGS_UI.helper}>
                                 Program elérhető idősor:{" "}
-                                {fundSeriesAvailableRange.startDate.replaceAll("-", ".")} →{" "}
-                                {fundSeriesAvailableRange.endDate.replaceAll("-", ".")}
+                                {formatIsoDateDot(fundSeriesAvailableRange.startDate)} →{" "}
+                                {formatIsoDateDot(fundSeriesAvailableRange.endDate)}
                               </p>
                             ) : null}
                             {fundSeriesFundEarliestAvailable ? (
                               <p className={SETTINGS_UI.helper}>
-                                Eszközalap legkorábbi adat: {fundSeriesFundEarliestAvailable.replaceAll("-", ".")}
+                                Eszközalap legkorábbi adat: {formatIsoDateDot(fundSeriesFundEarliestAvailable)}
                               </p>
                             ) : null}
                           </div>
