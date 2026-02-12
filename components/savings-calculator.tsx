@@ -516,6 +516,15 @@ const parseHuDateInput = (raw: string): Date | null => {
   return date
 }
 
+const convertDurationValue = (value: number, fromUnit: DurationUnit, toUnit: DurationUnit): number => {
+  const safeValue = Number.isFinite(value) ? value : 0
+  const totalDays =
+    fromUnit === "year" ? safeValue * 365 : fromUnit === "month" ? safeValue * (365 / 12) : safeValue
+  const converted =
+    toUnit === "year" ? totalDays / 365 : toUnit === "month" ? totalDays / (365 / 12) : totalDays
+  return Math.max(1, Math.round(converted))
+}
+
 function MobileYearCard({
   row,
   planIndex,
@@ -3850,10 +3859,13 @@ export function SavingsCalculator() {
                             const nextUnit = v as DurationUnit
                             if (isSettingsEseti) {
                               const maxForUnit = esetiDurationMaxByUnit[nextUnit]
+                              const converted = convertDurationValue(settingsDurationValue, settingsDurationUnit, nextUnit)
                               setEsetiDurationUnit(nextUnit)
-                              setEsetiDurationValue((prev) => Math.min(prev, maxForUnit))
+                              setEsetiDurationValue(Math.min(converted, maxForUnit))
                             } else {
+                              const converted = convertDurationValue(settingsDurationValue, settingsDurationUnit, nextUnit)
                               setDurationUnit(nextUnit)
+                              setDurationValue(converted)
                             }
                           }}
                         >
