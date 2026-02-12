@@ -3597,190 +3597,110 @@ export function SavingsCalculator() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className={`grid gap-4 sm:grid-cols-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
-                    <div className="space-y-2">
-                      <Label htmlFor="currency">Devizanem</Label>
-                      <Select
-                        value={inputs.currency}
-                        onValueChange={handleCurrencyChange}
-                        disabled={isSettingsEseti}
-                      >
-                        <SelectTrigger id="currency">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="HUF">HUF (forint)</SelectItem>
-                          <SelectItem value="EUR">EUR (euró)</SelectItem>
-                          <SelectItem value="USD">USD (dollár)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {!isHydratingRef.current && selectedProduct === "alfa_exclusive_plus" && (
-                        <p className="text-xs text-muted-foreground">Csak HUF választható.</p>
-                      )}
-                      {!isHydratingRef.current && selectedProduct === "alfa_fortis" && (
-                        <p className="text-xs text-muted-foreground">HUF, EUR, USD választható.</p>
-                      )}
-                      {/* </CHANGE> */}
-                    </div>
-
-                    {inputs.currency === "EUR" || inputs.currency === "USD" ? (
-                      <div className="space-y-2">
-                        <Label htmlFor={inputs.currency === "USD" ? "usdToHufRate" : "eurToHufRate"}>
-                          {inputs.currency === "USD" ? "USD/HUF árfolyam" : "EUR/HUF árfolyam"}
+                  <div className={`space-y-3 ${isSettingsEseti ? "opacity-60" : ""}`}>
+                    {/* Compact row 1: frequency / payment / currency / index */}
+                    <div className="grid gap-3 grid-cols-1 md:grid-cols-[120px_minmax(240px,1fr)_130px_90px] items-end">
+                      <div className="space-y-1">
+                        <Label htmlFor="frequency" className="text-xs text-muted-foreground">
+                          Fiz. gyak.
                         </Label>
-                        <div className="flex gap-2">
-                          <Input
-                            id={inputs.currency === "USD" ? "usdToHufRate" : "eurToHufRate"}
-                            type="text"
-                            inputMode="numeric"
-                            disabled={isSettingsEseti}
-                            value={
-                              editingFields[inputs.currency === "USD" ? "usdToHufRate" : "eurToHufRate"]
-                                ? String(inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate)
-                                : formatNumber(inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate)
-                            }
-                            onFocus={() =>
-                              setFieldEditing(inputs.currency === "USD" ? "usdToHufRate" : "eurToHufRate", true)
-                            }
-                            onBlur={() =>
-                              setFieldEditing(inputs.currency === "USD" ? "usdToHufRate" : "eurToHufRate", false)
-                            }
-                            onChange={(e) => {
-                              if (isSettingsEseti) return
-                              const parsed = parseNumber(e.target.value)
-                              if (!isNaN(parsed)) {
-                                if (inputs.currency === "USD") {
-                                  setInputs({ ...inputs, usdToHufRate: parsed })
-                                } else {
-                                  setInputs({ ...inputs, eurToHufRate: parsed })
-                                }
-                                setEurRateManuallyChanged(true)
-                              }
-                            }}
-                            className="flex-1"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => loadFxRate(inputs.currency as "EUR" | "USD")}
-                            disabled={isLoadingFx || isSettingsEseti}
-                            className="shrink-0 bg-transparent"
-                          >
-                            {isLoadingFx ? "Betöltés..." : "Aktuális árfolyam"}
-                          </Button>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {fxState.source === "live" && (
-                            <>
-                              <span className="text-emerald-600 font-medium">Élő árfolyam</span>
-                              {fxState.date && ` (${fxState.date})`}
-                            </>
-                          )}
-                          {fxState.source === "cache" && (
-                            <>
-                              <span className="text-blue-600 font-medium">Gyorsítótárból betöltve</span>
-                              {fxState.date && ` (${fxState.date})`}
-                            </>
-                          )}
-                          {fxState.source === "default" && (
-                            <span className="text-amber-600 font-medium">Alapértelmezett érték (400)</span>
-                          )}
-                          {eurRateManuallyChanged && (
-                            <span className="block text-muted-foreground mt-1">Manuálisan módosítva</span>
-                          )}
-                        </p>
-                      </div>
-                    ) : null}
-
-                    <div className="space-y-2">
-                      <Label htmlFor="regularPayment">Rendszeres befizetés összege ({results.currency})</Label>
-                      <Input
-                        id="regularPayment"
-                        type="text"
-                        inputMode="numeric"
-                        disabled={isSettingsEseti}
-                        value={
-                          editingFields.regularPayment
-                            ? String(isSettingsEseti ? esetiBaseInputs.regularPayment : inputs.regularPayment)
-                            : formatNumber(isSettingsEseti ? esetiBaseInputs.regularPayment : inputs.regularPayment)
-                        }
-                        onFocus={() => setFieldEditing("regularPayment", true)}
-                        onBlur={() => setFieldEditing("regularPayment", false)}
-                        onChange={(e) => {
-                          const parsed = parseNumber(e.target.value)
-                          if (!isNaN(parsed)) {
-                            if (isSettingsEseti) {
-                              setEsetiBaseInputs((prev) => ({ ...prev, regularPayment: parsed }))
-                            } else {
-                              setInputs({ ...inputs, regularPayment: parsed })
-                            }
-                          }
-                        }}
-                      />
-                      {selectedProduct === "alfa_exclusive_plus" && (
-                        <p className="text-xs text-muted-foreground">Minimum éves díj: 360 000 Ft</p>
-                      )}
-                      {selectedProduct === "alfa_fortis" && (
-                        <p className="text-xs text-muted-foreground">Minimum éves díj: 300 000 Ft</p>
-                      )}
-                      {/* </CHANGE> */}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="frequency">Fizetési gyakoriság</Label>
-                      <Select
-                        value={isSettingsEseti ? esetiBaseInputs.frequency : inputs.frequency}
-                        disabled={isSettingsEseti}
-                        onValueChange={(value: PaymentFrequency) => {
-                          if (isSettingsEseti) {
-                            setEsetiBaseInputs((prev) => ({ ...prev, frequency: value }))
-                            setEsetiFrequency(value)
-                          } else {
-                            setInputs({ ...inputs, frequency: value })
-                          }
-                        }}
-                      >
-                        <SelectTrigger id="frequency">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="havi">Havi</SelectItem>
-                          <SelectItem value="negyedéves">Negyedéves</SelectItem>
-                          <SelectItem value="féléves">Féléves</SelectItem>
-                          <SelectItem value="éves">Éves</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className={`space-y-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
-                      <Label>Futamidő</Label>
-                      <div className="flex gap-2">
                         <Select
-                          value={settingsDurationUnit}
+                          value={isSettingsEseti ? esetiBaseInputs.frequency : inputs.frequency}
                           disabled={isSettingsEseti}
-                          onValueChange={(v) => {
-                            const nextUnit = v as DurationUnit
+                          onValueChange={(value: PaymentFrequency) => {
                             if (isSettingsEseti) {
-                              const maxForUnit = esetiDurationMaxByUnit[nextUnit]
-                              setEsetiDurationUnit(nextUnit)
-                              setEsetiDurationValue((prev) => Math.min(prev, maxForUnit))
+                              setEsetiBaseInputs((prev) => ({ ...prev, frequency: value }))
+                              setEsetiFrequency(value)
                             } else {
-                              setDurationUnit(nextUnit)
+                              setInputs({ ...inputs, frequency: value })
                             }
                           }}
                         >
-                          <SelectTrigger className="w-[120px]">
+                          <SelectTrigger id="frequency">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="year">Év</SelectItem>
-                            <SelectItem value="month">Hónap</SelectItem>
-                            <SelectItem value="day">Nap</SelectItem>
+                            <SelectItem value="havi">Havi</SelectItem>
+                            <SelectItem value="negyedéves">Negyedéves</SelectItem>
+                            <SelectItem value="féléves">Féléves</SelectItem>
+                            <SelectItem value="éves">Éves</SelectItem>
                           </SelectContent>
                         </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="regularPayment" className="text-xs text-muted-foreground">
+                          Befizetés
+                        </Label>
+                        <Input
+                          id="regularPayment"
+                          type="text"
+                          inputMode="numeric"
+                          disabled={isSettingsEseti}
+                          value={
+                            editingFields.regularPayment
+                              ? String(isSettingsEseti ? esetiBaseInputs.regularPayment : inputs.regularPayment)
+                              : formatNumber(isSettingsEseti ? esetiBaseInputs.regularPayment : inputs.regularPayment)
+                          }
+                          onFocus={() => setFieldEditing("regularPayment", true)}
+                          onBlur={() => setFieldEditing("regularPayment", false)}
+                          onChange={(e) => {
+                            const parsed = parseNumber(e.target.value)
+                            if (!isNaN(parsed)) {
+                              if (isSettingsEseti) {
+                                setEsetiBaseInputs((prev) => ({ ...prev, regularPayment: parsed }))
+                              } else {
+                                setInputs({ ...inputs, regularPayment: parsed })
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="currency" className="text-xs text-muted-foreground">
+                          Deviza
+                        </Label>
+                        <Select value={inputs.currency} onValueChange={handleCurrencyChange} disabled={isSettingsEseti}>
+                          <SelectTrigger id="currency">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="HUF">HUF</SelectItem>
+                            <SelectItem value="EUR">EUR</SelectItem>
+                            <SelectItem value="USD">USD</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="annualIndex" className="text-xs text-muted-foreground">
+                          Index %
+                        </Label>
+                        <Input
+                          id="annualIndex"
+                          type="number"
+                          disabled={isSettingsEseti}
+                          value={isSettingsEseti ? esetiBaseInputs.annualIndexPercent : inputs.annualIndexPercent}
+                          onChange={(e) => {
+                            const nextValue = Number(e.target.value)
+                            if (isSettingsEseti) {
+                              setEsetiBaseInputs((prev) => ({ ...prev, annualIndexPercent: nextValue }))
+                            } else {
+                              setInputs({ ...inputs, annualIndexPercent: nextValue })
+                            }
+                          }}
+                          min={0}
+                          max={100}
+                          step={0.1}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Compact row 2: duration value / unit / yield */}
+                    <div className="grid gap-3 grid-cols-1 md:grid-cols-[90px_110px_minmax(180px,240px)_auto] items-end">
+                      <div className={`space-y-1 ${isSettingsEseti ? "opacity-60" : ""}`}>
+                        <Label className="text-xs text-muted-foreground">Futamidő</Label>
                         <Input
                           type="number"
                           disabled={isSettingsEseti}
@@ -3795,131 +3715,220 @@ export function SavingsCalculator() {
                           }}
                           min={1}
                           max={settingsDurationMax}
-                          className="flex-1"
                         />
                       </div>
-                      {isSettingsEseti ? (
-                        <p className="text-xs text-muted-foreground">Az eseti futamidő legfeljebb a fő számla futamideje lehet.</p>
-                      ) : null}
-                    </div>
 
-                    <div className="space-y-2 min-w-0">
-                      <div className="flex items-center justify-between gap-2 min-w-0">
-                      <Label htmlFor="annualYield" className="min-w-0 flex-1 truncate">
-                        Éves átlagos hozam (%)
-                      </Label>
-                        <div className={`flex items-center gap-2 shrink-0 ${isSettingsEseti ? "opacity-60" : ""}`}>
-                          <span className="text-xs text-muted-foreground">Manuális</span>
-                          <Switch
-                            checked={annualYieldMode === "fund"}
-                            disabled={!canUseFundYield || isSettingsEseti}
-                            onCheckedChange={(checked) => {
-                              if (isSettingsEseti) return
-                              if (checked && !canUseFundYield) return
-                              setAnnualYieldMode(checked ? "fund" : "manual")
-                            }}
-                          />
-                          <span className="text-xs text-muted-foreground">Eszközalap</span>
-                        </div>
-                      </div>
-                      {!canUseFundYield ? (
-                        <p className="text-xs text-muted-foreground">
-                          Eszközalap módhoz előbb válassz terméket a termékválasztóban.
-                        </p>
-                      ) : null}
-                      {annualYieldMode === "manual" || isSettingsEseti ? (
-                      <Input
-                        id="annualYield"
-                        type="number"
-                        value={isSettingsEseti ? esetiBaseInputs.annualYieldPercent : inputs.annualYieldPercent}
-                        onChange={(e) => {
-                          const nextValue = Number(e.target.value)
-                          if (isSettingsEseti) {
-                            setEsetiBaseInputs((prev) => ({ ...prev, annualYieldPercent: nextValue }))
-                          } else {
-                            setInputs({ ...inputs, annualYieldPercent: nextValue })
-                          }
-                        }}
-                        min={0}
-                        max={100}
-                        step={0.1}
-                      />
-                      ) : (
-                        <div className="fund-select w-full min-w-0">
+                      <div className={`space-y-1 ${isSettingsEseti ? "opacity-60" : ""}`}>
+                        <Label className="text-xs text-muted-foreground">Egység</Label>
                         <Select
-                          value={selectedFundId || ""}
-                          onValueChange={(value) => {
-                            setSelectedFundId(value)
-                            const selectedFund = fundOptions.find((f) => f.id === value)
-                            if (selectedFund) {
-                              if (isSettingsEseti) {
-                                setEsetiBaseInputs((prev) => ({ ...prev, annualYieldPercent: selectedFund.historicalYield }))
-                              } else {
-                                setInputs({ ...inputs, annualYieldPercent: selectedFund.historicalYield })
-                              }
+                          value={settingsDurationUnit}
+                          disabled={isSettingsEseti}
+                          onValueChange={(v) => {
+                            const nextUnit = v as DurationUnit
+                            if (isSettingsEseti) {
+                              const maxForUnit = esetiDurationMaxByUnit[nextUnit]
+                              setEsetiDurationUnit(nextUnit)
+                              setEsetiDurationValue((prev) => Math.min(prev, maxForUnit))
+                            } else {
+                              setDurationUnit(nextUnit)
                             }
                           }}
                         >
-                          <SelectTrigger className="w-full min-w-0 max-w-full overflow-hidden text-left pr-8">
-                            <SelectValue className="sr-only" placeholder="Válassz eszközalapot..." />
-                            <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                              {selectedFundId
-                                ? `${fundOptions.find((f) => f.id === selectedFundId)?.name ?? ""} (${fundOptions.find((f) => f.id === selectedFundId)?.historicalYield ?? ""}%)`
-                                : "Válassz eszközalapot..."}
-                            </span>
+                          <SelectTrigger>
+                            <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {fundOptions.map((fund) => (
-                              <SelectItem key={fund.id} value={fund.id}>
-                                {fund.name} ({fund.historicalYield}%)
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="year">Év</SelectItem>
+                            <SelectItem value="month">Hónap</SelectItem>
+                            <SelectItem value="day">Nap</SelectItem>
                           </SelectContent>
                         </Select>
-                        </div>
-                      )}
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="annualYield" className="text-xs text-muted-foreground">
+                          Hozam (%)
+                        </Label>
+                        <Input
+                          id="annualYield"
+                          type="number"
+                          value={isSettingsEseti ? esetiBaseInputs.annualYieldPercent : inputs.annualYieldPercent}
+                          disabled={!isSettingsEseti && annualYieldMode === "fund"}
+                          onChange={(e) => {
+                            const nextValue = Number(e.target.value)
+                            if (isSettingsEseti) {
+                              setEsetiBaseInputs((prev) => ({ ...prev, annualYieldPercent: nextValue }))
+                            } else {
+                              setInputs({ ...inputs, annualYieldPercent: nextValue })
+                            }
+                          }}
+                          min={0}
+                          max={100}
+                          step={0.1}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-start md:justify-end">
+                        <Collapsible>
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 text-xs text-muted-foreground"
+                            >
+                              Hozam mód <ChevronDown className="ml-1 h-3 w-3" />
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="pt-2">
+                            <div className={`rounded-md border p-2 space-y-2 w-full md:w-[340px] ${isSettingsEseti ? "opacity-60" : ""}`}>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs text-muted-foreground">Manuális</span>
+                                <Switch
+                                  checked={annualYieldMode === "fund"}
+                                  disabled={!canUseFundYield || isSettingsEseti}
+                                  onCheckedChange={(checked) => {
+                                    if (isSettingsEseti) return
+                                    if (checked && !canUseFundYield) return
+                                    setAnnualYieldMode(checked ? "fund" : "manual")
+                                  }}
+                                />
+                                <span className="text-xs text-muted-foreground">Eszközalap</span>
+                              </div>
+                              {annualYieldMode === "fund" && !isSettingsEseti ? (
+                                <Select
+                                  value={selectedFundId || ""}
+                                  onValueChange={(value) => {
+                                    setSelectedFundId(value)
+                                    const selectedFund = fundOptions.find((f) => f.id === value)
+                                    if (selectedFund) {
+                                      setInputs({ ...inputs, annualYieldPercent: selectedFund.historicalYield })
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="w-full min-w-0 max-w-full overflow-hidden text-left pr-8 h-8">
+                                    <SelectValue className="sr-only" placeholder="Válassz eszközalapot..." />
+                                    <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs">
+                                      {selectedFundId
+                                        ? `${fundOptions.find((f) => f.id === selectedFundId)?.name ?? ""} (${fundOptions.find((f) => f.id === selectedFundId)?.historicalYield ?? ""}%)`
+                                        : "Válassz eszközalapot..."}
+                                    </span>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {fundOptions.map((fund) => (
+                                      <SelectItem key={fund.id} value={fund.id}>
+                                        {fund.name} ({fund.historicalYield}%)
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : null}
+                              {!canUseFundYield ? (
+                                <p className="text-[11px] text-muted-foreground">
+                                  Eszközalap módhoz előbb válassz terméket a termékválasztóban.
+                                </p>
+                              ) : null}
+                            </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      </div>
                     </div>
                   </div>
 
-                  <div className={`grid gap-4 sm:grid-cols-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
-                    <div className="space-y-2">
-                      <Label htmlFor="annualIndex">Éves indexálás (%)</Label>
-                      <Input
-                        id="annualIndex"
-                        type="number"
-                        disabled={isSettingsEseti}
-                        value={isSettingsEseti ? esetiBaseInputs.annualIndexPercent : inputs.annualIndexPercent}
-                        onChange={(e) => {
-                          const nextValue = Number(e.target.value)
-                          if (isSettingsEseti) {
-                            setEsetiBaseInputs((prev) => ({ ...prev, annualIndexPercent: nextValue }))
-                          } else {
-                            setInputs({ ...inputs, annualIndexPercent: nextValue })
-                          }
-                        }}
-                        min={0}
-                        max={100}
-                        step={0.1}
-                      />
+                  {(selectedProduct === "alfa_exclusive_plus" || selectedProduct === "alfa_fortis" || isSettingsEseti) && (
+                    <div className={`flex flex-wrap items-center gap-3 text-xs ${isSettingsEseti ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
+                      {selectedProduct === "alfa_exclusive_plus" && <p>Minimum éves díj: 360 000 Ft</p>}
+                      {selectedProduct === "alfa_fortis" && <p>Minimum éves díj: 300 000 Ft</p>}
+                      {isSettingsEseti ? <p>Az eseti futamidő legfeljebb a fő számla futamideje lehet.</p> : null}
                     </div>
+                  )}
 
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="keepYearlyPayment"
-                        disabled={isSettingsEseti}
-                        checked={isSettingsEseti ? esetiBaseInputs.keepYearlyPayment : inputs.keepYearlyPayment}
-                        onCheckedChange={(checked) => {
-                          if (isSettingsEseti) {
-                            setEsetiBaseInputs((prev) => ({ ...prev, keepYearlyPayment: checked === true }))
-                          } else {
-                            setInputs({ ...inputs, keepYearlyPayment: checked === true })
-                          }
-                        }}
-                      />
-                      <Label htmlFor="keepYearlyPayment" className="cursor-pointer">
-                        Éves díjat tart
+                  {inputs.currency === "EUR" || inputs.currency === "USD" ? (
+                    <div className={`space-y-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
+                      <Label htmlFor={inputs.currency === "USD" ? "usdToHufRate" : "eurToHufRate"} className="text-xs text-muted-foreground">
+                        {inputs.currency === "USD" ? "USD/HUF árfolyam" : "EUR/HUF árfolyam"}
                       </Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id={inputs.currency === "USD" ? "usdToHufRate" : "eurToHufRate"}
+                          type="text"
+                          inputMode="numeric"
+                          disabled={isSettingsEseti}
+                          value={
+                            editingFields[inputs.currency === "USD" ? "usdToHufRate" : "eurToHufRate"]
+                              ? String(inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate)
+                              : formatNumber(inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate)
+                          }
+                          onFocus={() =>
+                            setFieldEditing(inputs.currency === "USD" ? "usdToHufRate" : "eurToHufRate", true)
+                          }
+                          onBlur={() =>
+                            setFieldEditing(inputs.currency === "USD" ? "usdToHufRate" : "eurToHufRate", false)
+                          }
+                          onChange={(e) => {
+                            if (isSettingsEseti) return
+                            const parsed = parseNumber(e.target.value)
+                            if (!isNaN(parsed)) {
+                              if (inputs.currency === "USD") {
+                                setInputs({ ...inputs, usdToHufRate: parsed })
+                              } else {
+                                setInputs({ ...inputs, eurToHufRate: parsed })
+                              }
+                              setEurRateManuallyChanged(true)
+                            }
+                          }}
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadFxRate(inputs.currency as "EUR" | "USD")}
+                          disabled={isLoadingFx || isSettingsEseti}
+                          className="shrink-0 bg-transparent"
+                        >
+                          {isLoadingFx ? "Betöltés..." : "Aktuális árfolyam"}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {fxState.source === "live" && (
+                          <>
+                            <span className="text-emerald-600 font-medium">Élő árfolyam</span>
+                            {fxState.date && ` (${fxDate})`}
+                          </>
+                        )}
+                        {fxState.source === "cache" && (
+                          <>
+                            <span className="text-blue-600 font-medium">Gyorsítótárból betöltve</span>
+                            {fxState.date && ` (${fxDate})`}
+                          </>
+                        )}
+                        {fxState.source === "default" && (
+                          <span className="text-amber-600 font-medium">Alapértelmezett érték (400)</span>
+                        )}
+                        {eurRateManuallyChanged && (
+                          <span className="block text-muted-foreground mt-1">Manuálisan módosítva</span>
+                        )}
+                      </p>
                     </div>
+                  ) : null}
+
+                  <div className={`flex items-center gap-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
+                    <Checkbox
+                      id="keepYearlyPayment"
+                      disabled={isSettingsEseti}
+                      checked={isSettingsEseti ? esetiBaseInputs.keepYearlyPayment : inputs.keepYearlyPayment}
+                      onCheckedChange={(checked) => {
+                        if (isSettingsEseti) {
+                          setEsetiBaseInputs((prev) => ({ ...prev, keepYearlyPayment: checked === true }))
+                        } else {
+                          setInputs({ ...inputs, keepYearlyPayment: checked === true })
+                        }
+                      }}
+                    />
+                    <Label htmlFor="keepYearlyPayment" className="cursor-pointer">
+                      Éves díjat tart
+                    </Label>
                   </div>
 
                   {/* Tax Credit Section */}
