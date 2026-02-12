@@ -3766,23 +3766,6 @@ export function SavingsCalculator() {
                             )}
                           </Button>
                         </div>
-                        <Input
-                          id="annualYield"
-                          type="number"
-                          value={isSettingsEseti ? esetiBaseInputs.annualYieldPercent : inputs.annualYieldPercent}
-                          disabled={!isSettingsEseti && annualYieldMode === "fund"}
-                          onChange={(e) => {
-                            const nextValue = Number(e.target.value)
-                            if (isSettingsEseti) {
-                              setEsetiBaseInputs((prev) => ({ ...prev, annualYieldPercent: nextValue }))
-                            } else {
-                              setInputs({ ...inputs, annualYieldPercent: nextValue })
-                            }
-                          }}
-                          min={0}
-                          max={100}
-                          step={0.1}
-                        />
                         {annualYieldMode === "fund" && !isSettingsEseti ? (
                           <Select
                             value={selectedFundId || ""}
@@ -3810,7 +3793,24 @@ export function SavingsCalculator() {
                               ))}
                             </SelectContent>
                           </Select>
-                        ) : null}
+                        ) : (
+                          <Input
+                            id="annualYield"
+                            type="number"
+                            value={isSettingsEseti ? esetiBaseInputs.annualYieldPercent : inputs.annualYieldPercent}
+                            onChange={(e) => {
+                              const nextValue = Number(e.target.value)
+                              if (isSettingsEseti) {
+                                setEsetiBaseInputs((prev) => ({ ...prev, annualYieldPercent: nextValue }))
+                              } else {
+                                setInputs({ ...inputs, annualYieldPercent: nextValue })
+                              }
+                            }}
+                            min={0}
+                            max={100}
+                            step={0.1}
+                          />
+                        )}
                         {!canUseFundYield ? (
                           <p className="text-[11px] text-muted-foreground">
                             Eszközalap módhoz előbb válassz terméket a termékválasztóban.
