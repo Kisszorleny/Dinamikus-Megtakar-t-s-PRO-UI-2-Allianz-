@@ -449,6 +449,19 @@ const MOBILE_LAYOUT = {
   inputHeight: "h-10 md:h-11",
 } as const
 
+const SETTINGS_UI = {
+  cardBase: "border-border/70 shadow-sm",
+  cardEseti: "border-orange-200/90 bg-orange-50/40 dark:border-orange-800/50 dark:bg-orange-950/15",
+  header: "flex flex-row items-center justify-between pb-3 md:pb-4",
+  title: "text-lg md:text-xl font-semibold tracking-tight flex items-center gap-2",
+  titleSuffix: "text-sm font-normal text-muted-foreground/70",
+  navButton: "h-8 w-8 text-muted-foreground hover:text-foreground",
+  formGroup: "rounded-xl border border-border/60 bg-muted/20 p-3 sm:p-4 space-y-3.5",
+  field: "rounded-lg border-border/80 bg-background/95",
+  label: "text-xs text-muted-foreground",
+  helper: "text-[11px] text-muted-foreground",
+} as const
+
 function MobileYearCard({
   row,
   planIndex,
@@ -3568,18 +3581,12 @@ export function SavingsCalculator() {
         <div className="flex flex-col gap-6 lg:grid lg:grid-cols-3">
           <div id="settings" className="lg:col-span-3 space-y-4 scroll-mt-28">
             <div className="space-y-6">
-              <Card
-                className={
-                  isSettingsEseti
-                    ? "border-orange-200 bg-orange-50/45 dark:border-orange-800/50 dark:bg-orange-950/15"
-                    : ""
-                }
-              >
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
+              <Card className={`${SETTINGS_UI.cardBase} ${isSettingsEseti ? SETTINGS_UI.cardEseti : ""}`}>
+                <CardHeader className={SETTINGS_UI.header}>
+                  <CardTitle className={SETTINGS_UI.title}>
                     <span>Alapbeállítások</span>
                     {isSettingsEseti ? (
-                      <span className="text-sm font-normal text-muted-foreground/70">- Eseti</span>
+                      <span className={SETTINGS_UI.titleSuffix}>- Eseti</span>
                     ) : null}
                   </CardTitle>
                   <div className="flex items-center gap-1">
@@ -3587,7 +3594,7 @@ export function SavingsCalculator() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className={SETTINGS_UI.navButton}
                       onClick={() => setYearlyAccountView(settingsAccountView === "eseti" ? "main" : "eseti")}
                       aria-label="Váltás fő és eseti között"
                     >
@@ -3597,7 +3604,7 @@ export function SavingsCalculator() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className={SETTINGS_UI.navButton}
                       onClick={() => setYearlyAccountView(settingsAccountView === "eseti" ? "main" : "eseti")}
                       aria-label="Váltás fő és eseti között"
                     >
@@ -3605,12 +3612,12 @@ export function SavingsCalculator() {
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className={`space-y-3 ${isSettingsEseti ? "opacity-60" : ""}`}>
+                <CardContent className="space-y-4 md:space-y-5">
+                  <div className={SETTINGS_UI.formGroup}>
                     {/* Compact row 1: frequency / payment / currency / index */}
-                    <div className={MOBILE_LAYOUT.settingsRow1}>
+                    <div className={`${MOBILE_LAYOUT.settingsRow1} ${isSettingsEseti ? "opacity-60" : ""}`}>
                       <div className={MOBILE_LAYOUT.settingsField}>
-                        <Label htmlFor="frequency" className="text-xs text-muted-foreground">
+                        <Label htmlFor="frequency" className={SETTINGS_UI.label}>
                           Fiz. gyak.
                         </Label>
                         <Select
@@ -3625,7 +3632,7 @@ export function SavingsCalculator() {
                             }
                           }}
                         >
-                          <SelectTrigger id="frequency" className={MOBILE_LAYOUT.inputHeight}>
+                          <SelectTrigger id="frequency" className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -3638,7 +3645,7 @@ export function SavingsCalculator() {
                       </div>
 
                       <div className={MOBILE_LAYOUT.settingsPaymentField}>
-                        <Label htmlFor="regularPayment" className="text-xs text-muted-foreground">
+                        <Label htmlFor="regularPayment" className={SETTINGS_UI.label}>
                           Befizetés
                         </Label>
                         <Input
@@ -3663,16 +3670,16 @@ export function SavingsCalculator() {
                               }
                             }
                           }}
-                          className={MOBILE_LAYOUT.inputHeight}
+                          className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field}`}
                         />
                       </div>
 
                       <div className={MOBILE_LAYOUT.settingsField}>
-                        <Label htmlFor="currency" className="text-xs text-muted-foreground">
+                        <Label htmlFor="currency" className={SETTINGS_UI.label}>
                           Deviza
                         </Label>
                         <Select value={inputs.currency} onValueChange={handleCurrencyChange} disabled={isSettingsEseti}>
-                          <SelectTrigger id="currency" className={MOBILE_LAYOUT.inputHeight}>
+                          <SelectTrigger id="currency" className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -3684,7 +3691,7 @@ export function SavingsCalculator() {
                       </div>
 
                       <div className={MOBILE_LAYOUT.settingsField}>
-                        <Label htmlFor="annualIndex" className="text-xs text-muted-foreground">
+                        <Label htmlFor="annualIndex" className={SETTINGS_UI.label}>
                           Index %
                         </Label>
                         <Input
@@ -3703,7 +3710,7 @@ export function SavingsCalculator() {
                           min={0}
                           max={100}
                           step={0.1}
-                          className={MOBILE_LAYOUT.inputHeight}
+                          className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field}`}
                         />
                       </div>
                     </div>
@@ -3711,7 +3718,7 @@ export function SavingsCalculator() {
                     {/* Compact row 2: duration value / unit / yield */}
                     <div className={MOBILE_LAYOUT.settingsRow2}>
                       <div className={`${MOBILE_LAYOUT.settingsField} ${isSettingsEseti ? "opacity-60" : ""}`}>
-                        <Label className="text-xs text-muted-foreground">Futamidő</Label>
+                        <Label className={SETTINGS_UI.label}>Futamidő</Label>
                         <Input
                           type="number"
                           disabled={isSettingsEseti}
@@ -3726,12 +3733,12 @@ export function SavingsCalculator() {
                           }}
                           min={1}
                           max={settingsDurationMax}
-                          className={MOBILE_LAYOUT.inputHeight}
+                          className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field}`}
                         />
                       </div>
 
                       <div className={`${MOBILE_LAYOUT.settingsField} ${isSettingsEseti ? "opacity-60" : ""}`}>
-                        <Label className="text-xs text-muted-foreground">Egység</Label>
+                        <Label className={SETTINGS_UI.label}>Egység</Label>
                         <Select
                           value={settingsDurationUnit}
                           disabled={isSettingsEseti}
@@ -3746,7 +3753,7 @@ export function SavingsCalculator() {
                             }
                           }}
                         >
-                          <SelectTrigger className={MOBILE_LAYOUT.inputHeight}>
+                          <SelectTrigger className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -3759,14 +3766,14 @@ export function SavingsCalculator() {
 
                       <div className={MOBILE_LAYOUT.settingsYieldField}>
                         <div className="flex items-center justify-between gap-2">
-                          <Label htmlFor="annualYield" className="text-xs text-muted-foreground">
+                          <Label htmlFor="annualYield" className={SETTINGS_UI.label}>
                             Hozam (%)
                           </Label>
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 text-muted-foreground/60 hover:text-muted-foreground"
+                            className="h-6 w-6 text-muted-foreground/60 hover:text-foreground"
                             disabled={!canUseFundYield || isSettingsEseti}
                             onClick={() => setAnnualYieldMode(annualYieldMode === "fund" ? "manual" : "fund")}
                             aria-label="Hozam mód váltása"
@@ -3789,7 +3796,7 @@ export function SavingsCalculator() {
                               }
                             }}
                           >
-                            <SelectTrigger className={`${MOBILE_LAYOUT.inputHeight} w-full min-w-0 max-w-full overflow-hidden text-left pr-8`}>
+                            <SelectTrigger className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field} w-full min-w-0 max-w-full overflow-hidden text-left pr-8`}>
                               <SelectValue className="sr-only" placeholder="Válassz eszközalapot..." />
                               <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs">
                                 {selectedFundId
@@ -3821,11 +3828,11 @@ export function SavingsCalculator() {
                             min={0}
                             max={100}
                             step={0.1}
-                            className={MOBILE_LAYOUT.inputHeight}
+                            className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field} ${isSettingsEseti ? "border-orange-200/80 dark:border-orange-800/60" : ""}`}
                           />
                         )}
                         {!canUseFundYield ? (
-                          <p className="text-[11px] text-muted-foreground">
+                          <p className={SETTINGS_UI.helper}>
                             Eszközalap módhoz előbb válassz terméket a termékválasztóban.
                           </p>
                         ) : null}
