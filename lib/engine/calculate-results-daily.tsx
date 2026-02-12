@@ -16,6 +16,9 @@ export interface InputsDaily {
 
   // Yield
   annualYieldPercent: number
+  fundCalculationMode?: "replay" | "averaged"
+  fundPriceSeries?: Array<{ date: string; price: number }>
+  fundReplayWrap?: boolean
 
   // Payment frequency
   frequency: PaymentFrequency
@@ -239,6 +242,25 @@ function getAssetBasedFeePercent(inputs: InputsDaily, year: number): number {
   return inputs.assetBasedFeePercent ?? 0
 }
 
+function buildFundDailyReturns(series?: Array<{ date: string; price: number }>): number[] {
+  if (!series || series.length < 2) return []
+
+  const normalized = series
+    .filter((point) => point && typeof point.date === "string" && Number.isFinite(point.price) && point.price > 0)
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  const returns: number[] = []
+  for (let i = 1; i < normalized.length; i++) {
+    const prev = normalized[i - 1].price
+    const curr = normalized[i].price
+    if (!Number.isFinite(prev) || !Number.isFinite(curr) || prev <= 0 || curr <= 0) continue
+    const dailyReturn = curr / prev - 1
+    if (Number.isFinite(dailyReturn)) returns.push(dailyReturn)
+  }
+  return returns
+}
+
 export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   const DAYS_PER_YEAR = 365
 
@@ -270,6 +292,27 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   const taxCreditYieldPercent = inputs.taxCreditYieldPercent ?? 0
   const r = inputs.annualYieldPercent / 100
   const dailyYieldFactor = Math.pow(1 + r, 1 / DAYS_PER_YEAR)
+  const fundReturns = buildFundDailyReturns(inputs.fundPriceSeries)
+  const fundMode = inputs.fundCalculationMode
+  const fundReplayWrap = inputs.fundReplayWrap !== false
+  const averagedFundDailyFactor = (() => {
+    if (fundMode !== "averaged" || fundReturns.length === 0) return dailyYieldFactor
+    const cumulativeFactor = fundReturns.reduce((acc, value) => acc * (1 + value), 1)
+    if (!Number.isFinite(cumulativeFactor) || cumulativeFactor <= 0) return dailyYieldFactor
+    const factor = Math.pow(cumulativeFactor, 1 / fundReturns.length)
+    return Number.isFinite(factor) && factor > 0 ? factor : dailyYieldFactor
+  })()
+  const getInvestedDailyFactor = (dayIndex: number) => {
+    if (fundMode === "replay" && fundReturns.length > 0) {
+      const idx = fundReplayWrap ? dayIndex % fundReturns.length : Math.min(dayIndex, fundReturns.length - 1)
+      const factor = 1 + (fundReturns[idx] ?? 0)
+      return Number.isFinite(factor) && factor > 0 ? factor : 1
+    }
+    if (fundMode === "averaged" && fundReturns.length > 0) {
+      return averagedFundDailyFactor
+    }
+    return dailyYieldFactor
+  }
   const taxBonusYieldRate = taxCreditYieldPercent / 100
   const taxBonusDailyYieldFactor = Math.pow(1 + taxBonusYieldRate, 1 / DAYS_PER_YEAR)
 
@@ -656,7 +699,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
     const investedValueBefore = investedUnits * investedPrice
     const taxBonusValueBefore = taxBonusUnits * taxBonusPrice
 
-    investedPrice *= dailyYieldFactor
+    investedPrice *= getInvestedDailyFactor(day)
     taxBonusPrice *= taxBonusDailyYieldFactor
 
     const investedValueAfter = investedUnits * investedPrice

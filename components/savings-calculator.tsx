@@ -64,6 +64,21 @@ interface YieldMonitoringService {
   fundCount: number
 }
 
+type FundSeriesPoint = {
+  date: string
+  price: number
+}
+
+type FundSeriesApiResponse = {
+  source?: string
+  updatedAt?: string
+  points?: FundSeriesPoint[]
+  stats?: {
+    annualizedReturnPercent?: number
+  }
+  error?: string
+}
+
 interface ManagementFee {
   id: string
   frequency: ManagementFeeFrequency
@@ -1131,6 +1146,20 @@ export function SavingsCalculator() {
     }
   }, [annualYieldMode])
 
+  const [fundCalculationMode, setFundCalculationMode] = useState<"replay" | "averaged">(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-fundCalculationMode")
+      if (stored === "replay" || stored === "averaged") return stored
+    }
+    return "replay"
+  })
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-fundCalculationMode", fundCalculationMode)
+    }
+  }, [fundCalculationMode])
+
   // Selected fund ID for annual yield
   const [selectedFundId, setSelectedFundId] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
@@ -1149,6 +1178,13 @@ export function SavingsCalculator() {
       }
     }
   }, [selectedFundId])
+
+  const [fundSeriesPoints, setFundSeriesPoints] = useState<FundSeriesPoint[]>([])
+  const [fundSeriesSource, setFundSeriesSource] = useState<string | null>(null)
+  const [fundSeriesUpdatedAt, setFundSeriesUpdatedAt] = useState<string | null>(null)
+  const [fundSeriesAnnualizedReturn, setFundSeriesAnnualizedReturn] = useState<number | null>(null)
+  const [fundSeriesLoading, setFundSeriesLoading] = useState(false)
+  const [fundSeriesError, setFundSeriesError] = useState<string | null>(null)
 
   // Default fund data (non-Allianz or non-HUF)
   const baseFundOptions = [
@@ -2635,6 +2671,70 @@ export function SavingsCalculator() {
     })
   }, [parsedDurationFrom, parsedDurationTo, durationUnit, durationValue, setInputs])
 
+  useEffect(() => {
+    const canLoadFundSeries = Boolean(selectedProduct)
+    if (annualYieldMode !== "fund" || !selectedFundId || !canLoadFundSeries) {
+      setFundSeriesLoading(false)
+      setFundSeriesError(null)
+      setFundSeriesPoints([])
+      setFundSeriesSource(null)
+      setFundSeriesUpdatedAt(null)
+      setFundSeriesAnnualizedReturn(null)
+      return
+    }
+
+    let cancelled = false
+    const controller = new AbortController()
+    const from = parsedDurationFrom
+      ? `${parsedDurationFrom.getFullYear()}-${String(parsedDurationFrom.getMonth() + 1).padStart(2, "0")}-${String(parsedDurationFrom.getDate()).padStart(2, "0")}`
+      : undefined
+    const to = parsedDurationTo
+      ? `${parsedDurationTo.getFullYear()}-${String(parsedDurationTo.getMonth() + 1).padStart(2, "0")}-${String(parsedDurationTo.getDate()).padStart(2, "0")}`
+      : undefined
+
+    const query = new URLSearchParams({ fundId: selectedFundId })
+    if (from) query.set("from", from)
+    if (to) query.set("to", to)
+
+    const load = async () => {
+      setFundSeriesLoading(true)
+      setFundSeriesError(null)
+      try {
+        const response = await fetch(`/api/funds/prices?${query.toString()}`, { signal: controller.signal })
+        const data = (await response.json()) as FundSeriesApiResponse
+        if (!response.ok || data.error) {
+          throw new Error(data.error || "Eszközalap idősor nem elérhető")
+        }
+        if (cancelled) return
+        const points = Array.isArray(data.points) ? data.points : []
+        setFundSeriesPoints(points)
+        setFundSeriesSource(data.source ?? null)
+        setFundSeriesUpdatedAt(data.updatedAt ?? null)
+        setFundSeriesAnnualizedReturn(
+          typeof data.stats?.annualizedReturnPercent === "number" ? data.stats.annualizedReturnPercent : null,
+        )
+      } catch (error) {
+        if (cancelled) return
+        if (error instanceof DOMException && error.name === "AbortError") return
+        setFundSeriesError(error instanceof Error ? error.message : "Eszközalap idősor nem elérhető")
+        setFundSeriesPoints([])
+        setFundSeriesSource(null)
+        setFundSeriesUpdatedAt(null)
+        setFundSeriesAnnualizedReturn(null)
+      } finally {
+        if (!cancelled) {
+          setFundSeriesLoading(false)
+        }
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [annualYieldMode, selectedFundId, selectedProduct, parsedDurationFrom, parsedDurationTo])
+
   const totalYearsForPlan = useMemo(() => toYearsFromDuration(durationUnit, durationValue), [durationUnit, durationValue])
   const esetiDurationMaxByUnit = useMemo(() => {
     return {
@@ -2768,6 +2868,7 @@ export function SavingsCalculator() {
     )
 
     const exchangeRate = inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate
+    const useFundSeries = annualYieldMode === "fund" && fundSeriesPoints.length > 1
 
     return {
       currency: inputs.currency,
@@ -2809,6 +2910,10 @@ export function SavingsCalculator() {
       productVariant: selectedProduct ?? undefined,
       calculationMode: inputs.calculationMode,
       startDate: inputs.startDate,
+      referenceYear: parsedDurationFrom?.getFullYear(),
+      fundCalculationMode: useFundSeries ? fundCalculationMode : undefined,
+      fundPriceSeries: useFundSeries ? fundSeriesPoints : undefined,
+      fundReplayWrap: true,
       bonusPercent: inputs.bonusPercent,
       bonusStartYear: inputs.bonusStartYear,
       bonusStopYear: inputs.bonusStopYear,
@@ -2832,6 +2937,9 @@ export function SavingsCalculator() {
       riskInsuranceEndYear: riskInsuranceEndYear,
     }
   }, [
+    annualYieldMode,
+    fundCalculationMode,
+    fundSeriesPoints,
     inputs.currency,
     inputs.frequency,
     inputs.regularPayment,
@@ -2855,6 +2963,7 @@ export function SavingsCalculator() {
     inputs.stopTaxCreditAfterFirstWithdrawal,
     inputs.calculationMode,
     inputs.startDate,
+    parsedDurationFrom,
     inputs.bonusPercent,
     inputs.bonusStartYear,
     inputs.bonusStopYear,
@@ -3925,32 +4034,64 @@ export function SavingsCalculator() {
                           </Button>
                         </div>
                         {annualYieldMode === "fund" && !isSettingsEseti ? (
-                          <Select
-                            value={selectedFundId || ""}
-                            onValueChange={(value) => {
-                              setSelectedFundId(value)
-                              const selectedFund = fundOptions.find((f) => f.id === value)
-                              if (selectedFund) {
-                                setInputs({ ...inputs, annualYieldPercent: selectedFund.historicalYield })
-                              }
-                            }}
-                          >
-                            <SelectTrigger className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field} w-full min-w-0 max-w-full overflow-hidden text-left pr-8`}>
-                              <SelectValue className="sr-only" placeholder="Válassz eszközalapot..." />
-                              <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs">
-                                {selectedFundId
-                                  ? `${fundOptions.find((f) => f.id === selectedFundId)?.name ?? ""} (${fundOptions.find((f) => f.id === selectedFundId)?.historicalYield ?? ""}%)`
-                                  : "Válassz eszközalapot..."}
-                              </span>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {fundOptions.map((fund) => (
-                                <SelectItem key={fund.id} value={fund.id}>
-                                  {fund.name} ({fund.historicalYield}%)
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="space-y-2">
+                            <Select
+                              value={selectedFundId || ""}
+                              onValueChange={(value) => {
+                                setSelectedFundId(value)
+                                const selectedFund = fundOptions.find((f) => f.id === value)
+                                if (selectedFund) {
+                                  setInputs({ ...inputs, annualYieldPercent: selectedFund.historicalYield })
+                                }
+                              }}
+                            >
+                              <SelectTrigger className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field} w-full min-w-0 max-w-full overflow-hidden text-left pr-8`}>
+                                <SelectValue className="sr-only" placeholder="Válassz eszközalapot..." />
+                                <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs">
+                                  {selectedFundId
+                                    ? `${fundOptions.find((f) => f.id === selectedFundId)?.name ?? ""} (${fundOptions.find((f) => f.id === selectedFundId)?.historicalYield ?? ""}%)`
+                                    : "Válassz eszközalapot..."}
+                                </span>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {fundOptions.map((fund) => (
+                                  <SelectItem key={fund.id} value={fund.id}>
+                                    {fund.name} ({fund.historicalYield}%)
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+
+                            <Select
+                              value={fundCalculationMode}
+                              onValueChange={(value) => setFundCalculationMode(value as "replay" | "averaged")}
+                            >
+                              <SelectTrigger className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="replay">Valós idősor (Replay)</SelectItem>
+                                <SelectItem value="averaged">Idősor átlagolt (Évesített)</SelectItem>
+                              </SelectContent>
+                            </Select>
+
+                            <p className={SETTINGS_UI.helper}>
+                              {fundSeriesLoading
+                                ? "Eszközalap idősor betöltése..."
+                                : fundSeriesPoints.length > 1
+                                  ? `Valós idősor aktív: ${fundSeriesPoints.length} pont${
+                                      fundSeriesUpdatedAt ? `, frissítve: ${fundSeriesUpdatedAt}` : ""
+                                    }${
+                                      typeof fundSeriesAnnualizedReturn === "number"
+                                        ? `, évesített: ${fundSeriesAnnualizedReturn.toFixed(2)}%`
+                                        : ""
+                                    }${fundSeriesSource ? ", forrás: publikus biztosítói adat" : ""}
+                                    }`
+                                  : fundSeriesError
+                                    ? `Valós idősor nem elérhető (${fundSeriesError}), manuális hozam fallback aktív.`
+                                    : "Valós idősor még nem érhető el, manuális hozam fallback aktív."}
+                            </p>
+                          </div>
                         ) : (
                           <Input
                             id="annualYield"
