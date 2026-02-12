@@ -5435,7 +5435,7 @@ export function SavingsCalculator() {
                 <div className={`md:hidden space-y-3 ${isYearlyMuted ? "opacity-60" : ""}`}>
                   {(adjustedResults?.yearlyBreakdown ?? []).slice(0, visibleYears).map((row, index) => (
                     <MobileYearCard
-                      key={row.year}
+                      key={`${row.year}-${row.periodType ?? "year"}-${index}`}
                       row={row}
                       planIndex={isEsetiView ? esetiPlanIndex : planIndex}
                       planPayment={isEsetiView ? esetiPlanPayment : planPayment}
@@ -5772,7 +5772,7 @@ export function SavingsCalculator() {
                         // </CHANGE>
 
                         return (
-                          <tr key={row.year} className="border-b hover:bg-muted/50">
+                          <tr key={`${row.year}-${row.periodType ?? "year"}-${index}`} className="border-b hover:bg-muted/50">
                             <td className="py-2 px-3 text-center font-medium sticky left-0 z-10 bg-background/95">
                               {row.periodType === "partial" ? getYearRowLabel(row) : row.year}
                             </td>
