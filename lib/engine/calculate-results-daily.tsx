@@ -76,6 +76,7 @@ export interface InputsDaily {
   riskInsuranceAnnualIndexPercent?: number
   riskInsuranceStartYear?: number
   riskInsuranceEndYear?: number
+  bonusCreditOnAnniversaryDay20?: boolean
 }
 
 export interface YearRow {
@@ -351,6 +352,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
 
   let lastPaymentMonth = 0
   let lastPaymentPeriodKey = -1
+  let lastRefundInitialCostBonusAppliedYear = 0
   let nextManagementFeeDay = 0
 
   const getInvestedSharePercent = (year: number): number => {
@@ -416,19 +418,36 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       currentDayOfMonth = currentDate.getDate()
     }
 
-    if (dayOfYear === 1 && currentYear >= 2 && !(hasPartialFinalPeriod && currentYear === totalYears)) {
-      if (bonusMode === "refundInitialCostIncreasing") {
-        const prevYearInitialCostTotal = initialCostTotalByYear[1] ?? 0
-        if (prevYearInitialCostTotal > 0) {
-          const bonusPercentForYear = currentYear - 1
-          const bonusForYear = prevYearInitialCostTotal * (bonusPercentForYear / 100)
-
-          if (bonusForYear > 0) {
-            // Bonus goes to invested account
-            investedUnits += bonusForYear / investedPrice
-            totalBonus += bonusForYear
-            bonusThisYear += bonusForYear
+    if (currentYear >= 2 && !(hasPartialFinalPeriod && currentYear === totalYears)) {
+      if (bonusMode === "refundInitialCostIncreasing" && lastRefundInitialCostBonusAppliedYear !== currentYear) {
+        const shouldApplyToday = (() => {
+          if (
+            inputs.bonusCreditOnAnniversaryDay20 === true &&
+            inputs.calculationMode === "calendar" &&
+            startDate &&
+            currentMonth !== null &&
+            currentDayOfMonth !== null
+          ) {
+            const anniversaryMonth = startDate.getMonth() + 1
+            return currentMonth === anniversaryMonth && currentDayOfMonth === 20
           }
+          return dayOfYear === 1
+        })()
+
+        if (shouldApplyToday) {
+          const prevYearInitialCostTotal = initialCostTotalByYear[1] ?? 0
+          if (prevYearInitialCostTotal > 0) {
+            const bonusPercentForYear = currentYear - 1
+            const bonusForYear = prevYearInitialCostTotal * (bonusPercentForYear / 100)
+
+            if (bonusForYear > 0) {
+              // Bonus goes to invested account
+              investedUnits += bonusForYear / investedPrice
+              totalBonus += bonusForYear
+              bonusThisYear += bonusForYear
+            }
+          }
+          lastRefundInitialCostBonusAppliedYear = currentYear
         }
       }
     }

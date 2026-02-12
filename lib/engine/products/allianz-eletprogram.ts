@@ -32,6 +32,7 @@ export const allianzEletprogram: ProductDefinition = {
       initialCostByYear,
       initialCostDefaultPercent: inputs.initialCostDefaultPercent ?? 0,
       bonusMode: shouldUseProductDefaults && isBonusVariant ? "refundInitialCostIncreasing" : inputs.bonusMode,
+      bonusCreditOnAnniversaryDay20: shouldUseProductDefaults && isBonusVariant ? true : inputs.bonusCreditOnAnniversaryDay20,
       // Ensure no extra management fee layer is applied
       managementFeeValueType: "percent",
       managementFeeValue: 0,
