@@ -3559,9 +3559,20 @@ export function SavingsCalculator() {
         <div className="flex flex-col gap-6 lg:grid lg:grid-cols-3">
           <div id="settings" className="lg:col-span-3 space-y-4 scroll-mt-28">
             <div className="space-y-6">
-              <Card>
+              <Card
+                className={
+                  isSettingsEseti
+                    ? "border-orange-200 bg-orange-50/45 dark:border-orange-800/50 dark:bg-orange-950/15"
+                    : ""
+                }
+              >
                 <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Alapbeállítások</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <span>Alapbeállítások</span>
+                    {isSettingsEseti ? (
+                      <span className="text-sm font-normal text-muted-foreground/70">- Eseti</span>
+                    ) : null}
+                  </CardTitle>
                   <div className="flex items-center gap-1">
                     <Button
                       type="button"
