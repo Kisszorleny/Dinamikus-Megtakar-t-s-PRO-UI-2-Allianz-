@@ -46,6 +46,14 @@ type SummaryOverrides = {
   }
 }
 
+const MOBILE_SUMMARY_LAYOUT = {
+  toolbarGrid: "grid w-full items-end gap-3 rounded-lg border bg-card px-3 py-3 grid-cols-1 min-[560px]:grid-cols-2 lg:grid-cols-6",
+  field: "grid gap-1 min-w-0",
+  button: "h-10 w-full min-[560px]:w-auto",
+  input: "h-10 w-full",
+  helperText: "text-xs text-muted-foreground min-[560px]:col-span-2 lg:col-span-6",
+} as const
+
 export default function OsszesitesPage() {
   const router = useRouter()
   const { data: contextData, isHydrated, updateData } = useCalculatorData()
@@ -1235,8 +1243,8 @@ export default function OsszesitesPage() {
             )}
           </Button>
 
-          <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-card px-3 py-2">
-            <div className="grid gap-1">
+          <div className={MOBILE_SUMMARY_LAYOUT.toolbarGrid}>
+            <div className={MOBILE_SUMMARY_LAYOUT.field}>
               <Label className="text-xs text-muted-foreground" htmlFor="emailClientName">
                 Név (megszólítás)
               </Label>
@@ -1244,11 +1252,11 @@ export default function OsszesitesPage() {
                 id="emailClientName"
                 value={emailClientName}
                 onChange={(e) => setEmailClientName(e.target.value)}
-                className="h-9 w-[180px]"
+                className={MOBILE_SUMMARY_LAYOUT.input}
                 placeholder="pl. Viktor"
               />
             </div>
-            <div className="grid gap-1">
+            <div className={MOBILE_SUMMARY_LAYOUT.field}>
               <Label className="text-xs text-muted-foreground" htmlFor="emailOfferUntil">
                 Ajánlat érvényes (YYYY.MM.DD)
               </Label>
@@ -1257,15 +1265,15 @@ export default function OsszesitesPage() {
                   id="emailOfferUntil"
                   value={emailOfferUntil}
                   onChange={(e) => setEmailOfferUntil(e.target.value)}
-                  className="h-9 w-[160px]"
+                  className={MOBILE_SUMMARY_LAYOUT.input}
                   placeholder="2026.02.14"
                 />
                 {emailOfferUntilWeekday ? (
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">({emailOfferUntilWeekday})</span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">({emailOfferUntilWeekday})</span>
                 ) : null}
               </div>
             </div>
-            <div className="grid gap-1">
+            <div className={MOBILE_SUMMARY_LAYOUT.field}>
               <Label className="text-xs text-muted-foreground" htmlFor="emailTegezo">
                 Tegező
               </Label>
@@ -1276,7 +1284,7 @@ export default function OsszesitesPage() {
             </div>
             <Button
               variant="default"
-              className="h-9"
+              className={MOBILE_SUMMARY_LAYOUT.button}
               onClick={async () => {
                 setEmailCopyStatus("idle")
 
@@ -1302,7 +1310,7 @@ export default function OsszesitesPage() {
 
             <Button
               variant="secondary"
-              className="h-9"
+              className={MOBILE_SUMMARY_LAYOUT.button}
               onClick={async () => {
                 setEmailCopyStatus("idle")
 
@@ -1327,7 +1335,7 @@ export default function OsszesitesPage() {
               Másol + e-mail
             </Button>
 
-            <div className="text-xs text-muted-foreground max-w-[520px]">
+            <div className={MOBILE_SUMMARY_LAYOUT.helperText}>
               Mobilon a `mailto:` gyakran csak sima szöveget támogat. Nyomd meg a{" "}
               <span className="font-medium">Formázott sablon másolása</span> gombot, majd az Outlook levélbe illeszd be.
             </div>

@@ -438,6 +438,17 @@ const mergeYearRows = (mainRow?: any, esetiRow?: any) => {
   }
 }
 
+const MOBILE_LAYOUT = {
+  settingsRow1: "grid items-end gap-2 grid-cols-2 min-[430px]:grid-cols-10 md:grid-cols-12",
+  settingsRow2: "grid items-end gap-2 grid-cols-2 min-[430px]:grid-cols-10 md:grid-cols-12",
+  settingsField: "col-span-1 min-[430px]:col-span-2 min-w-0 space-y-1 md:col-span-2",
+  settingsPaymentField: "col-span-1 min-[430px]:col-span-4 min-w-0 space-y-1 md:col-span-6",
+  settingsYieldField: "col-span-2 min-[430px]:col-span-6 min-w-0 space-y-1 md:col-span-8",
+  yearlyEditableGrid: "grid gap-2 mb-3 grid-cols-1 min-[390px]:grid-cols-2",
+  yearlySecondaryGrid: "grid gap-2 grid-cols-1 min-[390px]:grid-cols-2",
+  inputHeight: "h-10 md:h-11",
+} as const
+
 function MobileYearCard({
   row,
   planIndex,
@@ -653,9 +664,7 @@ function MobileYearCard({
       </div>
 
       {/* Always visible: editable fields */}
-      <div
-        className={`grid ${isYearlyReadOnly ? "grid-cols-1" : "grid-cols-2"} gap-3 mb-3 ${isYearlyReadOnly ? "opacity-60 pointer-events-none" : ""}`}
-      >
+      <div className={`${isYearlyReadOnly ? "grid grid-cols-1" : MOBILE_LAYOUT.yearlyEditableGrid} ${isYearlyReadOnly ? "opacity-60 pointer-events-none" : ""}`}>
         {!isYearlyReadOnly && (
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Indexálás (%)</Label>
@@ -673,7 +682,7 @@ function MobileYearCard({
                 const parsed = parseNumber(e.target.value)
                 if (!isNaN(parsed)) updateIndex(row.year, parsed)
               }}
-              className={`h-11 text-base tabular-nums ${isIndexModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+              className={`${MOBILE_LAYOUT.inputHeight} text-base tabular-nums ${isIndexModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
             />
           </div>
         )}
@@ -697,12 +706,12 @@ function MobileYearCard({
               const parsed = parseNumber(e.target.value)
               if (!isNaN(parsed)) updatePayment(row.year, parsed) // Fixed: 'year' to 'row.year'
             }}
-            className={`h-11 text-base tabular-nums ${isPaymentModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+            className={`${MOBILE_LAYOUT.inputHeight} text-base tabular-nums ${isPaymentModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className={enableTaxCredit ? MOBILE_LAYOUT.yearlySecondaryGrid : "grid gap-3 grid-cols-1"}>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Pénzkivonás</Label>
           <Input
@@ -726,7 +735,7 @@ function MobileYearCard({
                 updateWithdrawal(row.year, capped)
               }
             }}
-            className={`h-11 text-base tabular-nums ${isWithdrawalModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+            className={`${MOBILE_LAYOUT.inputHeight} text-base tabular-nums ${isWithdrawalModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
           />
         </div>
         {enableTaxCredit && (
@@ -760,13 +769,13 @@ function MobileYearCard({
                   if (!isNaN(parsed)) updateTaxCreditLimit(row.year, parsed)
                 }}
                 placeholder="Auto"
-                className={`h-11 text-base tabular-nums flex-1 ${isTaxCreditLimited ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+                className={`${MOBILE_LAYOUT.inputHeight} text-base tabular-nums flex-1 ${isTaxCreditLimited ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
               />
               {isTaxCreditLimited && (
                 <button
                   type="button"
                   onClick={() => updateTaxCreditLimit(row.year, 0)}
-                  className="text-muted-foreground hover:text-foreground h-11 w-8 flex items-center justify-center"
+                  className={`${MOBILE_LAYOUT.inputHeight} text-muted-foreground hover:text-foreground w-8 flex items-center justify-center`}
                 >
                   ×
                 </button>
@@ -826,13 +835,13 @@ function MobileYearCard({
                     min={0}
                     max={100}
                     step={0.1}
-                    className={`h-11 text-base tabular-nums flex-1 ${assetCostPercentByYear[row.year] !== undefined ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+                    className={`${MOBILE_LAYOUT.inputHeight} text-base tabular-nums flex-1 ${assetCostPercentByYear[row.year] !== undefined ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
                   />
                   {assetCostPercentByYear[row.year] !== undefined && (
                     <button
                       type="button"
                       onClick={() => updateAssetCostPercent(row.year, inputs.assetBasedFeePercent)}
-                      className="text-muted-foreground hover:text-foreground h-11 w-8 flex items-center justify-center"
+                      className={`${MOBILE_LAYOUT.inputHeight} text-muted-foreground hover:text-foreground w-8 flex items-center justify-center`}
                     >
                       ×
                     </button>
@@ -883,13 +892,13 @@ function MobileYearCard({
                       updatePlusCost(row.year, calcValue)
                     }
                   }}
-                  className={`h-11 text-base tabular-nums flex-1 ${plusCostByYear[row.year] !== undefined && plusCostByYear[row.year] > 0 ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+                  className={`${MOBILE_LAYOUT.inputHeight} text-base tabular-nums flex-1 ${plusCostByYear[row.year] !== undefined && plusCostByYear[row.year] > 0 ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
                 />
                 {plusCostByYear[row.year] !== undefined && plusCostByYear[row.year] > 0 && (
                   <button
                     type="button"
                     onClick={() => updatePlusCost(row.year, 0)}
-                    className="text-muted-foreground hover:text-foreground h-11 w-8 flex items-center justify-center"
+                    className={`${MOBILE_LAYOUT.inputHeight} text-muted-foreground hover:text-foreground w-8 flex items-center justify-center`}
                   >
                     ×
                   </button>
@@ -916,13 +925,13 @@ function MobileYearCard({
                   min={0}
                   max={100}
                   step={0.1}
-                  className={`h-11 text-base tabular-nums flex-1 ${bonusPercentByYear[row.year] !== undefined && bonusPercentByYear[row.year] > 0 ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+                  className={`${MOBILE_LAYOUT.inputHeight} text-base tabular-nums flex-1 ${bonusPercentByYear[row.year] !== undefined && bonusPercentByYear[row.year] > 0 ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
                 />
                 {bonusPercentByYear[row.year] !== undefined && bonusPercentByYear[row.year] > 0 && (
                   <button
                     type="button"
                     onClick={() => updateBonusPercent(row.year, 0)}
-                    className="text-muted-foreground hover:text-foreground h-11 w-8 flex items-center justify-center"
+                    className={`${MOBILE_LAYOUT.inputHeight} text-muted-foreground hover:text-foreground w-8 flex items-center justify-center`}
                   >
                     ×
                   </button>
@@ -3599,8 +3608,8 @@ export function SavingsCalculator() {
                 <CardContent className="space-y-4">
                   <div className={`space-y-3 ${isSettingsEseti ? "opacity-60" : ""}`}>
                     {/* Compact row 1: frequency / payment / currency / index */}
-                    <div className="grid items-end gap-2 grid-cols-10 md:grid-cols-12">
-                      <div className="col-span-2 min-w-0 space-y-1 md:col-span-2">
+                    <div className={MOBILE_LAYOUT.settingsRow1}>
+                      <div className={MOBILE_LAYOUT.settingsField}>
                         <Label htmlFor="frequency" className="text-xs text-muted-foreground">
                           Fiz. gyak.
                         </Label>
@@ -3616,7 +3625,7 @@ export function SavingsCalculator() {
                             }
                           }}
                         >
-                          <SelectTrigger id="frequency">
+                          <SelectTrigger id="frequency" className={MOBILE_LAYOUT.inputHeight}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -3628,7 +3637,7 @@ export function SavingsCalculator() {
                         </Select>
                       </div>
 
-                      <div className="col-span-4 min-w-0 space-y-1 md:col-span-6">
+                      <div className={MOBILE_LAYOUT.settingsPaymentField}>
                         <Label htmlFor="regularPayment" className="text-xs text-muted-foreground">
                           Befizetés
                         </Label>
@@ -3654,15 +3663,16 @@ export function SavingsCalculator() {
                               }
                             }
                           }}
+                          className={MOBILE_LAYOUT.inputHeight}
                         />
                       </div>
 
-                      <div className="col-span-2 min-w-0 space-y-1 md:col-span-2">
+                      <div className={MOBILE_LAYOUT.settingsField}>
                         <Label htmlFor="currency" className="text-xs text-muted-foreground">
                           Deviza
                         </Label>
                         <Select value={inputs.currency} onValueChange={handleCurrencyChange} disabled={isSettingsEseti}>
-                          <SelectTrigger id="currency">
+                          <SelectTrigger id="currency" className={MOBILE_LAYOUT.inputHeight}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -3673,7 +3683,7 @@ export function SavingsCalculator() {
                         </Select>
                       </div>
 
-                      <div className="col-span-2 min-w-0 space-y-1 md:col-span-2">
+                      <div className={MOBILE_LAYOUT.settingsField}>
                         <Label htmlFor="annualIndex" className="text-xs text-muted-foreground">
                           Index %
                         </Label>
@@ -3693,13 +3703,14 @@ export function SavingsCalculator() {
                           min={0}
                           max={100}
                           step={0.1}
+                          className={MOBILE_LAYOUT.inputHeight}
                         />
                       </div>
                     </div>
 
                     {/* Compact row 2: duration value / unit / yield */}
-                    <div className="grid items-end gap-2 grid-cols-10 md:grid-cols-12">
-                      <div className={`col-span-2 min-w-0 space-y-1 md:col-span-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
+                    <div className={MOBILE_LAYOUT.settingsRow2}>
+                      <div className={`${MOBILE_LAYOUT.settingsField} ${isSettingsEseti ? "opacity-60" : ""}`}>
                         <Label className="text-xs text-muted-foreground">Futamidő</Label>
                         <Input
                           type="number"
@@ -3715,10 +3726,11 @@ export function SavingsCalculator() {
                           }}
                           min={1}
                           max={settingsDurationMax}
+                          className={MOBILE_LAYOUT.inputHeight}
                         />
                       </div>
 
-                      <div className={`col-span-2 min-w-0 space-y-1 md:col-span-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
+                      <div className={`${MOBILE_LAYOUT.settingsField} ${isSettingsEseti ? "opacity-60" : ""}`}>
                         <Label className="text-xs text-muted-foreground">Egység</Label>
                         <Select
                           value={settingsDurationUnit}
@@ -3734,7 +3746,7 @@ export function SavingsCalculator() {
                             }
                           }}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className={MOBILE_LAYOUT.inputHeight}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -3745,7 +3757,7 @@ export function SavingsCalculator() {
                         </Select>
                       </div>
 
-                      <div className="col-span-6 min-w-0 space-y-1 md:col-span-8">
+                      <div className={MOBILE_LAYOUT.settingsYieldField}>
                         <div className="flex items-center justify-between gap-2">
                           <Label htmlFor="annualYield" className="text-xs text-muted-foreground">
                             Hozam (%)
@@ -3777,7 +3789,7 @@ export function SavingsCalculator() {
                               }
                             }}
                           >
-                            <SelectTrigger className="w-full min-w-0 max-w-full overflow-hidden text-left pr-8 h-8">
+                            <SelectTrigger className={`${MOBILE_LAYOUT.inputHeight} w-full min-w-0 max-w-full overflow-hidden text-left pr-8`}>
                               <SelectValue className="sr-only" placeholder="Válassz eszközalapot..." />
                               <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs">
                                 {selectedFundId
@@ -3809,6 +3821,7 @@ export function SavingsCalculator() {
                             min={0}
                             max={100}
                             step={0.1}
+                            className={MOBILE_LAYOUT.inputHeight}
                           />
                         )}
                         {!canUseFundYield ? (
@@ -3984,7 +3997,7 @@ export function SavingsCalculator() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className={MOBILE_LAYOUT.yearlySecondaryGrid}>
                         <div className="space-y-2">
                           <Label>Adójóváírás kezdete (év)</Label>
                           <Input
@@ -4618,7 +4631,7 @@ export function SavingsCalculator() {
                             />
                           </div>
 
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className={MOBILE_LAYOUT.yearlySecondaryGrid}>
                             <div className="space-y-2">
                               <Label>Kezdő év</Label>
                               <Input
@@ -4825,7 +4838,7 @@ export function SavingsCalculator() {
                             />
                           </div>
 
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className={MOBILE_LAYOUT.yearlySecondaryGrid}>
                             <div className="space-y-2">
                               <Label>Indulás éve</Label>
                               <Input
