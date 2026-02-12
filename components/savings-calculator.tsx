@@ -1260,92 +1260,6 @@ export function SavingsCalculator() {
     }
   }, [fundSeriesPoints])
 
-  useEffect(() => {
-    if (annualYieldMode !== "fund") return
-    if (fundCalculationMode !== "replay") return
-    if (!isAllianzFundMode) return
-    if (!selectedFundId) return
-    if (!(inputs.currency === "HUF" || inputs.currency === "EUR")) return
-    if (!fundSeriesAvailableRange?.startDate || !fundSeriesAvailableRange?.endDate) return
-
-    if (typeof window !== "undefined") {
-      try {
-        const key = `fundEarliest:${inputs.currency}:${selectedFundId}`
-        const stored = sessionStorage.getItem(key)
-        if (stored) {
-          setFundSeriesFundEarliestAvailable(stored)
-          return
-        }
-      } catch {
-        // ignore storage access errors (private mode / blocked storage)
-      }
-    }
-
-    let cancelled = false
-    const controller = new AbortController()
-
-    const run = async () => {
-      try {
-        const programStart = fundSeriesAvailableRange.startDate
-        const programEnd = fundSeriesAvailableRange.endDate
-
-        let probeFrom = programStart
-        for (let guard = 0; guard < 40 && !cancelled; guard++) {
-          const probeTo = minIsoDate(addMonthsIsoClient(probeFrom, 18), programEnd)
-
-          const query = new URLSearchParams({
-            fundId: selectedFundId,
-            from: probeFrom,
-            to: probeTo,
-            provider: "allianz-ulexchange",
-            program: "ul2005",
-            currency: inputs.currency,
-            mode: "replay",
-          })
-          const response = await fetch(`/api/funds/prices?${query.toString()}`, { signal: controller.signal })
-          const data = (await response.json()) as FundSeriesApiResponse
-          if (!response.ok || data.error) {
-            throw new Error(data.error || "Eszközalap idősor nem elérhető")
-          }
-
-          const points = Array.isArray(data.points) ? data.points : []
-          if (points.length > 0) {
-            const earliest = points.reduce((min, p) => (p?.date && p.date < min ? p.date : min), points[0]!.date)
-            setFundSeriesFundEarliestAvailable(earliest)
-            if (typeof window !== "undefined") {
-              try {
-                const key = `fundEarliest:${inputs.currency}:${selectedFundId}`
-                sessionStorage.setItem(key, earliest)
-              } catch {
-                // ignore
-              }
-            }
-            return
-          }
-
-          if (probeTo >= programEnd) return
-          probeFrom = addDaysIsoClient(probeTo, 1)
-        }
-      } catch {
-        // ignore probe errors; UI still shows loaded span and program range
-      }
-    }
-
-    run()
-    return () => {
-      cancelled = true
-      controller.abort()
-    }
-  }, [
-    annualYieldMode,
-    fundCalculationMode,
-    isAllianzFundMode,
-    selectedFundId,
-    inputs.currency,
-    fundSeriesAvailableRange?.startDate,
-    fundSeriesAvailableRange?.endDate,
-  ])
-
   // Default fund data (non-Allianz or non-HUF)
   const baseFundOptions = [
     { id: "fund-1", name: "OTP Alapkezelő Részvényalap", historicalYield: 8.5 },
@@ -2123,6 +2037,92 @@ export function SavingsCalculator() {
         ? allianzEurFundOptions
         : baseFundOptions
     : baseFundOptions
+
+  useEffect(() => {
+    if (annualYieldMode !== "fund") return
+    if (fundCalculationMode !== "replay") return
+    if (!isAllianzFundMode) return
+    if (!selectedFundId) return
+    if (!(inputs.currency === "HUF" || inputs.currency === "EUR")) return
+    if (!fundSeriesAvailableRange?.startDate || !fundSeriesAvailableRange?.endDate) return
+
+    if (typeof window !== "undefined") {
+      try {
+        const key = `fundEarliest:${inputs.currency}:${selectedFundId}`
+        const stored = sessionStorage.getItem(key)
+        if (stored) {
+          setFundSeriesFundEarliestAvailable(stored)
+          return
+        }
+      } catch {
+        // ignore storage access errors (private mode / blocked storage)
+      }
+    }
+
+    let cancelled = false
+    const controller = new AbortController()
+
+    const run = async () => {
+      try {
+        const programStart = fundSeriesAvailableRange.startDate
+        const programEnd = fundSeriesAvailableRange.endDate
+
+        let probeFrom = programStart
+        for (let guard = 0; guard < 40 && !cancelled; guard++) {
+          const probeTo = minIsoDate(addMonthsIsoClient(probeFrom, 18), programEnd)
+
+          const query = new URLSearchParams({
+            fundId: selectedFundId,
+            from: probeFrom,
+            to: probeTo,
+            provider: "allianz-ulexchange",
+            program: "ul2005",
+            currency: inputs.currency,
+            mode: "replay",
+          })
+          const response = await fetch(`/api/funds/prices?${query.toString()}`, { signal: controller.signal })
+          const data = (await response.json()) as FundSeriesApiResponse
+          if (!response.ok || data.error) {
+            throw new Error(data.error || "Eszközalap idősor nem elérhető")
+          }
+
+          const points = Array.isArray(data.points) ? data.points : []
+          if (points.length > 0) {
+            const earliest = points.reduce((min, p) => (p?.date && p.date < min ? p.date : min), points[0]!.date)
+            setFundSeriesFundEarliestAvailable(earliest)
+            if (typeof window !== "undefined") {
+              try {
+                const key = `fundEarliest:${inputs.currency}:${selectedFundId}`
+                sessionStorage.setItem(key, earliest)
+              } catch {
+                // ignore
+              }
+            }
+            return
+          }
+
+          if (probeTo >= programEnd) return
+          probeFrom = addDaysIsoClient(probeTo, 1)
+        }
+      } catch {
+        // ignore probe errors; UI still shows loaded span and program range
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [
+    annualYieldMode,
+    fundCalculationMode,
+    isAllianzFundMode,
+    selectedFundId,
+    inputs.currency,
+    fundSeriesAvailableRange?.startDate,
+    fundSeriesAvailableRange?.endDate,
+  ])
 
   useEffect(() => {
     if (annualYieldMode !== "fund") return
