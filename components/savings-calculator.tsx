@@ -389,13 +389,12 @@ const mergeYearRows = (mainRow?: any, esetiRow?: any) => {
   const periodType = main.periodType === "partial" || eseti.periodType === "partial" ? "partial" : "year"
   const periodMonths = Math.max(0, Number(main.periodMonths ?? 0), Number(eseti.periodMonths ?? 0))
   const periodDays = Math.max(0, Number(main.periodDays ?? 0), Number(eseti.periodDays ?? 0))
-  const periodLabel =
-    periodType === "partial" ? `+${Math.max(1, periodMonths || Math.round((periodDays * 12) / 365) || 1)} hó` : undefined
+  const periodLabel = periodType === "partial" ? undefined : (main.periodLabel ?? eseti.periodLabel)
 
   return {
     year: main.year ?? eseti.year ?? 0,
     periodType,
-    periodMonths: periodType === "partial" ? Math.max(1, periodMonths || Math.round((periodDays * 12) / 365) || 1) : 12,
+    periodMonths: periodType === "partial" ? Math.max(0, periodMonths) : 12,
     periodDays: periodType === "partial" ? periodDays || Math.round((periodMonths * 365) / 12) : 365,
     periodLabel,
     yearlyPayment: numeric(main.yearlyPayment) + numeric(eseti.yearlyPayment),
@@ -471,12 +470,29 @@ const SETTINGS_UI = {
   helper: "text-[11px] text-muted-foreground",
 } as const
 
-const getYearRowLabel = (row: any) => {
-  if (row?.periodLabel) return row.periodLabel
-  if (row?.periodType === "partial") {
-    const months = Math.max(1, Number(row?.periodMonths ?? 0) || 1)
-    return `+${months} hó`
+const formatPartialPeriodLabel = (periodDaysRaw: number) => {
+  const safeDays = Math.max(1, Math.round(periodDaysRaw))
+  const monthLengthDays = 365 / 12
+
+  let months = Math.floor(safeDays / monthLengthDays)
+  let remDays = Math.round(safeDays - months * monthLengthDays)
+
+  if (remDays >= Math.round(monthLengthDays)) {
+    months += 1
+    remDays = 0
   }
+
+  if (months <= 0) return `+${safeDays} nap`
+  if (remDays <= 0) return `+${months} hónap`
+  return `+${months} hónap és ${remDays} nap`
+}
+
+const getYearRowLabel = (row: any) => {
+  if (row?.periodType === "partial") {
+    const days = Number(row?.periodDays ?? 0)
+    return formatPartialPeriodLabel(days > 0 ? days : 1)
+  }
+  if (row?.periodLabel) return row.periodLabel
   return `${row?.year ?? 0}. év`
 }
 

@@ -172,6 +172,24 @@ function toTotalDays(unit: "year" | "month" | "day", value: number): number {
   return Math.max(0, Math.round(value))
 }
 
+function formatPartialPeriodLabelFromDays(days: number): string {
+  const safeDays = Math.max(1, Math.round(days))
+  const monthLengthDays = 365 / 12
+
+  let months = Math.floor(safeDays / monthLengthDays)
+  let remDays = Math.round(safeDays - months * monthLengthDays)
+
+  // Normalize edge case caused by rounding (e.g. 30.4 -> 30/31 split).
+  if (remDays >= Math.round(monthLengthDays)) {
+    months += 1
+    remDays = 0
+  }
+
+  if (months <= 0) return `+${safeDays} nap`
+  if (remDays <= 0) return `+${months} hónap`
+  return `+${months} hónap és ${remDays} nap`
+}
+
 function periodsPerYear(freq: PaymentFrequency): number {
   return freq === "havi" ? 12 : freq === "negyedéves" ? 4 : freq === "féléves" ? 2 : 1
 }
@@ -711,7 +729,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
     const isPeriodClose = isYearEnd || isLastDay
     const isPartialPeriod = isLastDay && !isYearEnd
     const periodDays = isPartialPeriod ? dayOfYear : DAYS_PER_YEAR
-    const periodMonths = isPartialPeriod ? Math.max(1, Math.round((periodDays * 12) / DAYS_PER_YEAR)) : 12
+    const periodMonths = isPartialPeriod ? Math.max(0, Math.floor((periodDays * 12) / DAYS_PER_YEAR)) : 12
 
     if (isPeriodClose) {
       if (!isPartialPeriod && enableTax && currentYear >= taxStart && (!taxEnd || currentYear <= taxEnd)) {
@@ -813,7 +831,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         periodType: isPartialPeriod ? "partial" : "year",
         periodMonths,
         periodDays,
-        periodLabel: isPartialPeriod ? `+${periodMonths} hó` : `${currentYear}. év`,
+        periodLabel: isPartialPeriod ? formatPartialPeriodLabelFromDays(periodDays) : `${currentYear}. év`,
         yearlyPayment: payThisYear,
         totalContributions,
         interestForYear: interestThisYear,
