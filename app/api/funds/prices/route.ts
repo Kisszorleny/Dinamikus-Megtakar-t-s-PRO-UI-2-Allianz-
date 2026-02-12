@@ -18,8 +18,16 @@ function makeCacheKey(
   currency?: string,
   program?: string,
   mode?: string,
+  cursorTo?: string,
 ) {
-  return `${provider || "auto"}::${program || ""}::${currency || ""}::${mode || ""}::${fundId}::${from || ""}::${to || ""}`
+  return `${provider || "auto"}::${program || ""}::${currency || ""}::${mode || ""}::${fundId}::${from || ""}::${to || ""}::${cursorTo || ""}`
+}
+
+function clampIsoDate(value: string, min?: string, max?: string): string {
+  let out = value
+  if (min && out < min) out = min
+  if (max && out > max) out = max
+  return out
 }
 
 function isIsoDate(value: string | null): value is string {
@@ -265,33 +273,53 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "from cannot be later than to." }, { status: 400 })
     }
 
-    const key = makeCacheKey(fundId, from || undefined, to || undefined, provider, currency, program, mode)
-    const now = Date.now()
-    const cached = memoryCache.get(key)
-    if (cached && cached.expiresAt > now) {
-      return NextResponse.json(cached.payload, {
-        headers: { "Cache-Control": "public, s-maxage=900, stale-while-revalidate=3600" },
-      })
-    }
-
     const msPerDay = 24 * 60 * 60 * 1000
     const rangeDays =
       from && to
         ? Math.round((new Date(`${to}T12:00:00Z`).getTime() - new Date(`${from}T12:00:00Z`).getTime()) / msPerDay)
         : null
 
+    const resolvedProgram = (program || "ul2005").trim() || "ul2005"
+
+    // Clamp Allianz requests to max-terms, otherwise the API can return 0 points.
+    const maxTerms =
+      provider === "allianz-ulexchange" && (from || to) ? await fetchAllianzMaxTerms(resolvedProgram) : null
+    const effectiveFrom =
+      typeof from === "string" && isIsoDate(from) ? clampIsoDate(from, maxTerms?.startDate, maxTerms?.endDate) : undefined
+    const effectiveTo =
+      typeof to === "string" && isIsoDate(to) ? clampIsoDate(to, maxTerms?.startDate, maxTerms?.endDate) : undefined
+
+    if (effectiveFrom && effectiveTo && effectiveFrom > effectiveTo) {
+      return NextResponse.json(
+        { error: `A megadott dátumtartomány kívül esik az elérhető idősoron (${maxTerms?.startDate} → ${maxTerms?.endDate}).` },
+        { status: 400 },
+      )
+    }
+
+    const now = Date.now()
+
     // Replay paging: return one page so the UI can loop without serverless timeouts.
-    if (mode === "replay" && provider === "allianz-ulexchange" && from && to) {
-      const pageTo = isIsoDate(cursorTo) ? cursorTo : to
+    if (mode === "replay" && provider === "allianz-ulexchange" && effectiveFrom && effectiveTo) {
+      const rawPageTo = isIsoDate(cursorTo) ? cursorTo : effectiveTo
+      const pageTo = clampIsoDate(rawPageTo, maxTerms?.startDate, maxTerms?.endDate)
+      const key = makeCacheKey(fundId, effectiveFrom, effectiveTo, provider, currency, resolvedProgram, mode, pageTo)
+      const cached = memoryCache.get(key)
+      if (cached && cached.expiresAt > now) {
+        return NextResponse.json(cached.payload, {
+          headers: { "Cache-Control": "public, s-maxage=900, stale-while-revalidate=3600" },
+        })
+      }
+
       const page = await fetchAllianzUlexchangePage({
         fundCode: fundId,
-        from,
+        from: effectiveFrom,
         to: pageTo,
         currency: currency || undefined,
-        program: program || undefined,
+        program: resolvedProgram,
       })
 
-      const nextCursor = page.earliestTerm && page.earliestTerm > from ? addDaysIso(page.earliestTerm, -1) : null
+      const nextCursor =
+        page.earliestTerm && page.earliestTerm > effectiveFrom ? addDaysIso(page.earliestTerm, -1) : null
       const payload = {
         fundId,
         source: page.endpoint,
@@ -320,19 +348,27 @@ export async function GET(request: NextRequest) {
       typeof rangeDays === "number" &&
       Number.isFinite(rangeDays) &&
       rangeDays > MAX_AVERAGED_RANGE_DAYS &&
-      to
+      effectiveTo
 
-    const effectiveFrom = shouldClampAveraged ? addDaysIso(to, -MAX_AVERAGED_RANGE_DAYS) : from || undefined
-    const effectiveTo = to || undefined
+    const averagedFrom = shouldClampAveraged && effectiveTo ? addDaysIso(effectiveTo, -MAX_AVERAGED_RANGE_DAYS) : effectiveFrom
+    const averagedTo = effectiveTo
+
+    const key = makeCacheKey(fundId, averagedFrom, averagedTo, provider, currency, resolvedProgram, mode)
+    const cached = memoryCache.get(key)
+    if (cached && cached.expiresAt > now) {
+      return NextResponse.json(cached.payload, {
+        headers: { "Cache-Control": "public, s-maxage=900, stale-while-revalidate=3600" },
+      })
+    }
 
     const series =
       provider === "allianz-ulexchange"
         ? await fetchAllianzUlexchangeSeries({
             fundCode: fundId,
-            from: effectiveFrom,
-            to: effectiveTo,
+            from: averagedFrom,
+            to: averagedTo,
             currency: currency || undefined,
-            program: program || undefined,
+            program: resolvedProgram,
           })
         : await fetchInsurerPublicFundSeries({
             fundId,
