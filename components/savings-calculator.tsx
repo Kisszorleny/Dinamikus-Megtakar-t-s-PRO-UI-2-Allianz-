@@ -76,6 +76,14 @@ type FundSeriesApiResponse = {
   stats?: {
     annualizedReturnPercent?: number
   }
+  available?: {
+    startDate: string
+    endDate: string
+  }
+  effective?: {
+    from?: string
+    to?: string
+  }
   page?: {
     nextCursorTo?: string | null
     earliestTerm?: string
@@ -1190,6 +1198,9 @@ export function SavingsCalculator() {
   const [fundSeriesAnnualizedReturn, setFundSeriesAnnualizedReturn] = useState<number | null>(null)
   const [fundSeriesLoading, setFundSeriesLoading] = useState(false)
   const [fundSeriesError, setFundSeriesError] = useState<string | null>(null)
+  const [fundSeriesAvailableRange, setFundSeriesAvailableRange] = useState<{ startDate: string; endDate: string } | null>(
+    null,
+  )
 
   const fundSeriesComputedStats = useMemo(() => {
     if (!fundSeriesPoints || fundSeriesPoints.length < 2) return null
@@ -2711,6 +2722,7 @@ export function SavingsCalculator() {
       setFundSeriesSource(null)
       setFundSeriesUpdatedAt(null)
       setFundSeriesAnnualizedReturn(null)
+      setFundSeriesAvailableRange(null)
       return
     }
 
@@ -2755,6 +2767,9 @@ export function SavingsCalculator() {
             const data = (await response.json()) as FundSeriesApiResponse
             if (!response.ok || data.error) {
               throw new Error(data.error || "Eszközalap idősor nem elérhető")
+            }
+            if (data.available?.startDate && data.available?.endDate) {
+              setFundSeriesAvailableRange({ startDate: data.available.startDate, endDate: data.available.endDate })
             }
 
             const points = Array.isArray(data.points) ? data.points : []
@@ -2807,6 +2822,9 @@ export function SavingsCalculator() {
             throw new Error(data.error || "Eszközalap idősor nem elérhető")
           }
           if (cancelled) return
+          if (data.available?.startDate && data.available?.endDate) {
+            setFundSeriesAvailableRange({ startDate: data.available.startDate, endDate: data.available.endDate })
+          }
           const points = Array.isArray(data.points) ? data.points : []
           setFundSeriesPoints(points)
           setFundSeriesSource(data.source ?? null)
@@ -2824,6 +2842,7 @@ export function SavingsCalculator() {
         setFundSeriesSource(null)
         setFundSeriesUpdatedAt(null)
         setFundSeriesAnnualizedReturn(null)
+        setFundSeriesAvailableRange(null)
       } finally {
         if (!cancelled) {
           setFundSeriesLoading(false)
@@ -4215,6 +4234,13 @@ export function SavingsCalculator() {
                                     ? `Valós idősor nem elérhető (${fundSeriesError}), manuális hozam fallback aktív.`
                                     : "Valós idősor még nem érhető el, manuális hozam fallback aktív."}
                             </p>
+                            {fundSeriesAvailableRange?.startDate && fundSeriesAvailableRange?.endDate ? (
+                              <p className={SETTINGS_UI.helper}>
+                                Elérhető idősor:{" "}
+                                {fundSeriesAvailableRange.startDate.replaceAll("-", ".")} →{" "}
+                                {fundSeriesAvailableRange.endDate.replaceAll("-", ".")}
+                              </p>
+                            ) : null}
                           </div>
                         ) : (
                           <Input

@@ -70,6 +70,26 @@ function addDaysIso(dateIso: string, deltaDays: number): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`
 }
 
+function addMonthsIso(dateIso: string, deltaMonths: number): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateIso)
+  if (!m) return dateIso
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const d = Number(m[3])
+  const dt = new Date(y, mo - 1, d, 12, 0, 0, 0)
+  const originalDay = dt.getDate()
+  dt.setMonth(dt.getMonth() + deltaMonths)
+  // If month overflowed (e.g. Jan 31 -> Mar 02), clamp to last day of target month
+  if (dt.getDate() !== originalDay) {
+    dt.setDate(0)
+  }
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`
+}
+
+function maxIsoDate(a: string, b: string): string {
+  return a >= b ? a : b
+}
+
 async function fetchAllianzMaxTerms(program: string): Promise<{ startDate: string; endDate: string } | null> {
   const candidates = [
     `https://ulexchange.allianz.hu/api/${encodeURIComponent(program)}/max-terms`,
@@ -115,6 +135,10 @@ async function fetchAllianzUlexchangeSeries(options: {
     endDate = maxTerms.endDate
     startDate = addDaysIso(endDate, -365)
   }
+
+  // Allianz term-rates requires start/end to be within ~18 months.
+  // If caller passes a longer range, clamp to the latest 18 months window.
+  startDate = maxIsoDate(startDate, addMonthsIso(endDate, -18))
 
   const targetCurrency = options.currency ? options.currency.trim().toUpperCase() : undefined
   const fundCodeNormalized = normalizeFundCode(options.fundCode)
@@ -189,8 +213,11 @@ async function fetchAllianzUlexchangePage(options: {
   const targetCurrency = options.currency ? options.currency.trim().toUpperCase() : undefined
   const fundCodeNormalized = normalizeFundCode(options.fundCode)
 
+  // Allianz constraint: start/end cannot exceed ~18 months. Page with an 18-month window ending at "to".
+  const windowStart = maxIsoDate(options.from, addMonthsIso(options.to, -18))
+
   const body = {
-    term: { startDate: options.from, endDate: options.to },
+    term: { startDate: windowStart, endDate: options.to },
     exclude: false,
   }
 
@@ -282,8 +309,7 @@ export async function GET(request: NextRequest) {
     const resolvedProgram = (program || "ul2005").trim() || "ul2005"
 
     // Clamp Allianz requests to max-terms, otherwise the API can return 0 points.
-    const maxTerms =
-      provider === "allianz-ulexchange" && (from || to) ? await fetchAllianzMaxTerms(resolvedProgram) : null
+    const maxTerms = provider === "allianz-ulexchange" ? await fetchAllianzMaxTerms(resolvedProgram) : null
     const effectiveFrom =
       typeof from === "string" && isIsoDate(from) ? clampIsoDate(from, maxTerms?.startDate, maxTerms?.endDate) : undefined
     const effectiveTo =
@@ -327,6 +353,8 @@ export async function GET(request: NextRequest) {
         updatedAt: page.latestTerm,
         stats: computeFundSeriesStats(page.points),
         points: page.points,
+        available: maxTerms ? { startDate: maxTerms.startDate, endDate: maxTerms.endDate } : undefined,
+        effective: { from: effectiveFrom, to: effectiveTo },
         page: {
           cursorTo: pageTo,
           earliestTerm: page.earliestTerm,
@@ -350,8 +378,13 @@ export async function GET(request: NextRequest) {
       rangeDays > MAX_AVERAGED_RANGE_DAYS &&
       effectiveTo
 
-    const averagedFrom = shouldClampAveraged && effectiveTo ? addDaysIso(effectiveTo, -MAX_AVERAGED_RANGE_DAYS) : effectiveFrom
+    let averagedFrom = shouldClampAveraged && effectiveTo ? addDaysIso(effectiveTo, -MAX_AVERAGED_RANGE_DAYS) : effectiveFrom
     const averagedTo = effectiveTo
+
+    // Allianz also enforces ~18 months between start/end for term-rates; clamp even in averaged mode.
+    if (provider === "allianz-ulexchange" && averagedFrom && averagedTo) {
+      averagedFrom = maxIsoDate(averagedFrom, addMonthsIso(averagedTo, -18))
+    }
 
     const key = makeCacheKey(fundId, averagedFrom, averagedTo, provider, currency, resolvedProgram, mode)
     const cached = memoryCache.get(key)
@@ -383,6 +416,8 @@ export async function GET(request: NextRequest) {
       updatedAt: series.updatedAt,
       stats,
       points: series.points,
+      available: maxTerms ? { startDate: maxTerms.startDate, endDate: maxTerms.endDate } : undefined,
+      effective: { from: averagedFrom, to: averagedTo },
     }
 
     memoryCache.set(key, { expiresAt: now + CACHE_TTL_MS, payload })
