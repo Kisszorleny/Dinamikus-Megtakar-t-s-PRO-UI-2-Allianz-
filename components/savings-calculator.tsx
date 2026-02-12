@@ -4226,6 +4226,10 @@ export function SavingsCalculator() {
                                       fundSeriesComputedStats?.firstPrice && fundSeriesComputedStats?.lastPrice
                                         ? ` (első: ${fundSeriesComputedStats.firstPrice.toFixed(6)}, utolsó: ${fundSeriesComputedStats.lastPrice.toFixed(6)})`
                                         : ""
+                                    }${
+                                      fundSeriesComputedStats?.firstDate && fundSeriesComputedStats?.lastDate
+                                        ? `, idősor: ${fundSeriesComputedStats.firstDate.replaceAll("-", ".")} → ${fundSeriesComputedStats.lastDate.replaceAll("-", ".")}`
+                                        : ""
                                     }${fundSeriesSource ? `, forrás: ${(() => {
                                       try { return new URL(fundSeriesSource).host } catch { return "publikus biztosítói adat" }
                                     })()}` : ""}
@@ -4236,7 +4240,7 @@ export function SavingsCalculator() {
                             </p>
                             {fundSeriesAvailableRange?.startDate && fundSeriesAvailableRange?.endDate ? (
                               <p className={SETTINGS_UI.helper}>
-                                Elérhető idősor:{" "}
+                                Program elérhető idősor:{" "}
                                 {fundSeriesAvailableRange.startDate.replaceAll("-", ".")} →{" "}
                                 {fundSeriesAvailableRange.endDate.replaceAll("-", ".")}
                               </p>
