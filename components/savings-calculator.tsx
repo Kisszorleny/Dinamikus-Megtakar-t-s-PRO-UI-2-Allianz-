@@ -2998,10 +2998,16 @@ export function SavingsCalculator() {
     [resultsEseti?.yearlyBreakdown],
   )
   const summaryYearlyBreakdown = useMemo(() => {
-    const mainByYear = new Map((results?.yearlyBreakdown ?? []).map((row: any) => [row.year, row]))
-    const esetiByYear = new Map((resultsEseti?.yearlyBreakdown ?? []).map((row: any) => [row.year, row]))
-    const years = Array.from(new Set([...mainByYear.keys(), ...esetiByYear.keys()])).sort((a, b) => a - b)
-    return years.map((year) => mergeYearRows(mainByYear.get(year), esetiByYear.get(year)))
+    const mainRows = results?.yearlyBreakdown ?? []
+    const esetiRows = resultsEseti?.yearlyBreakdown ?? []
+    const maxLength = Math.max(mainRows.length, esetiRows.length)
+    const merged: any[] = []
+
+    for (let index = 0; index < maxLength; index++) {
+      merged.push(mergeYearRows(mainRows[index], esetiRows[index]))
+    }
+
+    return merged
   }, [results?.yearlyBreakdown, resultsEseti?.yearlyBreakdown])
   const cumulativeByYearSummary = useMemo(
     () => buildCumulativeByYear(summaryYearlyBreakdown),
@@ -3827,6 +3833,7 @@ export function SavingsCalculator() {
                         <Input
                           id="annualIndex"
                           type="number"
+                          onWheel={(e) => e.currentTarget.blur()}
                           disabled={isSettingsEseti}
                           value={isSettingsEseti ? esetiBaseInputs.annualIndexPercent : inputs.annualIndexPercent}
                           onChange={(e) => {
@@ -3851,6 +3858,7 @@ export function SavingsCalculator() {
                         <Label className={SETTINGS_UI.label}>Futamidő</Label>
                         <Input
                           type="number"
+                          onWheel={(e) => e.currentTarget.blur()}
                           value={settingsDurationValue}
                           onChange={(e) => {
                             const parsed = Number(e.target.value)
@@ -3947,6 +3955,7 @@ export function SavingsCalculator() {
                           <Input
                             id="annualYield"
                             type="number"
+                            onWheel={(e) => e.currentTarget.blur()}
                             value={isSettingsEseti ? esetiBaseInputs.annualYieldPercent : inputs.annualYieldPercent}
                             onChange={(e) => {
                               const nextValue = Number(e.target.value)
