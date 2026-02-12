@@ -3599,7 +3599,7 @@ export function SavingsCalculator() {
                 <CardContent className="space-y-4">
                   <div className={`space-y-3 ${isSettingsEseti ? "opacity-60" : ""}`}>
                     {/* Compact row 1: frequency / payment / currency / index */}
-                    <div className="grid items-end gap-2 grid-cols-[minmax(78px,1.2fr)_minmax(128px,2.5fr)_minmax(78px,1fr)_minmax(70px,1fr)] md:grid-cols-12">
+                    <div className="grid items-end gap-1 md:gap-2 grid-cols-[minmax(60px,1.05fr)_minmax(112px,2fr)_minmax(64px,0.95fr)_minmax(52px,0.8fr)] md:grid-cols-12">
                       <div className="min-w-0 space-y-1 md:col-span-2">
                         <Label htmlFor="frequency" className="text-xs text-muted-foreground">
                           Fiz. gyak.
@@ -3698,7 +3698,7 @@ export function SavingsCalculator() {
                     </div>
 
                     {/* Compact row 2: duration value / unit / yield */}
-                    <div className="grid items-end gap-2 grid-cols-[minmax(64px,1fr)_minmax(74px,1fr)_minmax(128px,2.5fr)_minmax(24px,0.35fr)] md:grid-cols-12">
+                    <div className="grid items-end gap-1 md:gap-2 grid-cols-[minmax(58px,0.9fr)_minmax(64px,0.95fr)_minmax(132px,2.4fr)_minmax(18px,0.2fr)] md:grid-cols-12">
                       <div className={`min-w-0 space-y-1 md:col-span-2 ${isSettingsEseti ? "opacity-60" : ""}`}>
                         <Label className="text-xs text-muted-foreground">Futamidő</Label>
                         <Input
