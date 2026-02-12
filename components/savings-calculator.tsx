@@ -3717,11 +3717,10 @@ export function SavingsCalculator() {
 
                     {/* Compact row 2: duration value / unit / yield */}
                     <div className={MOBILE_LAYOUT.settingsRow2}>
-                      <div className={`${MOBILE_LAYOUT.settingsField} ${isSettingsEseti ? "opacity-60" : ""}`}>
+                      <div className={MOBILE_LAYOUT.settingsField}>
                         <Label className={SETTINGS_UI.label}>Futamidő</Label>
                         <Input
                           type="number"
-                          disabled={isSettingsEseti}
                           value={settingsDurationValue}
                           onChange={(e) => {
                             const parsed = Number(e.target.value)
@@ -3737,11 +3736,10 @@ export function SavingsCalculator() {
                         />
                       </div>
 
-                      <div className={`${MOBILE_LAYOUT.settingsField} ${isSettingsEseti ? "opacity-60" : ""}`}>
+                      <div className={MOBILE_LAYOUT.settingsField}>
                         <Label className={SETTINGS_UI.label}>Egység</Label>
                         <Select
                           value={settingsDurationUnit}
-                          disabled={isSettingsEseti}
                           onValueChange={(v) => {
                             const nextUnit = v as DurationUnit
                             if (isSettingsEseti) {
