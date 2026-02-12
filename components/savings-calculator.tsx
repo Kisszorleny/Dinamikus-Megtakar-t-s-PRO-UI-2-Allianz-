@@ -3745,10 +3745,27 @@ export function SavingsCalculator() {
                         </Select>
                       </div>
 
-                      <div className="col-span-4 min-w-0 space-y-1">
-                        <Label htmlFor="annualYield" className="text-xs text-muted-foreground">
-                          Hozam (%)
-                        </Label>
+                      <div className="col-span-8 min-w-0 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label htmlFor="annualYield" className="text-xs text-muted-foreground">
+                            Hozam (%)
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground/60 hover:text-muted-foreground"
+                            disabled={!canUseFundYield || isSettingsEseti}
+                            onClick={() => setAnnualYieldMode(annualYieldMode === "fund" ? "manual" : "fund")}
+                            aria-label="Hozam mód váltása"
+                          >
+                            {annualYieldMode === "fund" ? (
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            ) : (
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        </div>
                         <Input
                           id="annualYield"
                           type="number"
@@ -3766,24 +3783,39 @@ export function SavingsCalculator() {
                           max={100}
                           step={0.1}
                         />
-                      </div>
-
-                      <div className="col-span-4 min-w-0 flex items-center justify-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground/60 hover:text-muted-foreground"
-                          disabled={!canUseFundYield || isSettingsEseti}
-                          onClick={() => setAnnualYieldMode(annualYieldMode === "fund" ? "manual" : "fund")}
-                          aria-label="Hozam mód váltása"
-                        >
-                          {annualYieldMode === "fund" ? (
-                            <ChevronUp className="h-3.5 w-3.5" />
-                          ) : (
-                            <ChevronDown className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
+                        {annualYieldMode === "fund" && !isSettingsEseti ? (
+                          <Select
+                            value={selectedFundId || ""}
+                            onValueChange={(value) => {
+                              setSelectedFundId(value)
+                              const selectedFund = fundOptions.find((f) => f.id === value)
+                              if (selectedFund) {
+                                setInputs({ ...inputs, annualYieldPercent: selectedFund.historicalYield })
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="w-full min-w-0 max-w-full overflow-hidden text-left pr-8 h-8">
+                              <SelectValue className="sr-only" placeholder="Válassz eszközalapot..." />
+                              <span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs">
+                                {selectedFundId
+                                  ? `${fundOptions.find((f) => f.id === selectedFundId)?.name ?? ""} (${fundOptions.find((f) => f.id === selectedFundId)?.historicalYield ?? ""}%)`
+                                  : "Válassz eszközalapot..."}
+                              </span>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {fundOptions.map((fund) => (
+                                <SelectItem key={fund.id} value={fund.id}>
+                                  {fund.name} ({fund.historicalYield}%)
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : null}
+                        {!canUseFundYield ? (
+                          <p className="text-[11px] text-muted-foreground">
+                            Eszközalap módhoz előbb válassz terméket a termékválasztóban.
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   </div>
