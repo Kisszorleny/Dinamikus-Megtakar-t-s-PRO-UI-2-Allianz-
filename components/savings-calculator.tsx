@@ -3599,8 +3599,8 @@ export function SavingsCalculator() {
                 <CardContent className="space-y-4">
                   <div className={`space-y-3 ${isSettingsEseti ? "opacity-60" : ""}`}>
                     {/* Compact row 1: frequency / payment / currency / index */}
-                    <div className="grid gap-3 grid-cols-1 md:grid-cols-[120px_minmax(240px,1fr)_130px_90px] items-end">
-                      <div className="space-y-1">
+                    <div className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-2 min-w-0 space-y-1">
                         <Label htmlFor="frequency" className="text-xs text-muted-foreground">
                           Fiz. gyak.
                         </Label>
@@ -3628,7 +3628,7 @@ export function SavingsCalculator() {
                         </Select>
                       </div>
 
-                      <div className="space-y-1">
+                      <div className="col-span-6 min-w-0 space-y-1">
                         <Label htmlFor="regularPayment" className="text-xs text-muted-foreground">
                           Befizetés
                         </Label>
@@ -3657,7 +3657,7 @@ export function SavingsCalculator() {
                         />
                       </div>
 
-                      <div className="space-y-1">
+                      <div className="col-span-2 min-w-0 space-y-1">
                         <Label htmlFor="currency" className="text-xs text-muted-foreground">
                           Deviza
                         </Label>
@@ -3673,7 +3673,7 @@ export function SavingsCalculator() {
                         </Select>
                       </div>
 
-                      <div className="space-y-1">
+                      <div className="col-span-2 min-w-0 space-y-1">
                         <Label htmlFor="annualIndex" className="text-xs text-muted-foreground">
                           Index %
                         </Label>
@@ -3698,8 +3698,8 @@ export function SavingsCalculator() {
                     </div>
 
                     {/* Compact row 2: duration value / unit / yield */}
-                    <div className="grid gap-3 grid-cols-1 md:grid-cols-[90px_110px_minmax(180px,240px)_auto] items-end">
-                      <div className={`space-y-1 ${isSettingsEseti ? "opacity-60" : ""}`}>
+                    <div className="grid grid-cols-12 gap-2 items-end">
+                      <div className={`col-span-2 min-w-0 space-y-1 ${isSettingsEseti ? "opacity-60" : ""}`}>
                         <Label className="text-xs text-muted-foreground">Futamidő</Label>
                         <Input
                           type="number"
@@ -3718,7 +3718,7 @@ export function SavingsCalculator() {
                         />
                       </div>
 
-                      <div className={`space-y-1 ${isSettingsEseti ? "opacity-60" : ""}`}>
+                      <div className={`col-span-2 min-w-0 space-y-1 ${isSettingsEseti ? "opacity-60" : ""}`}>
                         <Label className="text-xs text-muted-foreground">Egység</Label>
                         <Select
                           value={settingsDurationUnit}
@@ -3745,7 +3745,7 @@ export function SavingsCalculator() {
                         </Select>
                       </div>
 
-                      <div className="space-y-1">
+                      <div className="col-span-4 min-w-0 space-y-1">
                         <Label htmlFor="annualYield" className="text-xs text-muted-foreground">
                           Hozam (%)
                         </Label>
@@ -3768,7 +3768,7 @@ export function SavingsCalculator() {
                         />
                       </div>
 
-                      <div className="flex items-center justify-start md:justify-end">
+                      <div className="col-span-4 min-w-0 flex items-center justify-end">
                         <Collapsible>
                           <CollapsibleTrigger asChild>
                             <Button
@@ -3781,7 +3781,9 @@ export function SavingsCalculator() {
                             </Button>
                           </CollapsibleTrigger>
                           <CollapsibleContent className="pt-2">
-                            <div className={`rounded-md border p-2 space-y-2 w-full md:w-[340px] ${isSettingsEseti ? "opacity-60" : ""}`}>
+                            <div
+                              className={`rounded-md border p-2 space-y-2 w-[220px] sm:w-[280px] ${isSettingsEseti ? "opacity-60" : ""}`}
+                            >
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-xs text-muted-foreground">Manuális</span>
                                 <Switch
