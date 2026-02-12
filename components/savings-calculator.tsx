@@ -1191,6 +1191,30 @@ export function SavingsCalculator() {
   const [fundSeriesLoading, setFundSeriesLoading] = useState(false)
   const [fundSeriesError, setFundSeriesError] = useState<string | null>(null)
 
+  const fundSeriesComputedStats = useMemo(() => {
+    if (!fundSeriesPoints || fundSeriesPoints.length < 2) return null
+    const first = fundSeriesPoints[0]
+    const last = fundSeriesPoints[fundSeriesPoints.length - 1]
+    if (!first || !last) return null
+    if (!Number.isFinite(first.price) || !Number.isFinite(last.price) || first.price <= 0 || last.price <= 0) return null
+    const firstDate = new Date(first.date)
+    const lastDate = new Date(last.date)
+    const msPerDay = 24 * 60 * 60 * 1000
+    const days = Math.max(1, Math.round((lastDate.getTime() - firstDate.getTime()) / msPerDay))
+    const periodReturnPercent = (last.price / first.price - 1) * 100
+    const annualized = Math.pow(last.price / first.price, 365 / days) - 1
+    const annualizedReturnPercent = Number.isFinite(annualized) ? annualized * 100 : null
+    return {
+      firstDate: first.date,
+      lastDate: last.date,
+      firstPrice: first.price,
+      lastPrice: last.price,
+      days,
+      periodReturnPercent: Number.isFinite(periodReturnPercent) ? periodReturnPercent : null,
+      annualizedReturnPercent,
+    }
+  }, [fundSeriesPoints])
+
   // Default fund data (non-Allianz or non-HUF)
   const baseFundOptions = [
     { id: "fund-1", name: "OTP Alapkezelő Részvényalap", historicalYield: 8.5 },
@@ -4172,10 +4196,20 @@ export function SavingsCalculator() {
                                   ? `Valós idősor aktív: ${fundSeriesPoints.length} pont${
                                       fundSeriesUpdatedAt ? `, frissítve: ${fundSeriesUpdatedAt}` : ""
                                     }${
-                                      typeof fundSeriesAnnualizedReturn === "number"
-                                        ? `, évesített: ${fundSeriesAnnualizedReturn.toFixed(2)}%`
+                                      typeof fundSeriesComputedStats?.annualizedReturnPercent === "number"
+                                        ? `, évesített: ${fundSeriesComputedStats.annualizedReturnPercent.toFixed(2)}%`
                                         : ""
-                                    }${fundSeriesSource ? ", forrás: publikus biztosítói adat" : ""}
+                                    }${
+                                      typeof fundSeriesComputedStats?.periodReturnPercent === "number"
+                                        ? `, időszak: ${fundSeriesComputedStats.periodReturnPercent.toFixed(2)}%`
+                                        : ""
+                                    }${
+                                      fundSeriesComputedStats?.firstPrice && fundSeriesComputedStats?.lastPrice
+                                        ? ` (első: ${fundSeriesComputedStats.firstPrice.toFixed(6)}, utolsó: ${fundSeriesComputedStats.lastPrice.toFixed(6)})`
+                                        : ""
+                                    }${fundSeriesSource ? `, forrás: ${(() => {
+                                      try { return new URL(fundSeriesSource).host } catch { return "publikus biztosítói adat" }
+                                    })()}` : ""}
                                     }`
                                   : fundSeriesError
                                     ? `Valós idősor nem elérhető (${fundSeriesError}), manuális hozam fallback aktív.`
