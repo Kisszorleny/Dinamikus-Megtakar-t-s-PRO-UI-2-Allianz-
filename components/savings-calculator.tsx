@@ -4849,14 +4849,14 @@ export function SavingsCalculator() {
                                 variant={yieldSourceMode === "ocr" ? "secondary" : "ghost"}
                                 size="sm"
                                 className="h-6 px-2 text-xs"
-                                disabled={!parsedChartSeries}
                                 onClick={() => {
-                                  if (!parsedChartSeries) return
                                   setYieldSourceMode("ocr")
-                                  setInputs((prev) => ({
-                                    ...prev,
-                                    annualYieldPercent: Number(parsedChartSeries.derivedAnnualYieldPercent.toFixed(2)),
-                                  }))
+                                  if (parsedChartSeries) {
+                                    setInputs((prev) => ({
+                                      ...prev,
+                                      annualYieldPercent: Number(parsedChartSeries.derivedAnnualYieldPercent.toFixed(2)),
+                                    }))
+                                  }
                                 }}
                               >
                                 OCR
@@ -4975,7 +4975,7 @@ export function SavingsCalculator() {
                           </p>
                         ) : null}
                         {yieldFallbackMessage ? <p className={SETTINGS_UI.helper}>{yieldFallbackMessage}</p> : null}
-                        {!isSettingsEseti ? (
+                        {!isSettingsEseti && yieldSourceMode === "ocr" ? (
                           <div
                             className={`mt-2 rounded-md border-2 border-dashed p-2 ${
                               isChartDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/30"
