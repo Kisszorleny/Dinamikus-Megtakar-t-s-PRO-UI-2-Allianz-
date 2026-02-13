@@ -1460,14 +1460,18 @@ export function SavingsCalculator() {
       const stored = sessionStorage.getItem("calculator-durationFromInput")
       if (stored) return stored
     }
-    return ""
+    const today = new Date()
+    const base = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0, 0)
+    return formatHuDate(base)
   })
   const [durationToInput, setDurationToInput] = useState<string>(() => {
     if (typeof window !== "undefined") {
       const stored = sessionStorage.getItem("calculator-durationToInput")
       if (stored) return stored
     }
-    return ""
+    const today = new Date()
+    const end = new Date(today.getFullYear() + 10, today.getMonth(), today.getDate(), 12, 0, 0, 0)
+    return formatHuDate(end)
   })
   const [durationFromPickerOpen, setDurationFromPickerOpen] = useState(false)
   const [durationToPickerOpen, setDurationToPickerOpen] = useState(false)
