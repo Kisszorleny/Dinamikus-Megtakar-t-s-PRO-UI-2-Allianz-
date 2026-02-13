@@ -6713,20 +6713,32 @@ export function SavingsCalculator() {
                       // </CHANGE>
                     />
                   ))}
-                  {/* Show more button */}
-                  {visibleYears < (adjustedResults?.yearlyBreakdown?.length ?? 0) && (
-                    <Button
-                      variant="outline"
-                      className="w-full h-11 mt-2 bg-transparent"
-                      onClick={() =>
-                        setVisibleYears((prev) =>
-                          Math.min(prev + 10, adjustedResults?.yearlyBreakdown?.length ?? prev + 10),
-                        )
-                      }
-                    >
-                      Még {Math.min(10, (adjustedResults?.yearlyBreakdown?.length ?? 0) - visibleYears)} év mutatása
-                    </Button>
-                  )}
+                  {(() => {
+                    const rows = adjustedResults?.yearlyBreakdown ?? []
+                    const remainingCount = Math.min(10, rows.length - visibleYears)
+                    if (remainingCount <= 0) return null
+                    const nextHiddenRow = rows[visibleYears]
+                    const partialLabelRaw = nextHiddenRow?.periodType === "partial" ? getYearRowLabel(nextHiddenRow) : null
+                    const partialLabel = partialLabelRaw ? partialLabelRaw.replace(/^\+/, "") : null
+                    const showMoreLabel =
+                      remainingCount === 1 && partialLabel
+                        ? `Még ${partialLabel} mutatása`
+                        : `Még ${remainingCount} év mutatása`
+
+                    return (
+                      <Button
+                        variant="outline"
+                        className="w-full h-11 mt-2 bg-transparent"
+                        onClick={() =>
+                          setVisibleYears((prev) =>
+                            Math.min(prev + 10, adjustedResults?.yearlyBreakdown?.length ?? prev + 10),
+                          )
+                        }
+                      >
+                        {showMoreLabel}
+                      </Button>
+                    )
+                  })()}
 
                   {visibleYears > 10 && (
                     <Button
