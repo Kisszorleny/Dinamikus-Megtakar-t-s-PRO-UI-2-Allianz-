@@ -57,6 +57,7 @@ type DurationUnit = "year" | "month" | "day"
 type FutureInflationMode = "fix" | "converging"
 type DurationSource = "dates" | "value"
 type ChartParseStatus = "idle" | "processing" | "success" | "error"
+type YieldSourceMode = "manual" | "fund" | "ocr"
 
 const MAX_CHART_IMAGE_SIZE_MB = 8
 const SUPPORTED_CHART_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"]
@@ -1227,22 +1228,40 @@ export function SavingsCalculator() {
   const [showBonusBreakdown, setShowBonusBreakdown] = useState(false)
   // </CHANGE>
 
-  // Annual yield mode: "manual" for percentage input, "fund" for fund selector
-  const [annualYieldMode, setAnnualYieldMode] = useState<"manual" | "fund">(() => {
+  const [yieldSourceMode, setYieldSourceMode] = useState<YieldSourceMode>(() => {
     if (typeof window !== "undefined") {
-      const stored = sessionStorage.getItem("calculator-annualYieldMode")
-      if (stored === "manual" || stored === "fund") {
+      const stored = sessionStorage.getItem("calculator-yieldSourceMode")
+      if (stored === "manual" || stored === "fund" || stored === "ocr") {
         return stored
       }
+      const legacy = sessionStorage.getItem("calculator-annualYieldMode")
+      if (legacy === "manual" || legacy === "fund") return legacy
     }
     return "manual"
   })
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      sessionStorage.setItem("calculator-annualYieldMode", annualYieldMode)
+      sessionStorage.setItem("calculator-yieldSourceMode", yieldSourceMode)
     }
-  }, [annualYieldMode])
+  }, [yieldSourceMode])
+
+  const [manualYieldPercent, setManualYieldPercent] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-manualYieldPercent")
+      if (stored) {
+        const parsed = Number(stored)
+        if (Number.isFinite(parsed)) return parsed
+      }
+    }
+    return 12
+  })
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-manualYieldPercent", String(manualYieldPercent))
+    }
+  }, [manualYieldPercent])
 
   const [fundCalculationMode, setFundCalculationMode] = useState<"replay" | "averaged">(() => {
     if (typeof window !== "undefined") {
@@ -1520,6 +1539,14 @@ export function SavingsCalculator() {
     // Default values if nothing stored
     return defaultInputs
   })
+
+  useEffect(() => {
+    if (yieldSourceMode !== "manual") return
+    if (!Number.isFinite(inputs.annualYieldPercent)) return
+    if (manualYieldPercent === inputs.annualYieldPercent) return
+    setManualYieldPercent(inputs.annualYieldPercent)
+  }, [yieldSourceMode, inputs.annualYieldPercent, manualYieldPercent])
+
   const [durationFromInput, setDurationFromInput] = useState<string>(() => {
     if (typeof window !== "undefined") {
       const stored = sessionStorage.getItem("calculator-durationFromInput")
@@ -2197,6 +2224,7 @@ export function SavingsCalculator() {
     normalizedInsurer.includes("allianz") ||
     (selectedProduct !== null &&
       (selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram"))
+  const canUseFundYield = Boolean(selectedProduct)
 
   const fundOptions = isAllianzFundMode
     ? inputs.currency === "HUF"
@@ -2207,7 +2235,7 @@ export function SavingsCalculator() {
     : baseFundOptions
 
   useEffect(() => {
-    if (annualYieldMode !== "fund") return
+    if (yieldSourceMode !== "fund") return
     if (fundCalculationMode !== "replay") return
     if (!isAllianzFundMode) return
     if (!selectedFundId) return
@@ -2283,7 +2311,7 @@ export function SavingsCalculator() {
       controller.abort()
     }
   }, [
-    annualYieldMode,
+    yieldSourceMode,
     fundCalculationMode,
     isAllianzFundMode,
     selectedFundId,
@@ -2293,7 +2321,7 @@ export function SavingsCalculator() {
   ])
 
   useEffect(() => {
-    if (annualYieldMode !== "fund") return
+    if (yieldSourceMode !== "fund") return
     if (fundOptions.length === 0) return
     const currentFund = fundOptions.find((f) => f.id === selectedFundId)
     const nextFund = currentFund ?? fundOptions[0]
@@ -2306,7 +2334,7 @@ export function SavingsCalculator() {
         ? prev
         : { ...prev, annualYieldPercent: nextFund.historicalYield },
     )
-  }, [annualYieldMode, fundOptions, selectedFundId])
+  }, [yieldSourceMode, fundOptions, selectedFundId])
 
   const getAcquisitionCostTitle = () => {
     const baseTitle = "Akvizíciós költség (év szerint)"
@@ -3077,7 +3105,7 @@ export function SavingsCalculator() {
     // For real fund series (Allianz ulexchange), we can load without requiring a product selection,
     // as long as we are in Allianz fund mode and have a fund selected.
     const canLoadFundSeries = isAllianzFundMode && (inputs.currency === "HUF" || inputs.currency === "EUR")
-    if (annualYieldMode !== "fund" || !selectedFundId || !canLoadFundSeries) {
+    if (yieldSourceMode !== "fund" || !selectedFundId || !canLoadFundSeries) {
       setFundSeriesLoading(false)
       setFundSeriesError(null)
       setFundSeriesPoints([])
@@ -3215,10 +3243,10 @@ export function SavingsCalculator() {
       cancelled = true
       controller.abort()
     }
-  }, [annualYieldMode, selectedFundId, selectedProduct, parsedDurationFrom, parsedDurationTo, fundCalculationMode, inputs.currency, isAllianzFundMode])
+  }, [yieldSourceMode, selectedFundId, selectedProduct, parsedDurationFrom, parsedDurationTo, fundCalculationMode, inputs.currency, isAllianzFundMode])
 
   useEffect(() => {
-    if (annualYieldMode !== "fund") return
+    if (yieldSourceMode !== "fund") return
     if (fundCalculationMode !== "averaged") return
     if (typeof fundSeriesAnnualizedReturn !== "number") return
     setInputs((prev) =>
@@ -3226,7 +3254,7 @@ export function SavingsCalculator() {
         ? prev
         : { ...prev, annualYieldPercent: fundSeriesAnnualizedReturn },
     )
-  }, [annualYieldMode, fundCalculationMode, fundSeriesAnnualizedReturn, setInputs])
+  }, [yieldSourceMode, fundCalculationMode, fundSeriesAnnualizedReturn, setInputs])
 
   const totalYearsForPlan = useMemo(() => toYearsFromDuration(durationUnit, durationValue), [durationUnit, durationValue])
   const esetiDurationMaxByUnit = useMemo(() => {
@@ -3351,6 +3379,36 @@ export function SavingsCalculator() {
   const [riskInsuranceEndYear, setRiskInsuranceEndYear] = useState<number | undefined>(undefined)
   const [riskInsuranceAnnualIndexPercent, setRiskInsuranceAnnualIndexPercent] = useState(0)
 
+  const isFundDataReady =
+    yieldSourceMode === "fund" &&
+    (fundCalculationMode === "replay"
+      ? fundSeriesPoints.length > 1
+      : typeof fundSeriesAnnualizedReturn === "number")
+  const isOcrDataReady =
+    yieldSourceMode === "ocr" &&
+    isParsedChartSeriesUsable &&
+    (parsedChartSeries?.points.length ?? 0) > 1
+
+  const effectiveYieldSourceMode: YieldSourceMode =
+    yieldSourceMode === "fund"
+      ? canUseFundYield && isFundDataReady
+        ? "fund"
+        : "manual"
+      : yieldSourceMode === "ocr"
+        ? isOcrDataReady
+          ? "ocr"
+          : "manual"
+        : "manual"
+
+  const yieldFallbackMessage =
+    yieldSourceMode === "fund" && effectiveYieldSourceMode === "manual"
+      ? canUseFundYield
+        ? "Fund idősor nem elérhető, kézi hozam fallback aktív."
+        : "Fund módhoz termékválasztás szükséges, kézi hozam fallback aktív."
+      : yieldSourceMode === "ocr" && effectiveYieldSourceMode === "manual"
+        ? "OCR idősor nem használható, kézi hozam fallback aktív."
+        : null
+
   const dailyInputs = useMemo<InputsDaily>(() => {
     const taxCreditLimits = Object.entries(taxCreditLimitByYear).reduce(
       (acc, [year, limit]) => {
@@ -3361,14 +3419,16 @@ export function SavingsCalculator() {
     )
 
     const exchangeRate = inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate
-    const useFundSeries = annualYieldMode === "fund" && fundCalculationMode === "replay" && fundSeriesPoints.length > 1
-    const useParsedChartSeries = isParsedChartSeriesUsable && (parsedChartSeries?.points.length ?? 0) > 1
+    const useFundSeries =
+      effectiveYieldSourceMode === "fund" && fundCalculationMode === "replay" && fundSeriesPoints.length > 1
+    const useParsedChartSeries = effectiveYieldSourceMode === "ocr" && (parsedChartSeries?.points.length ?? 0) > 1
+    const effectiveAnnualYieldPercent = effectiveYieldSourceMode === "manual" ? manualYieldPercent : inputs.annualYieldPercent
 
     return {
       currency: inputs.currency,
       durationUnit,
       durationValue,
-      annualYieldPercent: inputs.annualYieldPercent,
+      annualYieldPercent: effectiveAnnualYieldPercent,
       frequency: inputs.frequency,
       yearsPlanned: totalYearsForPlan,
       yearlyPaymentsPlan: plan.yearlyPaymentsPlan,
@@ -3431,7 +3491,8 @@ export function SavingsCalculator() {
       riskInsuranceEndYear: riskInsuranceEndYear,
     }
   }, [
-    annualYieldMode,
+    effectiveYieldSourceMode,
+    manualYieldPercent,
     isParsedChartSeriesUsable,
     parsedChartSeries,
     fundCalculationMode,
@@ -3501,6 +3562,10 @@ export function SavingsCalculator() {
     riskInsuranceAnnualIndexPercent,
     riskInsuranceStartYear,
     riskInsuranceEndYear,
+    canUseFundYield,
+    isFundDataReady,
+    isOcrDataReady,
+    yieldSourceMode,
     // Removed: surplusToExtraFeeDefaultPercent
   ])
   const productId = useMemo(
@@ -3957,6 +4022,7 @@ export function SavingsCalculator() {
         calculationMode: "calendar",
         startDate: parsedSeries.startDate,
       }))
+      setYieldSourceMode("ocr")
 
       if (parsedSeries.confidence >= MIN_CHART_SERIES_CONFIDENCE) {
         setChartParseStatus("success")
@@ -3992,6 +4058,14 @@ export function SavingsCalculator() {
     setParsedChartSeries(null)
     setChartParseStatus("idle")
     setChartParseMessage("")
+    if (yieldSourceMode === "ocr") {
+      setYieldSourceMode("manual")
+      setInputs((prev) =>
+        prev.annualYieldPercent === manualYieldPercent
+          ? prev
+          : { ...prev, annualYieldPercent: manualYieldPercent },
+      )
+    }
   }
 
   const handlePaymentChange = (year: number, value: number) => {
@@ -4396,13 +4470,11 @@ export function SavingsCalculator() {
     }
   }, [isAccountSplitOpen, yearlyViewMode])
 
-  const canUseFundYield = Boolean(selectedProduct)
-
   useEffect(() => {
-    if (!canUseFundYield && annualYieldMode === "fund") {
-      setAnnualYieldMode("manual")
+    if (!canUseFundYield && yieldSourceMode === "fund") {
+      setYieldSourceMode("manual")
     }
-  }, [canUseFundYield, annualYieldMode])
+  }, [canUseFundYield, yieldSourceMode])
 
   useEffect(() => {
     if (!isMounted) return
@@ -4744,23 +4816,55 @@ export function SavingsCalculator() {
                           <Label htmlFor="annualYield" className={SETTINGS_UI.label}>
                             Hozam (%)
                           </Label>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground/60 hover:text-foreground"
-                            disabled={!canUseFundYield || isSettingsEseti}
-                            onClick={() => setAnnualYieldMode(annualYieldMode === "fund" ? "manual" : "fund")}
-                            aria-label="Hozam mód váltása"
-                          >
-                            {annualYieldMode === "fund" ? (
-                              <ChevronUp className="h-3.5 w-3.5" />
-                            ) : (
-                              <ChevronDown className="h-3.5 w-3.5" />
-                            )}
-                          </Button>
+                          {!isSettingsEseti ? (
+                            <div className="inline-flex items-center rounded-md border bg-background p-0.5">
+                              <Button
+                                type="button"
+                                variant={yieldSourceMode === "manual" ? "secondary" : "ghost"}
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => {
+                                  setYieldSourceMode("manual")
+                                  setInputs((prev) =>
+                                    prev.annualYieldPercent === manualYieldPercent
+                                      ? prev
+                                      : { ...prev, annualYieldPercent: manualYieldPercent },
+                                  )
+                                }}
+                              >
+                                Kézi
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={yieldSourceMode === "fund" ? "secondary" : "ghost"}
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                disabled={!canUseFundYield}
+                                onClick={() => setYieldSourceMode("fund")}
+                              >
+                                MNB
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={yieldSourceMode === "ocr" ? "secondary" : "ghost"}
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                disabled={!parsedChartSeries}
+                                onClick={() => {
+                                  if (!parsedChartSeries) return
+                                  setYieldSourceMode("ocr")
+                                  setInputs((prev) => ({
+                                    ...prev,
+                                    annualYieldPercent: Number(parsedChartSeries.derivedAnnualYieldPercent.toFixed(2)),
+                                  }))
+                                }}
+                              >
+                                OCR
+                              </Button>
+                            </div>
+                          ) : null}
                         </div>
-                        {annualYieldMode === "fund" && !isSettingsEseti ? (
+                        {yieldSourceMode === "fund" && !isSettingsEseti ? (
                           <div className="space-y-2">
                             <Select
                               value={selectedFundId || ""}
@@ -4854,6 +4958,8 @@ export function SavingsCalculator() {
                               if (isSettingsEseti) {
                                 setEsetiBaseInputs((prev) => ({ ...prev, annualYieldPercent: nextValue }))
                               } else {
+                                setYieldSourceMode("manual")
+                                setManualYieldPercent(nextValue)
                                 setInputs({ ...inputs, annualYieldPercent: nextValue })
                               }
                             }}
@@ -4868,6 +4974,7 @@ export function SavingsCalculator() {
                             Eszközalap módhoz előbb válassz terméket a termékválasztóban.
                           </p>
                         ) : null}
+                        {yieldFallbackMessage ? <p className={SETTINGS_UI.helper}>{yieldFallbackMessage}</p> : null}
                         {!isSettingsEseti ? (
                           <div
                             className={`mt-2 rounded-md border-2 border-dashed p-2 ${
@@ -4929,10 +5036,11 @@ export function SavingsCalculator() {
                                 </p>
                                 <p>
                                   Feldolgozási biztonság: {Math.round(parsedChartSeries.confidence * 100)}%
-                                  {isParsedChartSeriesUsable
-                                    ? " - napi idősor aktív"
-                                    : " - idősor inaktív, CAGR fallback aktív"}
+                                  {yieldSourceMode === "ocr" && effectiveYieldSourceMode === "ocr"
+                                    ? " - OCR idősor aktív"
+                                    : " - OCR idősor készen áll, de nem aktív"}
                                 </p>
+                                <p>Aktív hozamforrás: {effectiveYieldSourceMode === "manual" ? "Kézi" : effectiveYieldSourceMode === "fund" ? "MNB" : "OCR"}</p>
                                 <p>
                                   Felismert nézet:{" "}
                                   {parsedChartSeries.detectedGranularity === "daily"
