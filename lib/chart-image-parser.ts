@@ -8,6 +8,7 @@ const CHART_RIGHT_RATIO = 0.92
 const CHART_TOP_RATIO = 0.06
 const CHART_BOTTOM_RATIO = 0.94
 const MAX_VERTICAL_JUMP_PX = 22
+const OCR_TIMEOUT_MS = 20000
 
 type PercentLabel = {
   value: number
@@ -18,6 +19,8 @@ type OcrWord = {
   text: string
   bbox: { x0: number; y0: number; x1: number; y1: number }
 }
+
+type ChartGranularity = "daily" | "weekly" | "monthly" | "yearly" | "unknown"
 
 function toIsoDate(d: Date): string {
   const y = d.getUTCFullYear()
@@ -68,7 +71,8 @@ function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
 
 function isPurpleLinePixel(r: number, g: number, b: number): boolean {
   const [h, s, v] = rgbToHsv(r, g, b)
-  return h >= 255 && h <= 330 && s >= 0.28 && v >= 0.2 && r > g
+  const purpleDominance = Math.max(r, b) - g
+  return h >= 240 && h <= 340 && s >= 0.18 && v >= 0.16 && purpleDominance >= 12
 }
 
 function median(values: number[]): number {
@@ -132,15 +136,33 @@ function fitLinear(labels: PercentLabel[]): { slope: number; intercept: number }
   return { slope, intercept }
 }
 
-function inferDateRange(text: string): { startDate: string; endDate: string; parsed: boolean } {
+function inferDateRange(
+  text: string,
+  fallback?: { startDate?: string; endDate?: string },
+): { startDate: string; endDate: string; parsed: boolean } {
   const tokens = text.match(/\d{4}[./-]\d{1,2}[./-]\d{1,2}\.?/g) ?? []
   const dates = tokens.map(parseDateToken).filter((d): d is Date => d !== null).sort((a, b) => a.getTime() - b.getTime())
   if (dates.length >= 2) {
     return { startDate: toIsoDate(dates[0]), endDate: toIsoDate(dates[dates.length - 1]), parsed: true }
   }
+  if (fallback?.startDate && fallback?.endDate) {
+    return { startDate: fallback.startDate, endDate: fallback.endDate, parsed: false }
+  }
   const end = new Date()
   const start = new Date(Date.UTC(end.getUTCFullYear() - DEFAULT_YEARS, end.getUTCMonth(), end.getUTCDate()))
   return { startDate: toIsoDate(start), endDate: toIsoDate(end), parsed: false }
+}
+
+function detectGranularity(text: string): ChartGranularity {
+  const normalized = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+  if (normalized.includes("NAPI")) return "daily"
+  if (normalized.includes("HETI")) return "weekly"
+  if (normalized.includes("HAVI")) return "monthly"
+  if (normalized.includes("EVES")) return "yearly"
+  return "unknown"
 }
 
 function buildSourceHash(file: File): string {
@@ -192,8 +214,16 @@ async function runOcr(
     )
     const headerCanvas = cropCanvas(canvas, 0, 0, Math.floor(width * 0.7), Math.floor(height * 0.22))
 
-    const percentResult = await worker.recognize(rightAxisCanvas)
-    const dateResult = await worker.recognize(headerCanvas)
+    const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, stage: string): Promise<T> =>
+      await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          setTimeout(() => reject(new Error(`OCR timeout (${stage})`)), timeoutMs)
+        }),
+      ])
+
+    const percentResult = await withTimeout(worker.recognize(rightAxisCanvas), OCR_TIMEOUT_MS, "percent-axis")
+    const dateResult = await withTimeout(worker.recognize(headerCanvas), OCR_TIMEOUT_MS, "date-header")
 
     const percentData = percentResult.data as any
     const dateData = dateResult.data as any
@@ -240,6 +270,60 @@ function resampleDailyPrices(cumulativeByX: number[], startDate: string, endDate
   return output
 }
 
+function buildAnchorDates(startDate: string, endDate: string, granularity: ChartGranularity): string[] {
+  const start = new Date(`${startDate}T00:00:00Z`)
+  const end = new Date(`${endDate}T00:00:00Z`)
+  if (granularity === "daily" || granularity === "unknown") return [startDate, endDate]
+
+  const out: string[] = [startDate]
+  const cursor = new Date(start)
+  while (cursor.getTime() < end.getTime()) {
+    if (granularity === "weekly") {
+      cursor.setUTCDate(cursor.getUTCDate() + 7)
+    } else if (granularity === "monthly") {
+      cursor.setUTCMonth(cursor.getUTCMonth() + 1)
+    } else {
+      cursor.setUTCFullYear(cursor.getUTCFullYear() + 1)
+    }
+    if (cursor.getTime() >= end.getTime()) break
+    out.push(toIsoDate(cursor))
+  }
+  if (out[out.length - 1] !== endDate) out.push(endDate)
+  return out
+}
+
+function cumulativeAtT(cumulativeByX: number[], t: number): number {
+  const maxIndex = cumulativeByX.length - 1
+  const srcPos = Math.max(0, Math.min(maxIndex, t * maxIndex))
+  const left = Math.floor(srcPos)
+  const right = Math.min(maxIndex, left + 1)
+  const frac = srcPos - left
+  return cumulativeByX[left] + (cumulativeByX[right] - cumulativeByX[left]) * frac
+}
+
+function interpolateDailyFromAnchors(anchors: Array<{ date: string; price: number }>): Array<{ date: string; price: number }> {
+  if (anchors.length < 2) return anchors
+  const out: Array<{ date: string; price: number }> = []
+
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const a = anchors[i]
+    const b = anchors[i + 1]
+    const aTime = new Date(`${a.date}T00:00:00Z`).getTime()
+    const bTime = new Date(`${b.date}T00:00:00Z`).getTime()
+    const days = Math.max(1, Math.round((bTime - aTime) / 86400000))
+    const logA = Math.log(Math.max(0.000001, a.price))
+    const logB = Math.log(Math.max(0.000001, b.price))
+    for (let d = 0; d < days; d++) {
+      const t = d / days
+      const price = Math.exp(logA + (logB - logA) * t)
+      const date = toIsoDate(new Date(aTime + d * 86400000))
+      out.push({ date, price })
+    }
+  }
+  out.push(anchors[anchors.length - 1])
+  return out
+}
+
 function computeAnnualizedYield(points: Array<{ date: string; price: number }>): number {
   if (points.length < 2) return 0
   const first = points[0]
@@ -251,7 +335,10 @@ function computeAnnualizedYield(points: Array<{ date: string; price: number }>):
   return (Math.pow(last.price / first.price, 1 / years) - 1) * 100
 }
 
-export async function parseChartImageToSeries(file: File): Promise<ParsedChartSeries> {
+export async function parseChartImageToSeries(
+  file: File,
+  options?: { fallbackStartDate?: string; fallbackEndDate?: string },
+): Promise<ParsedChartSeries> {
   const image = await loadImage(file)
   const canvas = document.createElement("canvas")
   canvas.width = image.naturalWidth
@@ -292,7 +379,7 @@ export async function parseChartImageToSeries(file: File): Promise<ParsedChartSe
     }
   }
 
-  if (detectedColumns < Math.max(50, Math.floor(width * 0.1))) {
+  if (detectedColumns < Math.max(24, Math.floor(width * 0.015))) {
     throw new Error("A görbe nem felismerhető megbízhatóan a képen.")
   }
 
@@ -316,7 +403,18 @@ export async function parseChartImageToSeries(file: File): Promise<ParsedChartSe
   }
 
   const interpolatedY = interpolateMissing(yByColumn)
-  const { text, percentWords, dateWords } = await runOcr(canvas)
+  let text = ""
+  let percentWords: OcrWord[] = []
+  let dateWords: OcrWord[] = []
+  let ocrFailed = false
+  try {
+    const ocr = await runOcr(canvas)
+    text = ocr.text
+    percentWords = ocr.percentWords
+    dateWords = ocr.dateWords
+  } catch {
+    ocrFailed = true
+  }
 
   const labels: PercentLabel[] = []
   for (const word of percentWords) {
@@ -340,8 +438,27 @@ export async function parseChartImageToSeries(file: File): Promise<ParsedChartSe
   })
 
   const dateText = dateWords.map((w) => w.text).join(" ")
-  const dateRange = inferDateRange(dateText || text)
-  const points = resampleDailyPrices(cumulativeByX, dateRange.startDate, dateRange.endDate)
+  const combinedOcrText = `${dateText} ${text}`.trim()
+  const detectedGranularity = detectGranularity(combinedOcrText)
+  const dateRange = inferDateRange(dateText || text, {
+    startDate: options?.fallbackStartDate,
+    endDate: options?.fallbackEndDate,
+  })
+  const points =
+    detectedGranularity === "weekly" || detectedGranularity === "monthly" || detectedGranularity === "yearly"
+      ? (() => {
+          const anchorDates = buildAnchorDates(dateRange.startDate, dateRange.endDate, detectedGranularity)
+          const startTime = new Date(`${dateRange.startDate}T00:00:00Z`).getTime()
+          const endTime = new Date(`${dateRange.endDate}T00:00:00Z`).getTime()
+          const span = Math.max(86400000, endTime - startTime)
+          const anchors = anchorDates.map((date) => {
+            const t = (new Date(`${date}T00:00:00Z`).getTime() - startTime) / span
+            const cumulativePercent = cumulativeAtT(cumulativeByX, Math.max(0, Math.min(1, t)))
+            return { date, price: Math.max(0.000001, 1 + cumulativePercent / 100) }
+          })
+          return interpolateDailyFromAnchors(anchors)
+        })()
+      : resampleDailyPrices(cumulativeByX, dateRange.startDate, dateRange.endDate)
   const derivedAnnualYieldPercent = computeAnnualizedYield(points)
   const coverage = trackedColumns / Math.max(1, xMax - xMin + 1)
   const confidence = Math.max(
@@ -353,12 +470,19 @@ export async function parseChartImageToSeries(file: File): Promise<ParsedChartSe
   if (!dateRange.parsed) diagnostics.push("A dátumtartomány OCR-rel nem volt egyértelmű, becsült időablakot használtunk.")
   if (tickLabels.length < 2) diagnostics.push("A jobb oldali százalék tengely címkéi részben felismerhetők.")
   if (coverage < 0.55) diagnostics.push("A görbe lefedettsége alacsony, ezért bizonytalanabb az idősor.")
+  if (ocrFailed) diagnostics.push("Az OCR időtúllépés miatt a tengelyfeliratokhoz fallback becslés futott.")
+  if (detectedGranularity === "weekly" || detectedGranularity === "monthly" || detectedGranularity === "yearly") {
+    diagnostics.push("A forrás nem napi nézet, a napi pontok interpolálással készültek.")
+  }
 
   return {
     source: "image-upload",
     sourceImageHash: buildSourceHash(file),
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
+    detectedGranularity,
+    interpolationApplied:
+      detectedGranularity === "weekly" || detectedGranularity === "monthly" || detectedGranularity === "yearly",
     confidence,
     derivedAnnualYieldPercent,
     points,

@@ -8,6 +8,8 @@ export type ParsedChartSeries = {
   sourceImageHash: string
   startDate: string
   endDate: string
+  detectedGranularity: "daily" | "weekly" | "monthly" | "yearly" | "unknown"
+  interpolationApplied: boolean
   confidence: number
   derivedAnnualYieldPercent: number
   points: ChartPricePoint[]

@@ -1295,9 +1295,20 @@ export function SavingsCalculator() {
     const stored = sessionStorage.getItem("calculator-chartSeries")
     if (!stored) return null
     try {
-      const parsed = JSON.parse(stored) as ParsedChartSeries
+      const parsed = JSON.parse(stored) as Partial<ParsedChartSeries>
       if (!parsed || !Array.isArray(parsed.points) || parsed.points.length < 2) return null
-      return parsed
+      return {
+        source: "image-upload",
+        sourceImageHash: String(parsed.sourceImageHash ?? "legacy-image"),
+        startDate: String(parsed.startDate ?? ""),
+        endDate: String(parsed.endDate ?? ""),
+        confidence: Number(parsed.confidence ?? 0),
+        derivedAnnualYieldPercent: Number(parsed.derivedAnnualYieldPercent ?? 0),
+        points: parsed.points,
+        diagnostics: parsed.diagnostics,
+        detectedGranularity: parsed.detectedGranularity ?? "unknown",
+        interpolationApplied: Boolean(parsed.interpolationApplied),
+      }
     } catch {
       return null
     }
@@ -3924,7 +3935,18 @@ export function SavingsCalculator() {
     setChartParseMessage("Kép feldolgozása folyamatban...")
 
     try {
-      const parsedSeries = await parseChartImageToSeries(file)
+      const fallbackStartDate = parsedDurationFrom
+        ? `${parsedDurationFrom.getFullYear()}-${String(parsedDurationFrom.getMonth() + 1).padStart(2, "0")}-${String(
+            parsedDurationFrom.getDate(),
+          ).padStart(2, "0")}`
+        : undefined
+      const fallbackEndDate = parsedDurationTo
+        ? `${parsedDurationTo.getFullYear()}-${String(parsedDurationTo.getMonth() + 1).padStart(2, "0")}-${String(
+            parsedDurationTo.getDate(),
+          ).padStart(2, "0")}`
+        : undefined
+
+      const parsedSeries = await parseChartImageToSeries(file, { fallbackStartDate, fallbackEndDate })
       setParsedChartSeries(parsedSeries)
       setDurationSource("dates")
       setDurationFromInput(formatIsoDateDot(parsedSeries.startDate))
@@ -4910,6 +4932,19 @@ export function SavingsCalculator() {
                                   {isParsedChartSeriesUsable
                                     ? " - napi idősor aktív"
                                     : " - idősor inaktív, CAGR fallback aktív"}
+                                </p>
+                                <p>
+                                  Felismert nézet:{" "}
+                                  {parsedChartSeries.detectedGranularity === "daily"
+                                    ? "Napi"
+                                    : parsedChartSeries.detectedGranularity === "weekly"
+                                      ? "Heti"
+                                      : parsedChartSeries.detectedGranularity === "monthly"
+                                        ? "Havi"
+                                        : parsedChartSeries.detectedGranularity === "yearly"
+                                          ? "Éves"
+                                          : "Ismeretlen"}
+                                  {parsedChartSeries.interpolationApplied ? " (napi pontok interpolálva)" : ""}
                                 </p>
                                 {parsedChartSeries.diagnostics?.map((diagnostic, index) => (
                                   <p key={`${diagnostic}-${index}`} className="text-amber-700">
