@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Calendar as CalendarIcon,
   Settings,
   Calculator,
   BarChart3,
@@ -35,6 +36,8 @@ import {
 } from "@/lib/engine"
 import { getFxRateWithFallback, type FxState } from "@/lib/fx-rate" // Updated import
 import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { buildYearlyPlan } from "@/lib/plan"
 import { convertForDisplay, convertFromDisplayToCalc, formatMoney } from "@/lib/currency-conversion"
 import { formatNumber, parseNumber } from "@/lib/format-number"
@@ -572,10 +575,24 @@ const getYearRowLabel = (row: any) => {
   return `${row?.year ?? 0}. év`
 }
 
+const formatHuDate = (date: Date): string => {
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`
+}
+
 const parseHuDateInput = (raw: string): Date | null => {
   const value = raw.trim()
-  const match = value.match(/^(\d{4})\.(\d{2})\.(\d{2})$/)
+  if (!value) return null
+
+  // Supported formats:
+  // - YYYY.MM.DD (preferred for display)
+  // - YYYY-MM-DD (ISO-like)
+  // - YYYYMMDD (dotless for fast typing)
+  const dot = value.match(/^(\d{4})\.(\d{2})\.(\d{2})$/)
+  const dash = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  const plain = value.match(/^(\d{4})(\d{2})(\d{2})$/)
+  const match = dot || dash || plain
   if (!match) return null
+
   const year = Number(match[1])
   const month = Number(match[2])
   const day = Number(match[3])
@@ -1447,6 +1464,8 @@ export function SavingsCalculator() {
     }
     return ""
   })
+  const [durationFromPickerOpen, setDurationFromPickerOpen] = useState(false)
+  const [durationToPickerOpen, setDurationToPickerOpen] = useState(false)
   const [esetiBaseInputs, setEsetiBaseInputs] = useState<{
     regularPayment: number
     frequency: PaymentFrequency
@@ -2807,7 +2826,7 @@ export function SavingsCalculator() {
   const parsedDurationTo = useMemo(() => parseHuDateInput(durationToInput), [durationToInput])
   const durationDateError = useMemo(() => {
     if (!durationFromInput.trim() || !durationToInput.trim()) return ""
-    if (!parsedDurationFrom || !parsedDurationTo) return "Dátum formátum: ÉÉÉÉ.HH.NN"
+    if (!parsedDurationFrom || !parsedDurationTo) return "Dátum formátum: ÉÉÉÉ.HH.NN vagy ÉÉÉÉHHNN"
     if (parsedDurationTo.getTime() < parsedDurationFrom.getTime()) return "Az \"ig\" dátum nem lehet korábbi a \"tól\" dátumnál."
     return ""
   }, [durationFromInput, durationToInput, parsedDurationFrom, parsedDurationTo])
@@ -4401,31 +4420,95 @@ export function SavingsCalculator() {
                           <Label className={SETTINGS_UI.label} htmlFor="durationFromInput">
                             Futamidő tól (ÉÉÉÉ.HH.NN)
                           </Label>
-                          <Input
-                            id="durationFromInput"
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="2019.04.05"
-                            value={durationFromInput}
-                            onChange={(e) => setDurationFromInput(e.target.value)}
-                            disabled={isSettingsEseti}
-                            className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field}`}
-                          />
+                          <div className="relative">
+                            <Input
+                              id="durationFromInput"
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="2019.04.05 / 20190405"
+                              value={durationFromInput}
+                              onChange={(e) => setDurationFromInput(e.target.value)}
+                              onBlur={() => {
+                                const parsed = parseHuDateInput(durationFromInput)
+                                if (parsed) setDurationFromInput(formatHuDate(parsed))
+                              }}
+                              disabled={isSettingsEseti}
+                              className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field} pr-9`}
+                            />
+                            <Popover open={durationFromPickerOpen} onOpenChange={setDurationFromPickerOpen}>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  disabled={isSettingsEseti}
+                                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground"
+                                  aria-label="Dátum választása (tól)"
+                                >
+                                  <CalendarIcon className="h-4 w-4" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent align="end" className="w-auto p-0">
+                                <Calendar
+                                  mode="single"
+                                  selected={parsedDurationFrom ?? undefined}
+                                  onSelect={(date) => {
+                                    if (!date) return
+                                    setDurationFromInput(formatHuDate(date))
+                                    setDurationFromPickerOpen(false)
+                                  }}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                         </div>
                         <div className="space-y-1">
                           <Label className={SETTINGS_UI.label} htmlFor="durationToInput">
                             Futamidő ig (ÉÉÉÉ.HH.NN)
                           </Label>
-                          <Input
-                            id="durationToInput"
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="2026.04.07"
-                            value={durationToInput}
-                            onChange={(e) => setDurationToInput(e.target.value)}
-                            disabled={isSettingsEseti}
-                            className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field}`}
-                          />
+                          <div className="relative">
+                            <Input
+                              id="durationToInput"
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="2026.04.07 / 20260407"
+                              value={durationToInput}
+                              onChange={(e) => setDurationToInput(e.target.value)}
+                              onBlur={() => {
+                                const parsed = parseHuDateInput(durationToInput)
+                                if (parsed) setDurationToInput(formatHuDate(parsed))
+                              }}
+                              disabled={isSettingsEseti}
+                              className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field} pr-9`}
+                            />
+                            <Popover open={durationToPickerOpen} onOpenChange={setDurationToPickerOpen}>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  disabled={isSettingsEseti}
+                                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground"
+                                  aria-label="Dátum választása (ig)"
+                                >
+                                  <CalendarIcon className="h-4 w-4" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent align="end" className="w-auto p-0">
+                                <Calendar
+                                  mode="single"
+                                  selected={parsedDurationTo ?? undefined}
+                                  onSelect={(date) => {
+                                    if (!date) return
+                                    setDurationToInput(formatHuDate(date))
+                                    setDurationToPickerOpen(false)
+                                  }}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                         </div>
                       </div>
                       {durationDateError ? (
