@@ -3555,6 +3555,17 @@ export function SavingsCalculator() {
     const referenceYear = parsedDurationFrom ? parsedDurationFrom.getFullYear() : new Date().getFullYear()
     return new Date(referenceYear, 0, 1, 12, 0, 0, 0)
   }, [inputs.calculationMode, parsedDurationFrom])
+  const realValueHasFuturePart = useMemo(() => {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0, 0)
+    if (parsedDurationTo) return parsedDurationTo.getTime() > today.getTime()
+
+    const totalDays = Math.max(0, Math.round(realValueTotalDurationDays))
+    if (totalDays <= 0) return false
+    const endInclusive = new Date(realValueStartDate)
+    endInclusive.setDate(endInclusive.getDate() + totalDays - 1)
+    return endInclusive.getTime() > today.getTime()
+  }, [parsedDurationTo, realValueTotalDurationDays, realValueStartDate])
   const realValueMonthlyInflationMeta = useMemo(() => {
     const map = new Map<string, number>()
     const ordered: Array<{ monthIndex: number; inflationPercent: number }> = []
@@ -3591,6 +3602,8 @@ export function SavingsCalculator() {
     const tauMonths = Math.max(1, Math.round(futureInflationConvergenceMonths))
     const clampRate = (value: number) => Math.min(12, Math.max(0, value))
     const startMonthIndex = realValueStartDate.getFullYear() * 12 + realValueStartDate.getMonth()
+    const now = new Date()
+    const todayMonthIndex = now.getFullYear() * 12 + now.getMonth()
 
     let cursor = new Date(realValueStartDate)
     for (let elapsed = 1; elapsed <= maxDays; elapsed++) {
@@ -3606,9 +3619,10 @@ export function SavingsCalculator() {
           const forecastStartMonthIndex =
             realValueMonthlyInflationMeta.lastMonthIndex !== null
               ? realValueMonthlyInflationMeta.lastMonthIndex
-              : startMonthIndex
-          const isFutureMonth =
-            realValueMonthlyInflationMeta.lastMonthIndex !== null
+              : Math.max(startMonthIndex, todayMonthIndex)
+          const isFutureMonth = !realValueHasFuturePart
+            ? false
+            : realValueMonthlyInflationMeta.lastMonthIndex !== null
               ? currentMonthIndex > realValueMonthlyInflationMeta.lastMonthIndex
               : currentMonthIndex >= forecastStartMonthIndex
 
@@ -3638,6 +3652,7 @@ export function SavingsCalculator() {
     inflationAutoEnabled,
     realValueMonthlyInflationMeta,
     realValueStartDate,
+    realValueHasFuturePart,
     futureInflationMode,
     futureInflationTargetRate,
     futureInflationConvergenceMonths,
@@ -5920,7 +5935,7 @@ export function SavingsCalculator() {
                           <>KSH {inflationKshYear}: {inflationKshValue.toFixed(1)}%</>
                         )}
                       </div>
-                      {inflationAutoEnabled && (
+                      {inflationAutoEnabled && realValueHasFuturePart && (
                         <div className="pt-1 space-y-1.5">
                           <Label className="text-xs text-muted-foreground">Jövő infláció mód</Label>
                           <div className="flex items-center gap-2 flex-wrap">
