@@ -24,6 +24,8 @@ import {
   X,
   GitCompare,
   FileText,
+  Upload,
+  Trash2,
 } from "lucide-react"
 import { calculate } from "@/lib/engine/calculate"
 import type {
@@ -48,10 +50,17 @@ import { useMobile } from "@/lib/mobile-context"
 import { InitialCostByYear } from "./initial-cost-by-year"
 import { RedemptionFeeByYear } from "@/components/redemption-fee-by-year" // Added import
 import { InvestedShareByYear } from "./invested-share-by-year" // Added import
+import { parseChartImageToSeries } from "@/lib/chart-image-parser"
+import type { ParsedChartSeries } from "@/lib/chart-series"
 
 type DurationUnit = "year" | "month" | "day"
 type FutureInflationMode = "fix" | "converging"
 type DurationSource = "dates" | "value"
+type ChartParseStatus = "idle" | "processing" | "success" | "error"
+
+const MAX_CHART_IMAGE_SIZE_MB = 8
+const SUPPORTED_CHART_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"]
+const MIN_CHART_SERIES_CONFIDENCE = 0.45
 type CalculatorInputs = Omit<
   InputsDaily,
   "yearsPlanned" | "yearlyPaymentsPlan" | "yearlyWithdrawalsPlan" | "taxCreditLimitByYear"
@@ -1277,6 +1286,33 @@ export function SavingsCalculator() {
     null,
   )
   const [fundSeriesFundEarliestAvailable, setFundSeriesFundEarliestAvailable] = useState<string | null>(null)
+  const chartImageInputRef = useRef<HTMLInputElement | null>(null)
+  const [isChartDragActive, setIsChartDragActive] = useState(false)
+  const [chartParseStatus, setChartParseStatus] = useState<ChartParseStatus>("idle")
+  const [chartParseMessage, setChartParseMessage] = useState("")
+  const [parsedChartSeries, setParsedChartSeries] = useState<ParsedChartSeries | null>(() => {
+    if (typeof window === "undefined") return null
+    const stored = sessionStorage.getItem("calculator-chartSeries")
+    if (!stored) return null
+    try {
+      const parsed = JSON.parse(stored) as ParsedChartSeries
+      if (!parsed || !Array.isArray(parsed.points) || parsed.points.length < 2) return null
+      return parsed
+    } catch {
+      return null
+    }
+  })
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!parsedChartSeries) {
+      sessionStorage.removeItem("calculator-chartSeries")
+      return
+    }
+    sessionStorage.setItem("calculator-chartSeries", JSON.stringify(parsedChartSeries))
+  }, [parsedChartSeries])
+
+  const isParsedChartSeriesUsable = !!parsedChartSeries && parsedChartSeries.confidence >= MIN_CHART_SERIES_CONFIDENCE
 
   const fundSeriesComputedStats = useMemo(() => {
     if (!fundSeriesPoints || fundSeriesPoints.length < 2) return null
@@ -3315,6 +3351,7 @@ export function SavingsCalculator() {
 
     const exchangeRate = inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate
     const useFundSeries = annualYieldMode === "fund" && fundCalculationMode === "replay" && fundSeriesPoints.length > 1
+    const useParsedChartSeries = isParsedChartSeriesUsable && (parsedChartSeries?.points.length ?? 0) > 1
 
     return {
       currency: inputs.currency,
@@ -3357,8 +3394,8 @@ export function SavingsCalculator() {
       calculationMode: inputs.calculationMode,
       startDate: inputs.startDate,
       referenceYear: parsedDurationFrom?.getFullYear(),
-      fundCalculationMode: useFundSeries ? fundCalculationMode : undefined,
-      fundPriceSeries: useFundSeries ? fundSeriesPoints : undefined,
+      fundCalculationMode: useParsedChartSeries ? "replay" : useFundSeries ? fundCalculationMode : undefined,
+      fundPriceSeries: useParsedChartSeries ? parsedChartSeries?.points : useFundSeries ? fundSeriesPoints : undefined,
       fundReplayWrap: true,
       bonusPercent: inputs.bonusPercent,
       bonusStartYear: inputs.bonusStartYear,
@@ -3384,6 +3421,8 @@ export function SavingsCalculator() {
     }
   }, [
     annualYieldMode,
+    isParsedChartSeriesUsable,
+    parsedChartSeries,
     fundCalculationMode,
     fundSeriesPoints,
     inputs.currency,
@@ -3867,6 +3906,70 @@ export function SavingsCalculator() {
     if (!eurRateManuallyChanged) {
       loadFxRate(value as "EUR" | "USD") // Reload FX rate for the new currency
     }
+  }
+
+  const processChartImageFile = async (file: File) => {
+    if (!SUPPORTED_CHART_IMAGE_TYPES.includes(file.type)) {
+      setChartParseStatus("error")
+      setChartParseMessage("Csak PNG, JPG vagy WebP képet tudunk feldolgozni.")
+      return
+    }
+    if (file.size > MAX_CHART_IMAGE_SIZE_MB * 1024 * 1024) {
+      setChartParseStatus("error")
+      setChartParseMessage(`A kép túl nagy. Maximum ${MAX_CHART_IMAGE_SIZE_MB} MB engedélyezett.`)
+      return
+    }
+
+    setChartParseStatus("processing")
+    setChartParseMessage("Kép feldolgozása folyamatban...")
+
+    try {
+      const parsedSeries = await parseChartImageToSeries(file)
+      setParsedChartSeries(parsedSeries)
+      setDurationSource("dates")
+      setDurationFromInput(formatIsoDateDot(parsedSeries.startDate))
+      setDurationToInput(formatIsoDateDot(parsedSeries.endDate))
+      setInputs((prev) => ({
+        ...prev,
+        annualYieldPercent: Number(parsedSeries.derivedAnnualYieldPercent.toFixed(2)),
+        calculationMode: "calendar",
+        startDate: parsedSeries.startDate,
+      }))
+
+      if (parsedSeries.confidence >= MIN_CHART_SERIES_CONFIDENCE) {
+        setChartParseStatus("success")
+        setChartParseMessage(
+          `Sikeres feldolgozás. Napi pontok: ${parsedSeries.points.length}, biztonság: ${Math.round(
+            parsedSeries.confidence * 100,
+          )}%.`,
+        )
+      } else {
+        setChartParseStatus("success")
+        setChartParseMessage(
+          `Alacsony biztonság (${Math.round(
+            parsedSeries.confidence * 100,
+          )}%). Képből számolt évesített hozam fallback kerül alkalmazásra.`,
+        )
+      }
+    } catch (error) {
+      setChartParseStatus("error")
+      setChartParseMessage(
+        error instanceof Error ? error.message : "A képfeldolgozás nem sikerült. Próbálj meg egy másik képet.",
+      )
+    }
+  }
+
+  const handleChartFileInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    await processChartImageFile(file)
+    event.target.value = ""
+  }
+
+  const clearParsedChartSeries = () => {
+    setParsedChartSeries(null)
+    setChartParseStatus("idle")
+    setChartParseMessage("")
   }
 
   const handlePaymentChange = (year: number, value: number) => {
@@ -4742,6 +4845,90 @@ export function SavingsCalculator() {
                           <p className={SETTINGS_UI.helper}>
                             Eszközalap módhoz előbb válassz terméket a termékválasztóban.
                           </p>
+                        ) : null}
+                        {!isSettingsEseti ? (
+                          <div
+                            className={`mt-2 rounded-md border-2 border-dashed p-2 ${
+                              isChartDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/30"
+                            }`}
+                            onDragOver={(event) => {
+                              event.preventDefault()
+                              setIsChartDragActive(true)
+                            }}
+                            onDragLeave={() => setIsChartDragActive(false)}
+                            onDrop={(event) => {
+                              event.preventDefault()
+                              setIsChartDragActive(false)
+                              const file = event.dataTransfer.files?.[0]
+                              if (file) void processChartImageFile(file)
+                            }}
+                            onPaste={(event) => {
+                              const file = event.clipboardData.files?.[0]
+                              if (file) void processChartImageFile(file)
+                            }}
+                            tabIndex={0}
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-xs bg-transparent"
+                                onClick={() => chartImageInputRef.current?.click()}
+                              >
+                                <Upload className="h-3.5 w-3.5 mr-1.5" />
+                                Kép behúzás / feltöltés
+                              </Button>
+                              <span className={SETTINGS_UI.helper}>Drag & drop vagy Ctrl/Cmd+V.</span>
+                            </div>
+                            <Input
+                              ref={chartImageInputRef}
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              className="hidden"
+                              onChange={(event) => void handleChartFileInputChange(event)}
+                            />
+
+                            {chartParseStatus !== "idle" ? (
+                              <p className={`mt-1 text-xs ${chartParseStatus === "error" ? "text-red-600" : "text-muted-foreground"}`}>
+                                {chartParseMessage}
+                              </p>
+                            ) : null}
+
+                            {parsedChartSeries ? (
+                              <div className="mt-1 space-y-1 text-xs">
+                                <p>
+                                  Kinyert idősor: {formatIsoDateDot(parsedChartSeries.startDate)} -{" "}
+                                  {formatIsoDateDot(parsedChartSeries.endDate)} ({parsedChartSeries.points.length} pont)
+                                </p>
+                                <p>
+                                  Képből számolt évesített hozam:{" "}
+                                  <span className="font-medium">{parsedChartSeries.derivedAnnualYieldPercent.toFixed(2)}%</span>
+                                </p>
+                                <p>
+                                  Feldolgozási biztonság: {Math.round(parsedChartSeries.confidence * 100)}%
+                                  {isParsedChartSeriesUsable
+                                    ? " - napi idősor aktív"
+                                    : " - idősor inaktív, CAGR fallback aktív"}
+                                </p>
+                                {parsedChartSeries.diagnostics?.map((diagnostic, index) => (
+                                  <p key={`${diagnostic}-${index}`} className="text-amber-700">
+                                    {diagnostic}
+                                  </p>
+                                ))}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={clearParsedChartSeries}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                                  Kép eltávolítása
+                                </Button>
+                              </div>
+                            ) : null}
+                          </div>
                         ) : null}
                       </div>
                     </div>
