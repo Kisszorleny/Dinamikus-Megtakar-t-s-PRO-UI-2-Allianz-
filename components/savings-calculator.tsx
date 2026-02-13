@@ -715,7 +715,8 @@ function MobileYearCard({
   const isPartialReadOnly = row.periodType === "partial"
   const isRowReadOnly = isYearlyReadOnly || isPartialReadOnly
   const isEsetiView = yearlyAccountView === "eseti"
-  const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
+  const effectiveYearlyViewMode =
+    yearlyAccountView === "main" && isAccountSplitOpen ? yearlyViewMode : "total"
   const effectiveCurrentIndex = isEsetiView ? indexByYear?.[row.year] ?? currentIndex ?? 0 : currentIndex
   const effectiveCurrentPayment = isEsetiView ? paymentByYear?.[row.year] ?? currentPayment ?? 0 : currentPayment
   const paymentInputValue = isPartialReadOnly ? row.yearlyPayment ?? 0 : effectiveCurrentPayment
@@ -3955,7 +3956,16 @@ export function SavingsCalculator() {
         : settingsDurationUnit === "month"
           ? 600
           : 18250
-  const effectiveYearlyViewMode = yearlyAccountView === "main" ? yearlyViewMode : "total"
+  const effectiveYearlyViewMode =
+    yearlyAccountView === "main" && isAccountSplitOpen ? yearlyViewMode : "total"
+
+  useEffect(() => {
+    // If account split controls are hidden, force the table back to total mode
+    // so we don't keep a stale "client/invested/taxBonus" view with seemingly zero rows.
+    if (!isAccountSplitOpen && yearlyViewMode !== "total") {
+      setYearlyViewMode("total")
+    }
+  }, [isAccountSplitOpen, yearlyViewMode])
 
   const canUseFundYield = Boolean(selectedProduct)
 
