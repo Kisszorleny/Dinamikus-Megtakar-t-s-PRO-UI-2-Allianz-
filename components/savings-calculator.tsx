@@ -25,15 +25,15 @@ import {
   GitCompare,
   FileText,
 } from "lucide-react"
-import {
-  calculate,
-  type InputsDaily,
-  type Currency,
-  type PaymentFrequency,
-  type ManagementFeeFrequency, // Added import
-  type ManagementFeeValueType, // Added import
-  type ProductId,
-} from "@/lib/engine"
+import { calculate } from "@/lib/engine/calculate"
+import type {
+  InputsDaily,
+  Currency,
+  PaymentFrequency,
+  ManagementFeeFrequency, // Added import
+  ManagementFeeValueType, // Added import
+} from "@/lib/engine/calculate-results-daily"
+import type { ProductId } from "@/lib/engine/products"
 import { getFxRateWithFallback, type FxState } from "@/lib/fx-rate" // Updated import
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -52,6 +52,21 @@ import { InvestedShareByYear } from "./invested-share-by-year" // Added import
 type DurationUnit = "year" | "month" | "day"
 type FutureInflationMode = "fix" | "converging"
 type DurationSource = "dates" | "value"
+type CalculatorInputs = Omit<
+  InputsDaily,
+  "yearsPlanned" | "yearlyPaymentsPlan" | "yearlyWithdrawalsPlan" | "taxCreditLimitByYear"
+> & {
+  currency: Currency
+  eurToHufRate: number
+  usdToHufRate: number
+  regularPayment: number
+  annualIndexPercent: number
+  keepYearlyPayment: boolean
+  stopTaxCreditAfterFirstWithdrawal: boolean
+  bonusPercent: number
+  bonusStartYear: number
+  bonusStopYear: number
+}
 
 type ExtraServiceFrequency = "daily" | "monthly" | "quarterly" | "semi-annual" | "annual"
 type ExtraServiceType = "amount" | "percent"
@@ -731,6 +746,7 @@ function MobileYearCard({
     costForYear: row.costForYear,
     assetBasedCostForYear: row.assetBasedCostForYear,
     plusCostForYear: row.plusCostForYear,
+    bonusForYear: row.bonusForYear,
     wealthBonusForYear: row.wealthBonusForYear,
   }
 
@@ -741,6 +757,7 @@ function MobileYearCard({
       costForYear: row.client.costForYear,
       assetBasedCostForYear: row.client.assetBasedCostForYear,
       plusCostForYear: row.client.plusCostForYear,
+      bonusForYear: row.client.bonusForYear,
       wealthBonusForYear: row.client.wealthBonusForYear,
     }
   } else if (effectiveYearlyViewMode === "invested") {
@@ -750,6 +767,7 @@ function MobileYearCard({
       costForYear: row.invested.costForYear,
       assetBasedCostForYear: row.invested.assetBasedCostForYear,
       plusCostForYear: row.invested.plusCostForYear,
+      bonusForYear: row.invested.bonusForYear,
       wealthBonusForYear: row.invested.wealthBonusForYear,
     }
   } else if (effectiveYearlyViewMode === "taxBonus") {
@@ -759,6 +777,7 @@ function MobileYearCard({
       costForYear: row.taxBonus.costForYear,
       assetBasedCostForYear: row.taxBonus.assetBasedCostForYear,
       plusCostForYear: row.taxBonus.plusCostForYear,
+      bonusForYear: row.taxBonus.bonusForYear,
       wealthBonusForYear: row.taxBonus.wealthBonusForYear,
     }
   }
@@ -1393,9 +1412,7 @@ export function SavingsCalculator() {
     return 10
   })
 
-  const [inputs, setInputs] = useState<
-    Omit<InputsDaily, "yearsPlanned" | "yearlyPaymentsPlan" | "yearlyWithdrawalsPlan" | "taxCreditLimitByYear">
-  >(() => {
+  const [inputs, setInputs] = useState<CalculatorInputs>(() => {
     const defaultInputs = {
       currency: "HUF",
       eurToHufRate: 400,
@@ -2279,9 +2296,9 @@ export function SavingsCalculator() {
             mnbCode: "13470 / 13471 / 13472",
             productCode: "WL-02 / WL-12 / WL-22",
             variants: [
-              { label: "Alfa Fortis", productType: "Életbiztosítás", mnbCode: "13470", productCode: "WL-02" },
-              { label: "Alfa Fortis EUR", productType: "Életbiztosítás", mnbCode: "13471", productCode: "WL-12" },
-              { label: "Alfa Fortis USD", productType: "Életbiztosítás", mnbCode: "13472", productCode: "WL-22" },
+              { productType: "Életbiztosítás", mnbCode: "13470", productCode: "WL-02" },
+              { productType: "Életbiztosítás", mnbCode: "13471", productCode: "WL-12" },
+              { productType: "Életbiztosítás", mnbCode: "13472", productCode: "WL-22" },
             ],
           },
           // </CHANGE>
@@ -3353,7 +3370,7 @@ export function SavingsCalculator() {
       // </CHANGE>
       redemptionFeeByYear: redemptionFeeByYear,
       redemptionFeeDefaultPercent: redemptionFeeDefaultPercent,
-      redemptionBaseMode: redemptionBaseMode, // Pass redemption base mode to calculation
+      redemptionBaseMode: redemptionBaseMode === "total-account" ? "total" : redemptionBaseMode, // Map UI mode to engine mode
       redemptionEnabled: isRedemptionOpen,
       isTaxBonusSeparateAccount,
       // </CHANGE>
@@ -4174,23 +4191,23 @@ export function SavingsCalculator() {
     const productHasBonus = inputs.bonusMode !== "none"
 
     const contextData: CalculatorData = {
-      monthlyPayment: results.baseMonthlyPayment,
-      yearlyPayment: results.baseYearlyPayment,
-      years: results.totalYears,
+      monthlyPayment,
+      yearlyPayment,
+      years: totalYearsForPlan,
       currency: inputs.currency,
-      displayCurrency: inputs.currency,
+      displayCurrency,
       eurToHufRate: inputs.eurToHufRate,
       totalContributions: results.totalContributions,
       totalReturn: results.endBalance - results.totalContributions,
       endBalance: results.endBalance,
       totalTaxCredit: results.totalTaxCredit,
-      totalBonus: results.totalBonusGiven,
+      totalBonus: results.totalBonus,
       totalCost: results.totalCosts,
       totalAssetBasedCost: results.totalAssetBasedCost,
       totalRiskInsuranceCost,
       annualYieldPercent: inputs.annualYieldPercent,
-      selectedInsurer,
-      selectedProduct,
+      selectedInsurer: selectedInsurer ?? undefined,
+      selectedProduct: selectedProduct ?? undefined,
       enableTaxCredit: inputs.enableTaxCredit,
       enableNetting,
       productHasBonus,
@@ -4999,7 +5016,7 @@ export function SavingsCalculator() {
                           value={
                             editingFields.taxCreditCapPerYear
                               ? String(inputs.taxCreditCapPerYear)
-                              : formatNumber(inputs.taxCreditCapPerYear)
+                              : formatNumber(inputs.taxCreditCapPerYear ?? 0)
                           }
                           onFocus={() => setFieldEditing("taxCreditCapPerYear", true)}
                           onBlur={() => setFieldEditing("taxCreditCapPerYear", false)}
@@ -5101,7 +5118,7 @@ export function SavingsCalculator() {
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div className="space-y-2">
                             <Label htmlFor="preset-insurer">Biztosító</Label>
-                            <Select value={selectedInsurer} onValueChange={setSelectedInsurer}>
+                            <Select value={selectedInsurer ?? undefined} onValueChange={(value) => setSelectedInsurer(value)}>
                               <SelectTrigger id="preset-insurer">
                                 <SelectValue placeholder="Válassz biztosítót" />
                               </SelectTrigger>
@@ -5125,8 +5142,8 @@ export function SavingsCalculator() {
                           <div className="space-y-2">
                             <Label htmlFor="preset-product">Termék</Label>
                             <Select
-                              value={selectedProduct}
-                              onValueChange={setSelectedProduct}
+                              value={selectedProduct ?? undefined}
+                              onValueChange={(value) => setSelectedProduct(value)}
                               disabled={!selectedInsurer || getAvailableProducts().length === 0}
                             >
                               <SelectTrigger id="preset-product">
@@ -6334,7 +6351,7 @@ export function SavingsCalculator() {
                       displayCurrency={displayCurrency}
                       resultsCurrency={adjustedResults?.currency ?? results.currency}
                       eurToHufRate={inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate}
-                      enableTaxCredit={inputs.enableTaxCredit}
+                      enableTaxCredit={!!inputs.enableTaxCredit}
                       editingFields={editingFields}
                       setFieldEditing={setFieldEditing}
                       updateIndex={isEsetiView ? updateEsetiIndex : updateIndex}

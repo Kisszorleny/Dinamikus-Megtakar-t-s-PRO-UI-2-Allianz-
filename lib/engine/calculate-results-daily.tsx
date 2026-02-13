@@ -9,6 +9,16 @@ export interface InputsDaily {
   calculationMode?: "simple" | "calendar"
   startDate?: string
   referenceYear?: number
+  // Legacy UI-only fields kept optional for compatibility with the calculator state shape.
+  eurToHufRate?: number
+  usdToHufRate?: number
+  regularPayment?: number
+  annualIndexPercent?: number
+  keepYearlyPayment?: boolean
+  stopTaxCreditAfterFirstWithdrawal?: boolean
+  bonusPercent?: number
+  bonusStartYear?: number
+  bonusStopYear?: number
 
   // Duration
   durationUnit: "year" | "month" | "day"
@@ -73,7 +83,7 @@ export interface InputsDaily {
   redemptionEnabled?: boolean
   redemptionFeeByYear?: Record<number, number>
   redemptionFeeDefaultPercent?: number
-  redemptionBaseMode?: "surplus-only" | "total"
+  redemptionBaseMode?: "surplus-only" | "total" | "total-account"
 
   // Risk insurance (deducted from regular payment, not invested)
   riskInsuranceEnabled?: boolean
