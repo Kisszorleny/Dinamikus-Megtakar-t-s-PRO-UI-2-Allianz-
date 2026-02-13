@@ -637,7 +637,8 @@ function MobileYearCard({
   updateWithdrawal,
   updateTaxCreditLimit,
   formatValue,
-  getRealValueForYear,
+  getRealValueForDays,
+  realValueElapsedDays,
   enableNetting,
   netData,
   riskInsuranceCostForYear,
@@ -674,7 +675,8 @@ function MobileYearCard({
   updateWithdrawal: (year: number, value: number) => void
   updateTaxCreditLimit: (year: number, value: number) => void
   formatValue: (value: number, currency: Currency) => string
-  getRealValueForYear?: (value: number, year: number) => number
+  getRealValueForDays?: (value: number, elapsedDays: number) => number
+  realValueElapsedDays?: number
   enableNetting?: boolean
   netData?: {
     grossBalance: number
@@ -780,7 +782,8 @@ function MobileYearCard({
   const preWithdrawalBalance = displayBalance + effectiveWithdrawn
   const maxWithdrawalDisplay = convertForDisplay(preWithdrawalBalance, resultsCurrency, displayCurrency, eurToHufRate)
   displayBalance = Math.max(0, preWithdrawalBalance - effectiveWithdrawn)
-  const applyRealValue = (value: number) => (getRealValueForYear ? getRealValueForYear(value, row.year) : value)
+  const applyRealValue = (value: number) =>
+    getRealValueForDays ? getRealValueForDays(value, Math.max(0, realValueElapsedDays ?? 0)) : value
 
   const showBreakdown = isAccountSplitOpen || isRedemptionOpen
 
@@ -1906,6 +1909,9 @@ export function SavingsCalculator() {
   })
   const [inflationKshYear, setInflationKshYear] = useState<number | null>(null)
   const [inflationKshValue, setInflationKshValue] = useState<number | null>(null)
+  const [inflationKshMonthlySeries, setInflationKshMonthlySeries] = useState<
+    Array<{ year: number; month: number; inflationPercent: number }>
+  >([])
   const [inflationKshLoading, setInflationKshLoading] = useState(false)
   const [inflationKshError, setInflationKshError] = useState<string | null>(null)
 
@@ -1938,12 +1944,32 @@ export function SavingsCalculator() {
           setInflationRate(data.inflationPercent)
           setInflationKshYear(typeof data?.year === "number" ? data.year : null)
           setInflationKshValue(data.inflationPercent)
+          if (Array.isArray(data?.monthlySeries)) {
+            const parsed = data.monthlySeries
+              .map((point: any) => ({
+                year: Number(point?.year),
+                month: Number(point?.month),
+                inflationPercent: Number(point?.inflationPercent),
+              }))
+              .filter(
+                (point: any) =>
+                  Number.isFinite(point.year) &&
+                  Number.isFinite(point.month) &&
+                  point.month >= 1 &&
+                  point.month <= 12 &&
+                  Number.isFinite(point.inflationPercent),
+              )
+            setInflationKshMonthlySeries(parsed)
+          } else {
+            setInflationKshMonthlySeries([])
+          }
         } else {
           throw new Error("KSH adat nem ertelmezheto")
         }
       } catch (error) {
         if (!cancelled) {
           setInflationKshError("KSH adat nem elerheto")
+          setInflationKshMonthlySeries([])
         }
       } finally {
         if (!cancelled) {
@@ -3442,19 +3468,92 @@ export function SavingsCalculator() {
     return formatMoney(converted, displayCurrency)
   }
 
-  const getRealValue = (value: number) => {
-    if (!enableRealValue) return value
-    const inflationMultiplier = Math.pow(1 + inflationRate / 100, totalYearsForPlan)
-    if (!isFinite(inflationMultiplier) || inflationMultiplier <= 0) return value
-    return value / inflationMultiplier
-  }
+  const realValueRowsForActiveView = useMemo(() => {
+    if (yearlyAccountView === "summary") return summaryYearlyBreakdown
+    return yearlyAccountView === "eseti" ? resultsEseti.yearlyBreakdown : results.yearlyBreakdown
+  }, [yearlyAccountView, summaryYearlyBreakdown, resultsEseti.yearlyBreakdown, results.yearlyBreakdown])
+  const realValueElapsedDaysByIndex = useMemo(() => {
+    const rows = realValueRowsForActiveView ?? []
+    const elapsed: number[] = []
+    let runningDays = 0
+    for (const row of rows) {
+      if (!row) {
+        elapsed.push(runningDays)
+        continue
+      }
+      const explicitDays = Number(row.periodDays)
+      const fallbackDays = row.periodType === "partial" ? Math.max(1, Math.round(((row.periodMonths ?? 0) * 365) / 12)) : 365
+      const periodDays = Number.isFinite(explicitDays) && explicitDays > 0 ? explicitDays : fallbackDays
+      runningDays += periodDays
+      elapsed.push(runningDays)
+    }
+    return elapsed
+  }, [realValueRowsForActiveView])
+  const realValueTotalDurationDays = useMemo(() => {
+    if (realValueElapsedDaysByIndex.length > 0) return realValueElapsedDaysByIndex[realValueElapsedDaysByIndex.length - 1] ?? 0
+    const yearsFallback = Math.max(0, totalYearsForPlan)
+    return Math.round(yearsFallback * 365)
+  }, [realValueElapsedDaysByIndex, totalYearsForPlan])
+  const realValueStartDate = useMemo(() => {
+    if (inputs.calculationMode === "calendar" && parsedDurationFrom) {
+      return new Date(
+        parsedDurationFrom.getFullYear(),
+        parsedDurationFrom.getMonth(),
+        parsedDurationFrom.getDate(),
+        12,
+        0,
+        0,
+        0,
+      )
+    }
+    const referenceYear = parsedDurationFrom ? parsedDurationFrom.getFullYear() : new Date().getFullYear()
+    return new Date(referenceYear, 0, 1, 12, 0, 0, 0)
+  }, [inputs.calculationMode, parsedDurationFrom])
+  const realValueMonthlyInflationByMonth = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const point of inflationKshMonthlySeries) {
+      const year = Number(point.year)
+      const month = Number(point.month)
+      const inflationPercent = Number(point.inflationPercent)
+      if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(inflationPercent)) continue
+      if (month < 1 || month > 12) continue
+      map.set(`${year}-${String(month).padStart(2, "0")}`, inflationPercent)
+    }
+    return map
+  }, [inflationKshMonthlySeries])
+  const realValueInflationMultiplierByElapsedDays = useMemo(() => {
+    const maxDays = Math.max(0, Math.round(realValueTotalDurationDays))
+    const cumulative = new Array(maxDays + 1).fill(1) as number[]
+    const annualDailyFactor = Math.pow(1 + inflationRate / 100, 1 / 365)
+    if (!enableRealValue) return cumulative
 
-  const getRealValueForYear = (value: number, year: number) => {
+    let cursor = new Date(realValueStartDate)
+    for (let elapsed = 1; elapsed <= maxDays; elapsed++) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`
+      const monthlyInflation = inflationAutoEnabled ? realValueMonthlyInflationByMonth.get(key) : undefined
+      const monthAnnualRate = Number.isFinite(monthlyInflation) ? (monthlyInflation as number) / 100 : inflationRate / 100
+      const dailyFactor = Math.pow(1 + monthAnnualRate, 1 / 365)
+      const safeDailyFactor = Number.isFinite(dailyFactor) && dailyFactor > 0 ? dailyFactor : annualDailyFactor
+      cumulative[elapsed] = cumulative[elapsed - 1] * safeDailyFactor
+      cursor.setDate(cursor.getDate() + 1)
+    }
+    return cumulative
+  }, [
+    realValueTotalDurationDays,
+    inflationRate,
+    enableRealValue,
+    inflationAutoEnabled,
+    realValueMonthlyInflationByMonth,
+    realValueStartDate,
+  ])
+  const getRealValueForDays = (value: number, elapsedDays: number) => {
     if (!enableRealValue) return value
-    const inflationMultiplier = Math.pow(1 + inflationRate / 100, year)
-    if (!isFinite(inflationMultiplier) || inflationMultiplier <= 0) return value
-    return value / inflationMultiplier
+    const safeDays = Math.max(0, Math.round(elapsedDays))
+    const multiplier = realValueInflationMultiplierByElapsedDays[safeDays]
+    if (!Number.isFinite(multiplier) || multiplier <= 0) return value
+    return value / multiplier
   }
+  const getRealValue = (value: number) => getRealValueForDays(value, realValueTotalDurationDays)
 
   const shouldApplyTaxCreditPenalty = taxCreditNotUntilRetirement && inputs.enableTaxCredit
   const taxCreditPenaltyAmount = shouldApplyTaxCreditPenalty ? results.totalTaxCredit * 1.2 : 0
@@ -6009,7 +6108,8 @@ export function SavingsCalculator() {
                       }
                       shouldApplyTaxCreditPenalty={shouldApplyTaxCreditPenalty}
                       isTaxBonusSeparateAccount={isTaxBonusSeparateAccount}
-                      getRealValueForYear={getRealValueForYear}
+                      getRealValueForDays={getRealValueForDays}
+                      realValueElapsedDays={realValueElapsedDaysByIndex[index] ?? 0}
                       // </CHANGE>
                     />
                   ))}
@@ -6304,7 +6404,8 @@ export function SavingsCalculator() {
                         )
                         const isPartialRow = row.periodType === "partial"
                         displayBalanceWithPenalty = Math.max(0, preWithdrawalBalanceWithPenalty - effectiveWithdrawn)
-                        const applyRealValueForYear = (value: number) => getRealValueForYear(value, row.year)
+                        const elapsedDaysForRow = realValueElapsedDaysByIndex[index] ?? Math.max(0, row.year * 365)
+                        const applyRealValueForYear = (value: number) => getRealValueForDays(value, elapsedDaysForRow)
                         // </CHANGE>
 
                         return (
