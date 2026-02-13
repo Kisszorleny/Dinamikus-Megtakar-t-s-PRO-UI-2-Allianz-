@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -2026,7 +2026,7 @@ export function SavingsCalculator() {
         }
       }
     }
-    return null
+    return "Allianz"
   })
 
   const [selectedProduct, setSelectedProduct] = useState<string | null>(() => {
@@ -2040,7 +2040,7 @@ export function SavingsCalculator() {
         }
       }
     }
-    return null
+    return "allianz_bonusz_eletprogram"
   })
 
   const normalizedInsurer = (selectedInsurer ?? "").trim().toLowerCase()
@@ -2256,6 +2256,26 @@ export function SavingsCalculator() {
     return getAvailableProductsForInsurer(selectedInsurer)
   }
 
+  useEffect(() => {
+    if (!selectedInsurer) {
+      if (selectedProduct !== null) setSelectedProduct(null)
+      return
+    }
+    const products = getAvailableProductsForInsurer(selectedInsurer)
+    if (products.length === 0) {
+      if (selectedProduct !== null) setSelectedProduct(null)
+      return
+    }
+    const isValid = selectedProduct ? products.some((p) => p.value === selectedProduct) : false
+    if (isValid) return
+
+    const nextDefault =
+      selectedInsurer === "Allianz" ? "allianz_bonusz_eletprogram" : (products[0]?.value ?? null)
+    if (nextDefault !== selectedProduct) {
+      setSelectedProduct(nextDefault)
+    }
+  }, [selectedInsurer])
+
   const mapSelectedProductToProductId = (productValue: string | null, insurer: string | null): ProductId => {
     if (insurer === "Allianz") {
       if (productValue === "allianz_eletprogram" || productValue === "allianz_bonusz_eletprogram") {
@@ -2285,8 +2305,8 @@ export function SavingsCalculator() {
     setIsLoadingFx(false)
   }
 
-  const applyPreset = () => {
-    const products = getAvailableProducts()
+  const applyPreset = useCallback(() => {
+    const products = selectedInsurer ? getAvailableProductsForInsurer(selectedInsurer) : []
     const selected = products.find((p) => p.value === selectedProduct)
     if (selectedInsurer && selectedProduct && selected) {
       setAppliedPresetLabel(`${selectedInsurer} - ${selected.label}`)
@@ -2520,17 +2540,13 @@ export function SavingsCalculator() {
         // </CHANGE>
       }
     }
-  }
+  }, [durationUnit, durationValue, inputs.currency, selectedInsurer, selectedProduct])
 
   useEffect(() => {
-    // Only auto-apply the preset when product changes
-    if (isHydratingRef.current || !selectedProduct || !selectedInsurer) {
-      return
-    }
-
-    // Auto-apply the preset when product changes
+    if (isHydratingRef.current) return
+    if (!selectedInsurer || !selectedProduct) return
     applyPreset()
-  }, [selectedProduct, selectedInsurer])
+  }, [applyPreset, selectedInsurer, selectedProduct])
 
   useEffect(() => {
     // Only auto-update if Alfa Exclusive Plus or Alfa Fortis is the applied preset
@@ -4821,20 +4837,6 @@ export function SavingsCalculator() {
                               </SelectContent>
                             </Select>
                           </div>
-                        </div>
-
-                        <div className="space-y-2 pt-1">
-                          <Button
-                            onClick={applyPreset}
-                            disabled={!selectedInsurer || !selectedProduct}
-                            className="w-full"
-                            variant="secondary"
-                          >
-                            Paraméterek alkalmazása
-                          </Button>
-                          <p className="text-xs text-muted-foreground text-center">
-                            Az alkalmazás felülírja a költség- és bónusz mezők értékeit.
-                          </p>
                         </div>
 
                         {selectedProduct &&
