@@ -1505,6 +1505,7 @@ export function SavingsCalculator() {
       taxCreditEndYear: undefined,
       stopTaxCreditAfterFirstWithdrawal: false,
       taxCreditYieldPercent: 12,
+      taxCreditCalendarPostingEnabled: false,
       calculationMode: "simple",
       startDate: new Date().toISOString().split("T")[0],
       bonusPercent: 0, // Added for bonus functionality
@@ -3461,6 +3462,7 @@ export function SavingsCalculator() {
       taxCreditLimitByYear: taxCreditLimits,
       taxCreditAmountByYear: taxCreditAmountByYear,
       taxCreditYieldPercent: inputs.taxCreditYieldPercent,
+      taxCreditCalendarPostingEnabled: inputs.taxCreditCalendarPostingEnabled,
       productVariant: selectedProduct ?? undefined,
       calculationMode: inputs.calculationMode,
       startDate: inputs.startDate,
@@ -3517,6 +3519,7 @@ export function SavingsCalculator() {
     inputs.taxCreditCapPerYear,
     inputs.taxCreditStartYear,
     inputs.taxCreditEndYear,
+    inputs.taxCreditCalendarPostingEnabled,
     inputs.stopTaxCreditAfterFirstWithdrawal,
     inputs.calculationMode,
     inputs.startDate,
@@ -5391,6 +5394,21 @@ export function SavingsCalculator() {
                         />
                         <span>Adójóváírás leállítása első pénzkivonás után</span>
                       </label>
+
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <Checkbox
+                          checked={inputs.taxCreditCalendarPostingEnabled === true}
+                          onCheckedChange={(checked) =>
+                            setInputs({ ...inputs, taxCreditCalendarPostingEnabled: checked === true })
+                          }
+                          className="w-5 h-5"
+                        />
+                        <span>Naptár szerinti NAV-jóváírás (június 20, első évforduló után)</span>
+                      </label>
+
+                      <p className="text-xs text-muted-foreground">
+                        Ha nincs bepipálva, az adójóváírás az első hónaptól kerül jóváírásra a jelenlegi logika szerint.
+                      </p>
 
                       <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
                         <label className="flex items-center gap-3 cursor-pointer">

@@ -71,6 +71,7 @@ export interface InputsDaily {
   taxCreditLimitByYear?: Record<number, number>
   taxCreditAmountByYear?: Record<number, number>
   taxCreditYieldPercent?: number
+  taxCreditCalendarPostingEnabled?: boolean
   adminFeeMonthlyAmount?: number
   productVariant?: string
 
@@ -197,6 +198,10 @@ function parseIsoDate(value?: string): Date | null {
   return parsed
 }
 
+function toIsoDate(value: Date): string {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`
+}
+
 function addMonthsClamped(base: Date, months: number): Date {
   const targetMonth = base.getMonth() + months
   const targetYear = base.getFullYear() + Math.floor(targetMonth / 12)
@@ -300,6 +305,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   const daysBetweenPayments = DAYS_PER_YEAR / ppy
 
   const taxCreditYieldPercent = inputs.taxCreditYieldPercent ?? 0
+  const taxCreditCalendarPostingEnabled = inputs.taxCreditCalendarPostingEnabled === true
   const r = inputs.annualYieldPercent / 100
   const dailyYieldFactor = Math.pow(1 + r, 1 / DAYS_PER_YEAR)
   const fundMode = inputs.fundCalculationMode
@@ -476,6 +482,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   let lastRefundInitialCostBonusAppliedYear = 0
   let nextManagementFeeDay = 0
   let currentFullYearIndex = 0
+  const pendingCalendarTaxCredits: Array<{ amount: number; postingDateIso: string }> = []
 
   const getInvestedSharePercent = (year: number): number => {
     // If account split is collapsed, always use 100%
@@ -544,6 +551,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
     const currentCalendarYear = currentDate.getFullYear()
     const currentMonth = currentDate.getMonth() + 1
     const currentDayOfMonth = currentDate.getDate()
+    const currentDateIso = toIsoDate(currentDate)
+    const isCalendarTaxPostingDay = currentMonth === 6 && currentDayOfMonth === 20
 
     if (currentYear >= 2 && !(hasPartialFinalPeriod && currentYear === totalYears)) {
       if (bonusMode === "refundInitialCostIncreasing" && lastRefundInitialCostBonusAppliedYear !== currentYear) {
@@ -636,10 +645,21 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
 
         if (enableTax && currentYear >= taxStart && (!taxEnd || currentYear <= taxEnd)) {
           const manualTotalForYear = taxCreditAmountByYear[currentYear]
+          const manualLimitForYear = taxCreditLimitByYear[currentYear]
+          const effectiveYearCap = Math.min(taxCap, manualLimitForYear ?? Number.POSITIVE_INFINITY)
+
           if (manualTotalForYear !== undefined) {
-            plannedTaxCreditThisYear = manualTotalForYear
+            plannedTaxCreditThisYear = Math.min(Math.max(0, manualTotalForYear), effectiveYearCap)
           } else {
             plannedTaxCreditThisYear += paymentPerEvent * taxRate
+          }
+
+          if (!taxCreditCalendarPostingEnabled) {
+            const cappedPlannedTotal = Math.min(Math.max(0, plannedTaxCreditThisYear), effectiveYearCap)
+            const remainingToPost = Math.max(0, cappedPlannedTotal - taxThisYear)
+            if (remainingToPost > 0) {
+              applyTaxCredit(remainingToPost)
+            }
           }
         }
 
@@ -733,10 +753,6 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
     const clientValueBefore = clientUnits * clientPrice
     const investedValueBefore = investedUnits * investedPrice
     const taxBonusValueBefore = taxBonusUnits * taxBonusPrice
-
-    const currentDateIso = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(
-      currentDate.getDate(),
-    ).padStart(2, "0")}`
 
     investedPrice *= getInvestedDailyFactor(currentDateIso)
     taxBonusPrice *= taxBonusDailyYieldFactor
@@ -881,8 +897,23 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
     const periodDays = isPartialPeriod ? dayOfYear : currentYearLength
     const periodMonths = isPartialPeriod ? Math.max(0, Math.floor((periodDays * 12) / DAYS_PER_YEAR)) : 12
 
+    if (taxCreditCalendarPostingEnabled && isCalendarTaxPostingDay && pendingCalendarTaxCredits.length > 0) {
+      for (let i = pendingCalendarTaxCredits.length - 1; i >= 0; i--) {
+        const pendingItem = pendingCalendarTaxCredits[i]
+        if (!pendingItem || pendingItem.postingDateIso !== currentDateIso) continue
+        applyTaxCredit(pendingItem.amount)
+        pendingCalendarTaxCredits.splice(i, 1)
+      }
+    }
+
     if (isPeriodClose) {
-      if (!isPartialPeriod && enableTax && currentYear >= taxStart && (!taxEnd || currentYear <= taxEnd)) {
+      if (
+        taxCreditCalendarPostingEnabled &&
+        !isPartialPeriod &&
+        enableTax &&
+        currentYear >= taxStart &&
+        (!taxEnd || currentYear <= taxEnd)
+      ) {
         const manualTotalForYear = taxCreditAmountByYear[currentYear]
         const manualLimitForYear = taxCreditLimitByYear[currentYear]
         const effectiveYearCap = Math.min(taxCap, manualLimitForYear ?? Number.POSITIVE_INFINITY)
@@ -891,7 +922,10 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
             ? Math.min(Math.max(0, manualTotalForYear), effectiveYearCap)
             : Math.min(Math.max(0, plannedTaxCreditThisYear), effectiveYearCap)
         if (plannedTotal > 0) {
-          applyTaxCredit(plannedTotal)
+          const postingDateYear =
+            currentMonth < 6 || (currentMonth === 6 && currentDayOfMonth < 20) ? currentCalendarYear : currentCalendarYear + 1
+          const postingDate = new Date(postingDateYear, 5, 20, 12, 0, 0, 0)
+          pendingCalendarTaxCredits.push({ amount: plannedTotal, postingDateIso: toIsoDate(postingDate) })
         }
       }
       // Handle withdrawals (proportional reduction from all accounts)
