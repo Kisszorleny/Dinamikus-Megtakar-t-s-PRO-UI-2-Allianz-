@@ -51,6 +51,7 @@ import { InvestedShareByYear } from "./invested-share-by-year" // Added import
 
 type DurationUnit = "year" | "month" | "day"
 type FutureInflationMode = "fix" | "converging"
+type DurationSource = "dates" | "value"
 
 type ExtraServiceFrequency = "daily" | "monthly" | "quarterly" | "semi-annual" | "annual"
 type ExtraServiceType = "amount" | "percent"
@@ -1475,6 +1476,13 @@ export function SavingsCalculator() {
   })
   const [durationFromPickerOpen, setDurationFromPickerOpen] = useState(false)
   const [durationToPickerOpen, setDurationToPickerOpen] = useState(false)
+  const [durationSource, setDurationSource] = useState<DurationSource>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-durationSource")
+      if (stored === "dates" || stored === "value") return stored
+    }
+    return "dates"
+  })
   const [esetiBaseInputs, setEsetiBaseInputs] = useState<{
     regularPayment: number
     frequency: PaymentFrequency
@@ -2743,6 +2751,11 @@ export function SavingsCalculator() {
   }, [durationToInput])
   useEffect(() => {
     if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-durationSource", durationSource)
+    }
+  }, [durationSource])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
       sessionStorage.setItem("calculator-esetiDurationUnit", JSON.stringify(esetiDurationUnit))
     }
   }, [esetiDurationUnit])
@@ -2925,6 +2938,7 @@ export function SavingsCalculator() {
   }, [durationFromInput, durationToInput, parsedDurationFrom, parsedDurationTo])
 
   useEffect(() => {
+    if (durationSource !== "dates") return
     if (!parsedDurationFrom || !parsedDurationTo) return
     if (parsedDurationTo.getTime() < parsedDurationFrom.getTime()) return
 
@@ -2941,7 +2955,59 @@ export function SavingsCalculator() {
       if (prev.startDate === fromIso && prev.calculationMode === nextMode) return prev
       return { ...prev, startDate: fromIso, calculationMode: nextMode }
     })
-  }, [parsedDurationFrom, parsedDurationTo, durationUnit, durationValue, setInputs])
+  }, [durationSource, parsedDurationFrom, parsedDurationTo, durationUnit, durationValue, setInputs])
+
+  useEffect(() => {
+    if (durationSource !== "value") return
+    if (!Number.isFinite(durationValue) || durationValue <= 0) return
+
+    const baseDate =
+      parsedDurationFrom ??
+      parseHuDateInput((inputs.startDate ?? "").split("-").join(".")) ??
+      new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate(), 12, 0, 0, 0)
+    const fromIso = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, "0")}-${String(baseDate.getDate()).padStart(2, "0")}`
+    const safeDurationValue = Math.max(1, Math.round(durationValue))
+
+    let endIso = fromIso
+    if (durationUnit === "day") {
+      endIso = addDaysIsoClient(fromIso, safeDurationValue - 1)
+    } else if (durationUnit === "month") {
+      const endExclusiveIso = addMonthsIsoClient(fromIso, safeDurationValue)
+      endIso = addDaysIsoClient(endExclusiveIso, -1)
+    } else {
+      const endExclusiveIso = addMonthsIsoClient(fromIso, safeDurationValue * 12)
+      endIso = addDaysIsoClient(endExclusiveIso, -1)
+    }
+
+    const fromDate = parseHuDateInput(fromIso)
+    const toDate = parseHuDateInput(endIso)
+    if (!fromDate || !toDate) return
+
+    const nextFromInput = formatHuDate(fromDate)
+    const nextToInput = formatHuDate(toDate)
+
+    if (durationFromInput !== nextFromInput) {
+      setDurationFromInput(nextFromInput)
+    }
+    if (durationToInput !== nextToInput) {
+      setDurationToInput(nextToInput)
+    }
+
+    setInputs((prev) => {
+      const nextMode = prev.calculationMode === "calendar" ? prev.calculationMode : "calendar"
+      if (prev.startDate === fromIso && prev.calculationMode === nextMode) return prev
+      return { ...prev, startDate: fromIso, calculationMode: nextMode }
+    })
+  }, [
+    durationSource,
+    durationValue,
+    durationUnit,
+    parsedDurationFrom,
+    inputs.startDate,
+    durationFromInput,
+    durationToInput,
+    setInputs,
+  ])
 
   useEffect(() => {
     // For real fund series (Allianz ulexchange), we can load without requiring a product selection,
@@ -4491,6 +4557,7 @@ export function SavingsCalculator() {
                             if (isSettingsEseti) {
                               setEsetiDurationValue(Math.min(parsed, settingsDurationMax))
                             } else {
+                              setDurationSource("value")
                               setDurationValue(parsed)
                             }
                           }}
@@ -4513,6 +4580,7 @@ export function SavingsCalculator() {
                               setEsetiDurationValue(Math.min(converted, maxForUnit))
                             } else {
                               const converted = convertDurationValue(settingsDurationValue, settingsDurationUnit, nextUnit)
+                              setDurationSource("value")
                               setDurationUnit(nextUnit)
                               setDurationValue(converted)
                             }
@@ -4674,8 +4742,12 @@ export function SavingsCalculator() {
                               inputMode="numeric"
                               placeholder="2019.04.05 / 20190405"
                               value={durationFromInput}
-                              onChange={(e) => setDurationFromInput(e.target.value)}
+                              onChange={(e) => {
+                                setDurationSource("dates")
+                                setDurationFromInput(e.target.value)
+                              }}
                               onBlur={() => {
+                                setDurationSource("dates")
                                 const parsed = parseHuDateInput(durationFromInput)
                                 if (parsed) setDurationFromInput(formatHuDate(parsed))
                               }}
@@ -4702,6 +4774,7 @@ export function SavingsCalculator() {
                                   defaultMonth={parsedDurationFrom ?? undefined}
                                   onSelect={(date) => {
                                     if (!date) return
+                                    setDurationSource("dates")
                                     setDurationFromInput(formatHuDate(date))
                                     setDurationFromPickerOpen(false)
                                   }}
@@ -4722,8 +4795,12 @@ export function SavingsCalculator() {
                               inputMode="numeric"
                               placeholder="2026.04.07 / 20260407"
                               value={durationToInput}
-                              onChange={(e) => setDurationToInput(e.target.value)}
+                              onChange={(e) => {
+                                setDurationSource("dates")
+                                setDurationToInput(e.target.value)
+                              }}
                               onBlur={() => {
+                                setDurationSource("dates")
                                 const parsed = parseHuDateInput(durationToInput)
                                 if (parsed) setDurationToInput(formatHuDate(parsed))
                               }}
@@ -4750,6 +4827,7 @@ export function SavingsCalculator() {
                                   defaultMonth={parsedDurationTo ?? undefined}
                                   onSelect={(date) => {
                                     if (!date) return
+                                    setDurationSource("dates")
                                     setDurationToInput(formatHuDate(date))
                                     setDurationToPickerOpen(false)
                                   }}
