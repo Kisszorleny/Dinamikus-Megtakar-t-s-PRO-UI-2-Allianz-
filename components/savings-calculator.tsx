@@ -50,6 +50,7 @@ import { RedemptionFeeByYear } from "@/components/redemption-fee-by-year" // Add
 import { InvestedShareByYear } from "./invested-share-by-year" // Added import
 
 type DurationUnit = "year" | "month" | "day"
+type FutureInflationMode = "fix" | "converging"
 
 type ExtraServiceFrequency = "daily" | "monthly" | "quarterly" | "semi-annual" | "annual"
 type ExtraServiceType = "amount" | "percent"
@@ -1912,6 +1913,33 @@ export function SavingsCalculator() {
   const [inflationKshMonthlySeries, setInflationKshMonthlySeries] = useState<
     Array<{ year: number; month: number; inflationPercent: number }>
   >([])
+  const [futureInflationMode, setFutureInflationMode] = useState<FutureInflationMode>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-futureInflationMode")
+      if (stored === "fix" || stored === "converging") return stored
+    }
+    return "converging"
+  })
+  const [futureInflationTargetRate, setFutureInflationTargetRate] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-futureInflationTargetRate")
+      if (stored) {
+        const parsed = Number(stored)
+        if (Number.isFinite(parsed)) return parsed
+      }
+    }
+    return 3
+  })
+  const [futureInflationConvergenceMonths, setFutureInflationConvergenceMonths] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-futureInflationConvergenceMonths")
+      if (stored) {
+        const parsed = Number(stored)
+        if (Number.isFinite(parsed)) return parsed
+      }
+    }
+    return 12
+  })
   const [inflationKshLoading, setInflationKshLoading] = useState(false)
   const [inflationKshError, setInflationKshError] = useState<string | null>(null)
 
@@ -1925,6 +1953,24 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-inflationAutoEnabled", String(inflationAutoEnabled))
     }
   }, [inflationAutoEnabled])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-futureInflationMode", futureInflationMode)
+    }
+  }, [futureInflationMode])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-futureInflationTargetRate", String(futureInflationTargetRate))
+    }
+  }, [futureInflationTargetRate])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(
+        "calculator-futureInflationConvergenceMonths",
+        String(futureInflationConvergenceMonths),
+      )
+    }
+  }, [futureInflationConvergenceMonths])
 
   useEffect(() => {
     if (!enableRealValue || !inflationAutoEnabled) return
@@ -3509,17 +3555,28 @@ export function SavingsCalculator() {
     const referenceYear = parsedDurationFrom ? parsedDurationFrom.getFullYear() : new Date().getFullYear()
     return new Date(referenceYear, 0, 1, 12, 0, 0, 0)
   }, [inputs.calculationMode, parsedDurationFrom])
-  const realValueMonthlyInflationByMonth = useMemo(() => {
+  const realValueMonthlyInflationMeta = useMemo(() => {
     const map = new Map<string, number>()
+    const ordered: Array<{ monthIndex: number; inflationPercent: number }> = []
     for (const point of inflationKshMonthlySeries) {
       const year = Number(point.year)
       const month = Number(point.month)
       const inflationPercent = Number(point.inflationPercent)
       if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(inflationPercent)) continue
       if (month < 1 || month > 12) continue
+      const monthIndex = year * 12 + (month - 1)
       map.set(`${year}-${String(month).padStart(2, "0")}`, inflationPercent)
+      ordered.push({ monthIndex, inflationPercent })
     }
-    return map
+    ordered.sort((a, b) => a.monthIndex - b.monthIndex)
+    const lastMonthIndex = ordered.length > 0 ? ordered[ordered.length - 1].monthIndex : null
+    const lastMonthYear = lastMonthIndex !== null ? Math.floor(lastMonthIndex / 12) : null
+    const lastMonthNumber = lastMonthIndex !== null ? (lastMonthIndex % 12) + 1 : null
+    const r0Window = ordered.slice(Math.max(0, ordered.length - 12))
+    const r0FromKsh = r0Window.length > 0
+      ? r0Window.reduce((sum, point) => sum + point.inflationPercent, 0) / r0Window.length
+      : null
+    return { map, lastMonthIndex, r0FromKsh, lastMonthYear, lastMonthNumber }
   }, [inflationKshMonthlySeries])
   const realValueInflationMultiplierByElapsedDays = useMemo(() => {
     const maxDays = Math.max(0, Math.round(realValueTotalDurationDays))
@@ -3527,11 +3584,38 @@ export function SavingsCalculator() {
     const annualDailyFactor = Math.pow(1 + inflationRate / 100, 1 / 365)
     if (!enableRealValue) return cumulative
 
+    const r0 = Number.isFinite(realValueMonthlyInflationMeta.r0FromKsh)
+      ? (realValueMonthlyInflationMeta.r0FromKsh as number)
+      : inflationRate
+    const target = Math.min(12, Math.max(0, futureInflationTargetRate))
+    const tauMonths = Math.max(1, Math.round(futureInflationConvergenceMonths))
+    const clampRate = (value: number) => Math.min(12, Math.max(0, value))
+
     let cursor = new Date(realValueStartDate)
     for (let elapsed = 1; elapsed <= maxDays; elapsed++) {
+      const currentMonthIndex = cursor.getFullYear() * 12 + cursor.getMonth()
       const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`
-      const monthlyInflation = inflationAutoEnabled ? realValueMonthlyInflationByMonth.get(key) : undefined
-      const monthAnnualRate = Number.isFinite(monthlyInflation) ? (monthlyInflation as number) / 100 : inflationRate / 100
+      let monthAnnualRatePercent = inflationRate
+
+      if (inflationAutoEnabled) {
+        const monthlyInflation = realValueMonthlyInflationMeta.map.get(key)
+        if (Number.isFinite(monthlyInflation)) {
+          monthAnnualRatePercent = monthlyInflation as number
+        } else if (
+          realValueMonthlyInflationMeta.lastMonthIndex !== null &&
+          currentMonthIndex > realValueMonthlyInflationMeta.lastMonthIndex
+        ) {
+          if (futureInflationMode === "converging") {
+            const mAhead = currentMonthIndex - realValueMonthlyInflationMeta.lastMonthIndex
+            const decay = Math.exp(-mAhead / tauMonths)
+            monthAnnualRatePercent = target + (r0 - target) * decay
+          } else {
+            monthAnnualRatePercent = inflationRate
+          }
+        }
+      }
+
+      const monthAnnualRate = clampRate(monthAnnualRatePercent) / 100
       const dailyFactor = Math.pow(1 + monthAnnualRate, 1 / 365)
       const safeDailyFactor = Number.isFinite(dailyFactor) && dailyFactor > 0 ? dailyFactor : annualDailyFactor
       cumulative[elapsed] = cumulative[elapsed - 1] * safeDailyFactor
@@ -3543,8 +3627,11 @@ export function SavingsCalculator() {
     inflationRate,
     enableRealValue,
     inflationAutoEnabled,
-    realValueMonthlyInflationByMonth,
+    realValueMonthlyInflationMeta,
     realValueStartDate,
+    futureInflationMode,
+    futureInflationTargetRate,
+    futureInflationConvergenceMonths,
   ])
   const getRealValueForDays = (value: number, elapsedDays: number) => {
     if (!enableRealValue) return value
@@ -3554,6 +3641,13 @@ export function SavingsCalculator() {
     return value / multiplier
   }
   const getRealValue = (value: number) => getRealValueForDays(value, realValueTotalDurationDays)
+  const r0FromKsh = Number.isFinite(realValueMonthlyInflationMeta.r0FromKsh)
+    ? (realValueMonthlyInflationMeta.r0FromKsh as number)
+    : null
+  const lastKshMonthLabel =
+    realValueMonthlyInflationMeta.lastMonthYear && realValueMonthlyInflationMeta.lastMonthNumber
+      ? `${realValueMonthlyInflationMeta.lastMonthYear}.${String(realValueMonthlyInflationMeta.lastMonthNumber).padStart(2, "0")}`
+      : null
 
   const shouldApplyTaxCreditPenalty = taxCreditNotUntilRetirement && inputs.enableTaxCredit
   const taxCreditPenaltyAmount = shouldApplyTaxCreditPenalty ? results.totalTaxCredit * 1.2 : 0
@@ -5817,6 +5911,59 @@ export function SavingsCalculator() {
                           <>KSH {inflationKshYear}: {inflationKshValue.toFixed(1)}%</>
                         )}
                       </div>
+                      {inflationAutoEnabled && (
+                        <div className="pt-1 space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Jövő infláció mód</Label>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Select
+                              value={futureInflationMode}
+                              onValueChange={(value) => setFutureInflationMode(value as FutureInflationMode)}
+                            >
+                              <SelectTrigger className="h-8 w-40 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="fix">Fix</SelectItem>
+                                <SelectItem value="converging">Konvergáló</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {futureInflationMode === "converging" && (
+                              <>
+                                <Input
+                                  type="number"
+                                  value={futureInflationTargetRate}
+                                  onChange={(e) => setFutureInflationTargetRate(Number(e.target.value))}
+                                  min={0}
+                                  max={12}
+                                  step={0.1}
+                                  className="w-28 h-8 text-xs"
+                                  aria-label="Hosszú távú cél infláció"
+                                />
+                                <Input
+                                  type="number"
+                                  value={futureInflationConvergenceMonths}
+                                  onChange={(e) => setFutureInflationConvergenceMonths(Number(e.target.value))}
+                                  min={1}
+                                  max={120}
+                                  step={1}
+                                  className="w-28 h-8 text-xs"
+                                  aria-label="Konvergencia hónap"
+                                />
+                              </>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            Múlt: KSH tényadat, jövő:{" "}
+                            {futureInflationMode === "converging"
+                              ? "célhoz simán közelítő pálya"
+                              : "fix éves inflációs ráta"}.
+                            {r0FromKsh !== null && (
+                              <> r0: {r0FromKsh.toFixed(2)}% (utolsó 12 KSH hónap)</>
+                            )}
+                            {lastKshMonthLabel && <> | utolsó KSH hónap: {lastKshMonthLabel}</>}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
