@@ -3590,6 +3590,7 @@ export function SavingsCalculator() {
     const target = Math.min(12, Math.max(0, futureInflationTargetRate))
     const tauMonths = Math.max(1, Math.round(futureInflationConvergenceMonths))
     const clampRate = (value: number) => Math.min(12, Math.max(0, value))
+    const startMonthIndex = realValueStartDate.getFullYear() * 12 + realValueStartDate.getMonth()
 
     let cursor = new Date(realValueStartDate)
     for (let elapsed = 1; elapsed <= maxDays; elapsed++) {
@@ -3601,12 +3602,20 @@ export function SavingsCalculator() {
         const monthlyInflation = realValueMonthlyInflationMeta.map.get(key)
         if (Number.isFinite(monthlyInflation)) {
           monthAnnualRatePercent = monthlyInflation as number
-        } else if (
-          realValueMonthlyInflationMeta.lastMonthIndex !== null &&
-          currentMonthIndex > realValueMonthlyInflationMeta.lastMonthIndex
-        ) {
-          if (futureInflationMode === "converging") {
-            const mAhead = currentMonthIndex - realValueMonthlyInflationMeta.lastMonthIndex
+        } else {
+          const forecastStartMonthIndex =
+            realValueMonthlyInflationMeta.lastMonthIndex !== null
+              ? realValueMonthlyInflationMeta.lastMonthIndex
+              : startMonthIndex
+          const isFutureMonth =
+            realValueMonthlyInflationMeta.lastMonthIndex !== null
+              ? currentMonthIndex > realValueMonthlyInflationMeta.lastMonthIndex
+              : currentMonthIndex >= forecastStartMonthIndex
+
+          if (!isFutureMonth) {
+            monthAnnualRatePercent = inflationRate
+          } else if (futureInflationMode === "converging") {
+            const mAhead = Math.max(0, currentMonthIndex - forecastStartMonthIndex)
             const decay = Math.exp(-mAhead / tauMonths)
             monthAnnualRatePercent = target + (r0 - target) * decay
           } else {
