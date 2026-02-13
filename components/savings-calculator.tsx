@@ -4452,6 +4452,7 @@ export function SavingsCalculator() {
                                 <Calendar
                                   mode="single"
                                   selected={parsedDurationFrom ?? undefined}
+                                  defaultMonth={parsedDurationFrom ?? undefined}
                                   onSelect={(date) => {
                                     if (!date) return
                                     setDurationFromInput(formatHuDate(date))
@@ -4499,6 +4500,7 @@ export function SavingsCalculator() {
                                 <Calendar
                                   mode="single"
                                   selected={parsedDurationTo ?? undefined}
+                                  defaultMonth={parsedDurationTo ?? undefined}
                                   onSelect={(date) => {
                                     if (!date) return
                                     setDurationToInput(formatHuDate(date))
