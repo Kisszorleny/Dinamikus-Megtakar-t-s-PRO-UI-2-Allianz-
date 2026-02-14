@@ -687,6 +687,7 @@ function MobileYearCard({
   cumulativeByYear,
   shouldApplyTaxCreditPenalty,
   isTaxBonusSeparateAccount, // Added prop
+  showSurrenderAsPrimary,
 }: {
   row: any
   planIndex: Record<number, number>
@@ -732,6 +733,7 @@ function MobileYearCard({
   cumulativeByYear?: Record<number, any>
   shouldApplyTaxCreditPenalty?: boolean
   isTaxBonusSeparateAccount?: boolean // Added prop
+  showSurrenderAsPrimary?: boolean
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -819,6 +821,7 @@ function MobileYearCard({
   displayBalance = Math.max(0, preWithdrawalBalance - effectiveWithdrawn)
   const applyRealValue = (value: number) =>
     getRealValueForDays ? getRealValueForDays(value, Math.max(0, realValueElapsedDays ?? 0)) : value
+  const primaryDisplayValue = showSurrenderAsPrimary ? row.surrenderValue ?? displayBalance : displayBalance
 
   const showBreakdown = isAccountSplitOpen || isRedemptionOpen
 
@@ -828,7 +831,7 @@ function MobileYearCard({
         <div className="flex-1">
           <div className="font-semibold text-lg">{getYearRowLabel(row)}</div>
           <div className="text-2xl font-bold tabular-nums">
-            {formatValue(applyRealValue(displayBalance), displayCurrency)}
+            {formatValue(applyRealValue(primaryDisplayValue), displayCurrency)}
           </div>
           {showBreakdown && (
             <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
@@ -3981,6 +3984,7 @@ export function SavingsCalculator() {
         totalTaxCredit: results.totalTaxCredit,
         totalInterestNet: results.totalInterestNet,
         endBalance: results.endBalance,
+        surrenderValue: results.yearlyBreakdown[results.yearlyBreakdown.length - 1]?.surrenderValue ?? results.endBalance,
         totalRiskInsuranceCost: results.totalRiskInsuranceCost ?? 0,
       },
       eseti: {
@@ -3990,6 +3994,8 @@ export function SavingsCalculator() {
         totalTaxCredit: resultsEseti.totalTaxCredit,
         totalInterestNet: resultsEseti.totalInterestNet,
         endBalance: resultsEseti.endBalance,
+        surrenderValue:
+          resultsEseti.yearlyBreakdown[resultsEseti.yearlyBreakdown.length - 1]?.surrenderValue ?? resultsEseti.endBalance,
         totalRiskInsuranceCost: resultsEseti.totalRiskInsuranceCost ?? 0,
       },
       summary: {
@@ -3999,6 +4005,9 @@ export function SavingsCalculator() {
         totalTaxCredit: results.totalTaxCredit + resultsEseti.totalTaxCredit,
         totalInterestNet: results.totalInterestNet + resultsEseti.totalInterestNet,
         endBalance: results.endBalance + resultsEseti.endBalance,
+        surrenderValue:
+          (results.yearlyBreakdown[results.yearlyBreakdown.length - 1]?.surrenderValue ?? results.endBalance) +
+          (resultsEseti.yearlyBreakdown[resultsEseti.yearlyBreakdown.length - 1]?.surrenderValue ?? resultsEseti.endBalance),
         totalRiskInsuranceCost: (results.totalRiskInsuranceCost ?? 0) + (resultsEseti.totalRiskInsuranceCost ?? 0),
       },
     }),
@@ -4032,9 +4041,12 @@ export function SavingsCalculator() {
   const summaryAccountsOrder: Array<"summary" | "main" | "eseti"> = ["summary", "main", "eseti"]
   const activeSummaryTotals = summaryTotalsByAccount[yearlyAccountView]
   const activeSummaryTheme = summaryThemeByAccount[yearlyAccountView]
+  const isAlfaExclusivePlus = selectedProduct === "alfa_exclusive_plus"
+  const showBonusColumns = !isAlfaExclusivePlus
   const activeTaxCreditPenaltyAmount = shouldApplyTaxCreditPenalty ? activeSummaryTotals.totalTaxCredit * 1.2 : 0
   const summaryBaseBalance = enableNetting && finalNetData ? finalNetData.netBalance : activeSummaryTotals.endBalance
-  const summaryBalanceWithPenalty = Math.max(0, summaryBaseBalance - activeTaxCreditPenaltyAmount)
+  const summaryBaseFinalValue = isAlfaExclusivePlus ? activeSummaryTotals.surrenderValue : summaryBaseBalance
+  const summaryFinalWithPenalty = Math.max(0, summaryBaseFinalValue - activeTaxCreditPenaltyAmount)
 
   const handleDisplayCurrencyChange = (value: Currency) => {
     setDisplayCurrency(value)
@@ -6574,11 +6586,11 @@ export function SavingsCalculator() {
                   </div>
 
                   <div className={`flex items-center justify-between rounded-lg p-3 md:p-4 sm:col-span-2 lg:col-span-1 ${activeSummaryTheme.final}`}>
-                    <span className="text-xs md:text-sm font-medium">Egyenleg a futamidő végén</span>
+                    <span className="text-xs md:text-sm font-medium">
+                      {isAlfaExclusivePlus ? "Visszavásárlási érték a futamidő végén" : "Egyenleg a futamidő végén"}
+                    </span>
                     <span className="text-xl md:text-2xl font-bold tabular-nums">
-                      {formatCurrency(
-                        getRealValue(shouldApplyTaxCreditPenalty ? summaryBalanceWithPenalty : summaryBaseBalance),
-                      )}
+                      {formatCurrency(getRealValue(shouldApplyTaxCreditPenalty ? summaryFinalWithPenalty : summaryBaseFinalValue))}
                     </span>
                   </div>
                 </div>
@@ -6813,6 +6825,7 @@ export function SavingsCalculator() {
                       }
                       shouldApplyTaxCreditPenalty={shouldApplyTaxCreditPenalty}
                       isTaxBonusSeparateAccount={isTaxBonusSeparateAccount}
+                      showSurrenderAsPrimary={isAlfaExclusivePlus}
                       getRealValueForDays={getRealValueForDays}
                       realValueElapsedDays={realValueElapsedDaysByIndex[index] ?? 0}
                       // </CHANGE>
@@ -6872,12 +6885,13 @@ export function SavingsCalculator() {
                       {showCostBreakdown && <col style={{ width: "120px" }} />}
                       {showCostBreakdown && <col style={{ width: "120px" }} />}
                       <col style={{ width: "100px" }} />
-                      {showBonusBreakdown && <col style={{ width: "120px" }} />}
-                      {showBonusBreakdown && <col style={{ width: "120px" }} />}
+                      {showBonusColumns && showBonusBreakdown && <col style={{ width: "120px" }} />}
+                      {showBonusColumns && showBonusBreakdown && <col style={{ width: "120px" }} />}
                       {enableRiskInsurance && <col style={{ width: "100px" }} />}
                       {totalExtraServicesCost > 0 && <col style={{ width: "100px" }} />}
                       {inputs.enableTaxCredit && <col style={{ width: "110px" }} />}
                       <col style={{ width: "110px" }} />
+                      {isAlfaExclusivePlus && <col style={{ width: "120px" }} />}
                       <col style={{ width: "1%" }} />
                     </colgroup>
                     <thead>
@@ -6939,21 +6953,23 @@ export function SavingsCalculator() {
                             Akkvizíciós költség
                           </th>
                         )}
-                        <th className="py-3 px-3 text-right font-medium whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => setShowBonusBreakdown((prev) => !prev)}
-                            className="text-emerald-600 hover:text-emerald-700 transition-colors whitespace-nowrap"
-                          >
-                            Bónusz
-                          </button>
-                        </th>
-                        {showBonusBreakdown && (
+                        {showBonusColumns && (
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => setShowBonusBreakdown((prev) => !prev)}
+                              className="text-emerald-600 hover:text-emerald-700 transition-colors whitespace-nowrap"
+                            >
+                              Bónusz
+                            </button>
+                          </th>
+                        )}
+                        {showBonusColumns && showBonusBreakdown && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-emerald-600">
                             Vagyon bónusz (%)
                           </th>
                         )}
-                        {showBonusBreakdown && (
+                        {showBonusColumns && showBonusBreakdown && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-emerald-600">
                             Bónusz (Ft)
                           </th>
@@ -6970,8 +6986,13 @@ export function SavingsCalculator() {
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28">Adójóv.</th>
                         )}
                         <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28">Kivonás</th>
+                        {isAlfaExclusivePlus && (
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-32 min-w-32">
+                            {enableNetting ? "Nettó egyenleg" : "Egyenleg"}
+                          </th>
+                        )}
                         <th className="py-3 pl-1 pr-[2ch] text-right text-xs md:text-sm font-semibold sticky right-0 z-20 bg-background/95 w-[1%] whitespace-nowrap">
-                          {enableNetting ? "Nettó egyenleg" : "Egyenleg"}
+                          {isAlfaExclusivePlus ? "Visszavásárlási érték" : enableNetting ? "Nettó egyenleg" : "Egyenleg"}
                         </th>
                       </tr>
                     </thead>
@@ -7341,17 +7362,19 @@ export function SavingsCalculator() {
                                 </div>
                               </td>
                             )}
-                            <td className="py-2 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 align-top whitespace-nowrap">
-                              <div className="flex items-center justify-end min-h-[44px]">
-                                {formatValue(
-                                  applyRealValueForYear(
-                                    (displayData.bonusForYear ?? 0) + (displayData.wealthBonusForYear ?? 0),
-                                  ),
-                                  displayCurrency,
-                                )}
-                              </div>
-                            </td>
-                            {showBonusBreakdown && (
+                            {showBonusColumns && (
+                              <td className="py-2 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 align-top whitespace-nowrap">
+                                <div className="flex items-center justify-end min-h-[44px]">
+                                  {formatValue(
+                                    applyRealValueForYear(
+                                      (displayData.bonusForYear ?? 0) + (displayData.wealthBonusForYear ?? 0),
+                                    ),
+                                    displayCurrency,
+                                  )}
+                                </div>
+                              </td>
+                            )}
+                            {showBonusColumns && showBonusBreakdown && (
                               <td className="py-2 px-3 text-right align-top">
                                 <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                   <Input
@@ -7373,7 +7396,7 @@ export function SavingsCalculator() {
                                 </div>
                               </td>
                             )}
-                            {showBonusBreakdown && (
+                            {showBonusColumns && showBonusBreakdown && (
                               <td className="py-2 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 align-top whitespace-nowrap">
                                 <div className="flex items-center justify-end min-h-[44px]">
                                   {formatValue(applyRealValueForYear(displayData.wealthBonusForYear), displayCurrency)}
@@ -7492,8 +7515,21 @@ export function SavingsCalculator() {
                                 <p className="text-xs text-muted-foreground tabular-nums opacity-0">0</p>
                               </div>
                             </td>
+                            {isAlfaExclusivePlus && (
+                              <td className="py-2 px-3 text-right text-xs md:text-sm font-semibold tabular-nums w-32 min-w-32 align-top">
+                                <div className="flex items-center justify-end min-h-[44px]">
+                                  <span className="inline-flex w-fit whitespace-nowrap leading-tight text-right">
+                                    {formatValue(
+                                      applyRealValueForYear(displayBalanceWithPenalty),
+                                      displayCurrency,
+                                    ).replace(/ /g, "\u00A0")}
+                                  </span>
+                                </div>
+                              </td>
+                            )}
                             <td className="py-2 pl-1 pr-[2ch] text-right text-xs md:text-sm font-semibold tabular-nums sticky right-0 z-10 bg-background/95 w-[1%] align-top">
-                              {(isAccountSplitOpen || isRedemptionOpen) &&
+                              {!isAlfaExclusivePlus &&
+                              (isAccountSplitOpen || isRedemptionOpen) &&
                               row.endingInvestedValue !== undefined &&
                               row.endingClientValue !== undefined ? (
                                 <TooltipProvider>
@@ -7579,11 +7615,15 @@ export function SavingsCalculator() {
                                   </Tooltip>
                                 </TooltipProvider>
                               ) : (
-                                // CASE C: Both closed - plain text, no tooltip
+                                // Plain value for Alfa surrender or standard non-tooltip case
                                 <div className="flex items-center justify-end min-h-[44px]">
                                   <span className="inline-flex w-fit whitespace-nowrap leading-tight text-right">
                                     {formatValue(
-                                      applyRealValueForYear(displayBalanceWithPenalty),
+                                      applyRealValueForYear(
+                                        isAlfaExclusivePlus
+                                          ? (sourceRow.surrenderValue ?? row.surrenderValue ?? displayBalanceWithPenalty)
+                                          : displayBalanceWithPenalty,
+                                      ),
                                       displayCurrency,
                                     ).replace(/ /g, "\u00A0")}
                                   </span>
