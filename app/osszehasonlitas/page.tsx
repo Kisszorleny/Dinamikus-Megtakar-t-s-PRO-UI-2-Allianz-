@@ -155,14 +155,6 @@ export default function OsszehasonlitasPage() {
   const [withdrawalByYear, setWithdrawalByYear] = useState<Record<number, number>>({})
   const [taxCreditAmountByYear, setTaxCreditAmountByYear] = useState<Record<number, number>>({})
   const [taxCreditLimitByYear, setTaxCreditLimitByYear] = useState<Record<number, number>>({})
-  const [investedShareByYear, setInvestedShareByYear] = useState<Record<number, number>>({})
-  const [redemptionFeeByYear, setRedemptionFeeByYear] = useState<Record<number, number>>({})
-  const [assetCostPercentByYear, setAssetCostPercentByYear] = useState<Record<number, number>>({})
-  const [plusCostByYear, setPlusCostByYear] = useState<Record<number, number>>({})
-  const [bonusPercentByYear, setBonusPercentByYear] = useState<Record<number, number>>({})
-  const [isAccountSplitOpen, setIsAccountSplitOpen] = useState(false)
-  const [isRedemptionOpen, setIsRedemptionOpen] = useState(false)
-  const [isTaxBonusSeparateAccount, setIsTaxBonusSeparateAccount] = useState(false)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -210,14 +202,8 @@ export default function OsszehasonlitasPage() {
       setWithdrawalByYear(readJSON("calculator-withdrawalByYear", {}))
       setTaxCreditAmountByYear(readJSON("calculator-taxCreditAmountByYear", {}))
       setTaxCreditLimitByYear(readJSON("calculator-taxCreditLimitByYear", {}))
-      setInvestedShareByYear(readJSON("calculator-investedShareByYear", {}))
-      setRedemptionFeeByYear(readJSON("calculator-redemptionFeeByYear", {}))
-      setAssetCostPercentByYear(readJSON("calculator-assetCostPercentByYear", {}))
-      setPlusCostByYear(readJSON("calculator-plusCostByYear", {}))
-      setBonusPercentByYear(readJSON("calculator-bonusPercentByYear", {}))
-      setIsAccountSplitOpen(readJSON("isAccountSplitOpen", false))
-      setIsRedemptionOpen(readJSON("isRedemptionOpen", false))
-      setIsTaxBonusSeparateAccount(readJSON("isTaxBonusSeparateAccount", false))
+      // Intentionally do not reuse per-product preset maps from sessionStorage here.
+      // Comparison must stay stable when the user switches product on the main page.
     } catch (e) {
       console.error("[v0] Failed to load data from sessionStorage:", e)
     }
@@ -280,6 +266,70 @@ export default function OsszehasonlitasPage() {
               ? "alfa_exclusive_plus_ny05"
               : "alfa_exclusive_plus_tr08"
             : productValue
+        const durationInYears = Math.max(
+          1,
+          Math.ceil(
+            durationValue / (durationUnit === "year" ? 1 : durationUnit === "month" ? 12 : 365),
+          ),
+        )
+
+        const buildAlfaExclusiveInitialCosts = (years: number): Record<number, number> => {
+          const initialCostConfig: Record<number, number> = {}
+          if (years >= 5 && years <= 10) {
+            initialCostConfig[1] = 49
+            initialCostConfig[2] = 0
+            initialCostConfig[3] = 0
+          } else if (years === 11) {
+            initialCostConfig[1] = 55
+            initialCostConfig[2] = 5
+            initialCostConfig[3] = 0
+          } else if (years === 12) {
+            initialCostConfig[1] = 55
+            initialCostConfig[2] = 15
+            initialCostConfig[3] = 0
+          } else if (years === 13) {
+            initialCostConfig[1] = 60
+            initialCostConfig[2] = 25
+            initialCostConfig[3] = 0
+          } else if (years === 14) {
+            initialCostConfig[1] = 60
+            initialCostConfig[2] = 35
+            initialCostConfig[3] = 0
+          } else if (years >= 15) {
+            initialCostConfig[1] = 60
+            initialCostConfig[2] = 40
+            initialCostConfig[3] = 10
+          }
+          return initialCostConfig
+        }
+
+        const buildAlfaExclusiveInvestedShare = (years: number): Record<number, number> => {
+          const config: Record<number, number> = {}
+          for (let year = 1; year <= years; year++) {
+            config[year] = year === 1 ? 20 : year === 2 ? 50 : 80
+          }
+          return config
+        }
+
+        const buildAlfaExclusiveRedemption = (years: number, afterYear10Percent: number): Record<number, number> => {
+          const config: Record<number, number> = {}
+          for (let year = 1; year <= years; year++) {
+            config[year] = year <= 10 ? 100 : afterYear10Percent
+          }
+          return config
+        }
+
+        const buildAlfaFortisRedemption = (years: number): Record<number, number> => {
+          const config: Record<number, number> = {}
+          for (let year = 1; year <= years; year++) {
+            if (year === 1) config[year] = 3.5
+            else if (year >= 2 && year <= 8) config[year] = 1.95
+            else if (year >= 9 && year <= 15) config[year] = 1.5
+            else config[year] = 0
+          }
+          return config
+        }
+
         const baseInputs: InputsDaily = {
           ...inputs,
           durationUnit,
@@ -287,31 +337,70 @@ export default function OsszehasonlitasPage() {
           yearsPlanned: totalYearsForPlan,
           yearlyPaymentsPlan: plan.yearlyPaymentsPlan,
           yearlyWithdrawalsPlan: plan.yearlyWithdrawalsPlan,
-          assetCostPercentByYear,
-          plusCostByYear,
-          bonusPercentByYear,
-          investedShareByYear,
-          redemptionFeeByYear,
-          redemptionEnabled: isRedemptionOpen,
-          isAccountSplitOpen,
-          isTaxBonusSeparateAccount,
           taxCreditAmountByYear,
           taxCreditLimitByYear,
           productVariant: effectiveProductVariant,
+          // Reset product-specific, preset-driven maps so they cannot leak from the main page selection.
+          investedShareByYear: {},
+          redemptionFeeByYear: {},
+          assetCostPercentByYear: {},
+          plusCostByYear: {},
+          bonusPercentByYear: {},
+          isAccountSplitOpen: false,
+          redemptionEnabled: false,
+          isTaxBonusSeparateAccount: false,
         }
 
-        const dailyInputs: InputsDaily = isAllianzProduct
-          ? {
-              ...baseInputs,
-              // Force Allianz-specific cost structure per product variant
-              initialCostByYear: {
-                ...(baseInputs.initialCostByYear ?? {}),
-                1: isBonusVariant ? 79 : 33,
-              },
-              initialCostDefaultPercent: baseInputs.initialCostDefaultPercent ?? 0,
-              bonusMode: isBonusVariant ? "refundInitialCostIncreasing" : "none",
-            }
-          : baseInputs
+        const alfaExclusiveInputs: InputsDaily = {
+          ...baseInputs,
+          initialCostByYear: buildAlfaExclusiveInitialCosts(durationInYears),
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0.145,
+          assetCostPercentByYear: Object.fromEntries(
+            Array.from({ length: durationInYears }, (_, i) => [i + 1, 0.145]),
+          ) as Record<number, number>,
+          investedShareByYear: buildAlfaExclusiveInvestedShare(durationInYears),
+          redemptionFeeByYear: buildAlfaExclusiveRedemption(
+            durationInYears,
+            inputs.enableTaxCredit ? 15 : 20,
+          ),
+          redemptionEnabled: true,
+          isAccountSplitOpen: true,
+          isTaxBonusSeparateAccount: true,
+          bonusMode: "none",
+          bonusPercentByYear: {},
+        }
+
+        const alfaFortisInputs: InputsDaily = {
+          ...baseInputs,
+          initialCostByYear: { 1: 75, 2: 42, 3: 15 },
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0,
+          redemptionFeeByYear: buildAlfaFortisRedemption(durationInYears),
+          redemptionEnabled: true,
+          isAccountSplitOpen: false,
+          isTaxBonusSeparateAccount: false,
+          bonusMode: "none",
+          bonusPercentByYear: {},
+        }
+
+        const dailyInputs: InputsDaily =
+          productValue === "alfa_exclusive_plus"
+            ? alfaExclusiveInputs
+            : productValue === "alfa_fortis"
+              ? alfaFortisInputs
+              : isAllianzProduct
+                ? {
+                    ...baseInputs,
+                    // Force Allianz-specific cost structure per product variant
+                    initialCostByYear: {
+                      ...(baseInputs.initialCostByYear ?? {}),
+                      1: isBonusVariant ? 79 : 33,
+                    },
+                    initialCostDefaultPercent: baseInputs.initialCostDefaultPercent ?? 0,
+                    bonusMode: isBonusVariant ? "refundInitialCostIncreasing" : "none",
+                  }
+                : baseInputs
 
         const results = calculate(productId, dailyInputs)
         const totalContributions = results.totalContributions ?? 0
@@ -373,15 +462,7 @@ export default function OsszehasonlitasPage() {
     totalYearsForPlan,
     displayCurrency,
     selectedProductsForComparison,
-    assetCostPercentByYear,
-    bonusPercentByYear,
-    investedShareByYear,
-    isAccountSplitOpen,
-    isRedemptionOpen,
-    isTaxBonusSeparateAccount,
     paymentByYear,
-    plusCostByYear,
-    redemptionFeeByYear,
     taxCreditAmountByYear,
     taxCreditLimitByYear,
     withdrawalByYear,
