@@ -47,7 +47,6 @@ type StoredState = {
   isTaxBonusSeparateAccount: boolean
   selectedInsurer: string | null
   selectedProduct: string | null
-  selectedProductVariant: string | null
 }
 
 export default function ReszletesAdatokPage() {
@@ -139,7 +138,6 @@ export default function ReszletesAdatokPage() {
         isTaxBonusSeparateAccount: readJSON("isTaxBonusSeparateAccount", false),
         selectedInsurer: readJSON("calculator-selectedInsurer", null),
         selectedProduct: readJSON("calculator-selectedProduct", null),
-        selectedProductVariant: readJSON("calculator-selectedProductVariant", null),
       })
     } catch (e) {
       console.error("[v0] Failed to load data from sessionStorage:", e)
@@ -207,9 +205,9 @@ export default function ReszletesAdatokPage() {
     const isAllianzProduct = productId === "allianz-eletprogram"
     const effectiveProductVariant =
       storedState.selectedProduct === "alfa_exclusive_plus"
-        ? storedState.selectedProductVariant === "alfa_exclusive_plus_tr08"
-          ? "alfa_exclusive_plus_tr08"
-          : "alfa_exclusive_plus_ny05"
+        ? storedState.inputs.enableTaxCredit
+          ? "alfa_exclusive_plus_ny05"
+          : "alfa_exclusive_plus_tr08"
         : (storedState.selectedProduct ?? contextData?.selectedProduct ?? undefined)
     const adminFeeMonthlyAmount = isAllianzProduct ? (calcCurrency === "EUR" ? 3.3 : 990) : undefined
 

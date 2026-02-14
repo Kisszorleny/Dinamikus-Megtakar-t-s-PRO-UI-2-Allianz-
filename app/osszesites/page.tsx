@@ -215,7 +215,6 @@ export default function OsszesitesPage() {
       const storedValue = sessionStorage.getItem("calculator-durationValue")
       const storedInsurer = sessionStorage.getItem("calculator-selectedInsurer")
       const storedProduct = sessionStorage.getItem("calculator-selectedProduct")
-      const storedProductVariant = sessionStorage.getItem("calculator-selectedProductVariant")
       const storedNetting = sessionStorage.getItem("calculator-enableNetting")
       const storedIndexByYear = sessionStorage.getItem("calculator-indexByYear")
       const storedPaymentByYear = sessionStorage.getItem("calculator-paymentByYear")
@@ -244,7 +243,6 @@ export default function OsszesitesPage() {
       let durationValue = 10
       let selectedInsurer: string | null = null
       let selectedProduct: string | null = null
-      let selectedProductVariant: string | null = null
       let enableNetting = false
       let indexByYear: Record<number, number> = {}
       let paymentByYear: Record<number, number> = {}
@@ -296,11 +294,6 @@ export default function OsszesitesPage() {
         selectedProduct = storedProduct ? JSON.parse(storedProduct) : null
       } catch (e) {
         console.error("[v0] /osszesites failed to parse selectedProduct:", e)
-      }
-      try {
-        selectedProductVariant = storedProductVariant ? JSON.parse(storedProductVariant) : null
-      } catch (e) {
-        console.error("[v0] /osszesites failed to parse selectedProductVariant:", e)
       }
       if (selectedProduct) {
         setFallbackProductLabel(getProductLabel(selectedProduct))
@@ -390,9 +383,9 @@ export default function OsszesitesPage() {
         const productId = mapSelectedProductToProductId(selectedProduct, selectedInsurer)
         const effectiveProductVariant =
           selectedProduct === "alfa_exclusive_plus"
-            ? selectedProductVariant === "alfa_exclusive_plus_tr08"
-              ? "alfa_exclusive_plus_tr08"
-              : "alfa_exclusive_plus_ny05"
+            ? inputs.enableTaxCredit
+              ? "alfa_exclusive_plus_ny05"
+              : "alfa_exclusive_plus_tr08"
             : (selectedProduct ?? undefined)
         const dailyInputs: InputsDaily = {
           ...inputs,

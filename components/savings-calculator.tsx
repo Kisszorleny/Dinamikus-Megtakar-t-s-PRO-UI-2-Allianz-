@@ -2226,19 +2226,6 @@ export function SavingsCalculator() {
     }
     return "allianz_bonusz_eletprogram"
   })
-  const [selectedProductVariant, setSelectedProductVariant] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
-      const stored = sessionStorage.getItem("calculator-selectedProductVariant")
-      if (stored) {
-        try {
-          return JSON.parse(stored)
-        } catch (e) {
-          console.error("[v0] Failed to parse stored selectedProductVariant:", e)
-        }
-      }
-    }
-    return null
-  })
 
   const normalizedInsurer = (selectedInsurer ?? "").trim().toLowerCase()
   const isAllianzFundMode =
@@ -2489,30 +2476,32 @@ export function SavingsCalculator() {
     return getAvailableProductsForInsurer(selectedInsurer).find((p) => p.value === selectedProduct) ?? null
   }, [selectedInsurer, selectedProduct])
 
-  const effectiveSelectedProductVariant = useMemo(() => {
-    if (!selectedProductMetadata?.variants || selectedProductMetadata.variants.length === 0) return null
-    const matchesCurrent = selectedProductMetadata.variants.some((variant) => variant.value === selectedProductVariant)
-    return matchesCurrent ? selectedProductVariant : selectedProductMetadata.variants[0]?.value ?? null
-  }, [selectedProductMetadata, selectedProductVariant])
-
   const effectiveSelectedProductVariantCode = useMemo(() => {
-    if (!selectedProductMetadata?.variants || selectedProductMetadata.variants.length === 0) return undefined
-    const variant =
-      selectedProductMetadata.variants.find((item) => item.value === effectiveSelectedProductVariant) ??
-      selectedProductMetadata.variants[0]
-    return variant?.productCode
-  }, [selectedProductMetadata, effectiveSelectedProductVariant])
+    if (selectedProduct !== "alfa_exclusive_plus") return undefined
+    return inputs.enableTaxCredit ? "NY-05" : "TR-08"
+  }, [selectedProduct, inputs.enableTaxCredit])
+
+  const activeProductVariantMetadata = useMemo(() => {
+    if (!selectedProductMetadata?.variants || selectedProductMetadata.variants.length === 0) return null
+    if (selectedProduct === "alfa_exclusive_plus") {
+      const wantedCode = inputs.enableTaxCredit ? "NY-05" : "TR-08"
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.productCode === wantedCode) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    return selectedProductMetadata.variants[0] ?? null
+  }, [selectedProductMetadata, selectedProduct, inputs.enableTaxCredit])
 
   useEffect(() => {
     if (!selectedInsurer) {
       if (selectedProduct !== null) setSelectedProduct(null)
-      if (selectedProductVariant !== null) setSelectedProductVariant(null)
       return
     }
     const products = getAvailableProductsForInsurer(selectedInsurer)
     if (products.length === 0) {
       if (selectedProduct !== null) setSelectedProduct(null)
-      if (selectedProductVariant !== null) setSelectedProductVariant(null)
       return
     }
     const isValid = selectedProduct ? products.some((p) => p.value === selectedProduct) : false
@@ -2523,17 +2512,7 @@ export function SavingsCalculator() {
     if (nextDefault !== selectedProduct) {
       setSelectedProduct(nextDefault)
     }
-  }, [selectedInsurer, selectedProduct, selectedProductVariant])
-
-  useEffect(() => {
-    if (!selectedProductMetadata?.variants || selectedProductMetadata.variants.length === 0) {
-      if (selectedProductVariant !== null) setSelectedProductVariant(null)
-      return
-    }
-    const isValidVariant = selectedProductMetadata.variants.some((variant) => variant.value === selectedProductVariant)
-    if (isValidVariant) return
-    setSelectedProductVariant(selectedProductMetadata.variants[0]?.value ?? null)
-  }, [selectedProductMetadata, selectedProductVariant])
+  }, [selectedInsurer, selectedProduct])
 
   const mapSelectedProductToProductId = (productValue: string | null, insurer: string | null): ProductId => {
     if (insurer === "Alfa" && productValue === "alfa_exclusive_plus") {
@@ -2817,7 +2796,7 @@ export function SavingsCalculator() {
     if (isHydratingRef.current) return
     if (!selectedInsurer || !selectedProduct) return
     applyPreset()
-  }, [applyPreset, selectedInsurer, selectedProduct, effectiveSelectedProductVariant])
+  }, [applyPreset, selectedInsurer, selectedProduct, inputs.enableTaxCredit])
 
   useEffect(() => {
     // Only auto-update if Alfa Exclusive Plus or Alfa Fortis is the applied preset
@@ -3080,12 +3059,6 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-selectedProduct", JSON.stringify(selectedProduct))
     }
   }, [selectedProduct])
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("calculator-selectedProductVariant", JSON.stringify(selectedProductVariant))
-    }
-  }, [selectedProductVariant])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -3511,12 +3484,10 @@ export function SavingsCalculator() {
 
   const engineProductVariant = useMemo(() => {
     if (selectedProduct === "alfa_exclusive_plus") {
-      return effectiveSelectedProductVariant === "alfa_exclusive_plus_tr08"
-        ? "alfa_exclusive_plus_tr08"
-        : "alfa_exclusive_plus_ny05"
+      return inputs.enableTaxCredit ? "alfa_exclusive_plus_ny05" : "alfa_exclusive_plus_tr08"
     }
     return selectedProduct ?? undefined
-  }, [selectedProduct, effectiveSelectedProductVariant])
+  }, [selectedProduct, inputs.enableTaxCredit])
 
   const dailyInputs = useMemo<InputsDaily>(() => {
     const taxCreditLimits = Object.entries(taxCreditLimitByYear).reduce(
@@ -5636,46 +5607,26 @@ export function SavingsCalculator() {
                           <>
                             {selectedProductMetadata.variants && selectedProductMetadata.variants.length > 0 ? (
                               <div className="mt-3 pt-3 border-t space-y-2">
-                                <div className="space-y-2">
-                                  <Label htmlFor="preset-product-variant">Termékváltozat</Label>
-                                  <Select
-                                    value={effectiveSelectedProductVariant ?? undefined}
-                                    onValueChange={(value) => setSelectedProductVariant(value)}
-                                  >
-                                    <SelectTrigger id="preset-product-variant">
-                                      <SelectValue placeholder="Válassz termékváltozatot" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {selectedProductMetadata.variants.map((variant) => (
-                                        <SelectItem key={variant.value} value={variant.value}>
-                                          {variant.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                {(() => {
-                                  const activeVariant =
-                                    selectedProductMetadata.variants.find((variant) => variant.value === effectiveSelectedProductVariant) ??
-                                    selectedProductMetadata.variants[0]
-                                  if (!activeVariant) return null
-                                  return (
-                                    <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
-                                      <div>
-                                        <span className="font-medium">Aktív variáns:</span> {activeVariant.label}
-                                      </div>
-                                      <div>
-                                        <span className="font-medium">Termék típusa:</span> {activeVariant.productType}
-                                      </div>
-                                      <div>
-                                        <span className="font-medium">MNB kód:</span> {activeVariant.mnbCode}
-                                      </div>
-                                      <div>
-                                        <span className="font-medium">Termékkód:</span> {activeVariant.productCode}
-                                      </div>
+                                <p className="text-xs text-muted-foreground">
+                                  A termékváltozat automatikusan az adójóváírás alapján választódik:
+                                  bekapcsolva `NY-05`, kikapcsolva `TR-08`.
+                                </p>
+                                {activeProductVariantMetadata ? (
+                                  <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
+                                    <div>
+                                      <span className="font-medium">Aktív variáns:</span> {activeProductVariantMetadata.label}
                                     </div>
-                                  )
-                                })()}
+                                    <div>
+                                      <span className="font-medium">Termék típusa:</span> {activeProductVariantMetadata.productType}
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">MNB kód:</span> {activeProductVariantMetadata.mnbCode}
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Termékkód:</span> {activeProductVariantMetadata.productCode}
+                                    </div>
+                                  </div>
+                                ) : null}
                               </div>
                             ) : (
                               <div className="mt-3 pt-3 border-t space-y-1 text-xs text-muted-foreground">
