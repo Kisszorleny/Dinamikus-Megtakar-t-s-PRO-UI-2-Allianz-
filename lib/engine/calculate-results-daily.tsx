@@ -1194,7 +1194,6 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
 
   const endBalance = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
   const totalInterestNet = endBalance - totalContributions - totalBonus - totalTaxCredit + totalCosts + totalWithdrawals
-
   return {
     currency: inputs.currency,
     endBalance,

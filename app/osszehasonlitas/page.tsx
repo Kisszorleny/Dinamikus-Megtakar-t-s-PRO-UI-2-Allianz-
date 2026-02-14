@@ -412,11 +412,9 @@ export default function OsszehasonlitasPage() {
                 ? {
                     ...baseInputs,
                     // Force Allianz-specific cost structure per product variant
-                    initialCostByYear: {
-                      ...(baseInputs.initialCostByYear ?? {}),
-                      1: isBonusVariant ? 79 : 33,
-                    },
-                    initialCostDefaultPercent: baseInputs.initialCostDefaultPercent ?? 0,
+                    // Do not merge global initialCostByYear; it can leak from the main page selected product.
+                    initialCostByYear: { 1: isBonusVariant ? 79 : 33 },
+                    initialCostDefaultPercent: 0,
                     bonusMode: isBonusVariant ? "refundInitialCostIncreasing" : "none",
                   }
                 : baseInputs
@@ -444,7 +442,10 @@ export default function OsszehasonlitasPage() {
             [`bónuszok-${productKey}`]: Math.round(
               convertForDisplay(cumulativeBonuses, inputs.currency, displayCurrency, fxRate),
             ),
-            [`összesítve-${productKey}`]: Math.round(
+            [`egyenleg-${productKey}`]: Math.round(
+              convertForDisplay(row.endBalance ?? 0, inputs.currency, displayCurrency, fxRate),
+            ),
+            [`visszavásárlási-érték-${productKey}`]: Math.round(
               convertForDisplay(row.surrenderValue ?? row.endBalance ?? 0, inputs.currency, displayCurrency, fxRate),
             ),
           }
@@ -572,7 +573,8 @@ export default function OsszehasonlitasPage() {
                         <th className="py-3 px-4 text-right font-medium">Összes befizetés</th>
                         <th className="py-3 px-4 text-right font-medium">Adójóváírás</th>
                         <th className="py-3 px-4 text-right font-medium">Nettó hozam</th>
-                        <th className="py-3 px-4 text-right font-medium">Kivehető érték (visszavásárlási érték / egyenleg)</th>
+                        <th className="py-3 px-4 text-right font-medium">Egyenleg</th>
+                        <th className="py-3 px-4 text-right font-medium">Visszavásárlási érték</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -626,6 +628,17 @@ export default function OsszehasonlitasPage() {
                             <td className="py-3 px-4 text-right tabular-nums font-medium">
                               {formatMoney(
                                 convertForDisplay(
+                                  row.endBalance,
+                                  inputs.currency,
+                                  displayCurrency,
+                                  inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
+                                ),
+                                displayCurrency,
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right tabular-nums font-medium">
+                              {formatMoney(
+                                convertForDisplay(
                                   row.surrenderValue,
                                   inputs.currency,
                                   displayCurrency,
@@ -659,7 +672,8 @@ export default function OsszehasonlitasPage() {
                       if (yearRow) {
                         yearData[`költségek-${productKey}`] = yearRow[`költségek-${productKey}`]
                         yearData[`bónuszok-${productKey}`] = yearRow[`bónuszok-${productKey}`]
-                        yearData[`összesítve-${productKey}`] = yearRow[`összesítve-${productKey}`]
+                        yearData[`egyenleg-${productKey}`] = yearRow[`egyenleg-${productKey}`]
+                        yearData[`visszavásárlási-érték-${productKey}`] = yearRow[`visszavásárlási-érték-${productKey}`]
                       }
                     })
                     
@@ -712,7 +726,11 @@ export default function OsszehasonlitasPage() {
                       label: `${productData.insurer} - ${productData.product.label}`,
                       color,
                     }
-                    chartConfig[`összesítve-${productKey}`] = {
+                    chartConfig[`egyenleg-${productKey}`] = {
+                      label: `${productData.insurer} - ${productData.product.label}`,
+                      color,
+                    }
+                    chartConfig[`visszavásárlási-érték-${productKey}`] = {
                       label: `${productData.insurer} - ${productData.product.label}`,
                       color,
                     }
@@ -725,7 +743,7 @@ export default function OsszehasonlitasPage() {
                           <CardTitle className="text-lg">Összehasonlító diagramok</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                          {/* Összesítve Chart - thicker line for "összesítve" */}
+                          {/* Egyenleg Chart */}
                           <div>
                             <h3 className="text-sm font-medium mb-4">Egyenleg összehasonlítása</h3>
                             <ChartContainer config={chartConfig}>
@@ -736,9 +754,31 @@ export default function OsszehasonlitasPage() {
                                 <ChartTooltip content={<ChartTooltipContent />} />
                                 {allProductsData.map(({ productKey }) => (
                                   <Line
-                                    key={`total-${productKey}`}
+                                    key={`balance-${productKey}`}
                                     type="monotone"
-                                    dataKey={`összesítve-${productKey}`}
+                                    dataKey={`egyenleg-${productKey}`}
+                                    stroke={productColors[productKey]}
+                                    strokeWidth={4}
+                                  />
+                                ))}
+                              </LineChart>
+                            </ChartContainer>
+                          </div>
+
+                          {/* Visszavásárlási érték Chart */}
+                          <div>
+                            <h3 className="text-sm font-medium mb-4">Visszavásárlási érték összehasonlítása</h3>
+                            <ChartContainer config={chartConfig}>
+                              <LineChart data={mergedChartData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="year" />
+                                <YAxis />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                {allProductsData.map(({ productKey }) => (
+                                  <Line
+                                    key={`surrender-${productKey}`}
+                                    type="monotone"
+                                    dataKey={`visszavásárlási-érték-${productKey}`}
                                     stroke={productColors[productKey]}
                                     strokeWidth={4}
                                   />

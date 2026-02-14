@@ -2235,6 +2235,8 @@ export function SavingsCalculator() {
     normalizedInsurer.includes("allianz") ||
     (selectedProduct !== null &&
       (selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram"))
+  const isAllianzEletprogramView =
+    selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram"
   const canUseFundYield = Boolean(selectedProduct)
 
   const fundOptions = isAllianzFundMode
@@ -2518,7 +2520,9 @@ export function SavingsCalculator() {
   }, [selectedInsurer, selectedProduct])
 
   const mapSelectedProductToProductId = (productValue: string | null, insurer: string | null): ProductId => {
-    if (insurer === "Alfa" && productValue === "alfa_exclusive_plus") {
+    // Product mapping must primarily follow selected product value.
+    // During fast insurer/product switches, the insurer field can briefly lag behind.
+    if (productValue === "alfa_exclusive_plus") {
       return "alfa-exclusive-plus"
     }
     if (insurer === "Allianz") {
@@ -3669,7 +3673,10 @@ export function SavingsCalculator() {
     [selectedProduct, selectedInsurer],
   )
 
-  const results = useMemo(() => calculate(productId, dailyInputs), [productId, dailyInputs])
+  const results = useMemo(
+    () => calculate(productId, dailyInputs),
+    [productId, dailyInputs],
+  )
   const mainTaxCreditByYear = useMemo(() => {
     const map: Record<number, number> = {}
     for (const row of results.yearlyBreakdown ?? []) {
@@ -3732,7 +3739,10 @@ export function SavingsCalculator() {
       esetiTaxCreditLimitsByYear,
     ],
   )
-  const resultsEseti = useMemo(() => calculate(productId, dailyInputsEseti), [productId, dailyInputsEseti])
+  const resultsEseti = useMemo(
+    () => calculate(productId, dailyInputsEseti),
+    [productId, dailyInputsEseti],
+  )
   const dailyInputsWithoutTaxCredit = useMemo(
     () => ({
       ...dailyInputs,
@@ -4042,11 +4052,13 @@ export function SavingsCalculator() {
   const activeSummaryTotals = summaryTotalsByAccount[yearlyAccountView]
   const activeSummaryTheme = summaryThemeByAccount[yearlyAccountView]
   const isAlfaExclusivePlus = selectedProduct === "alfa_exclusive_plus"
+  const showSurrenderFinalBand = isRedemptionOpen
   const showBonusColumns = !isAlfaExclusivePlus
   const activeTaxCreditPenaltyAmount = shouldApplyTaxCreditPenalty ? activeSummaryTotals.totalTaxCredit * 1.2 : 0
   const summaryBaseBalance = enableNetting && finalNetData ? finalNetData.netBalance : activeSummaryTotals.endBalance
-  const summaryBaseFinalValue = isAlfaExclusivePlus ? activeSummaryTotals.surrenderValue : summaryBaseBalance
-  const summaryFinalWithPenalty = Math.max(0, summaryBaseFinalValue - activeTaxCreditPenaltyAmount)
+  const summaryBaseSurrenderValue = activeSummaryTotals.surrenderValue
+  const summaryBalanceWithPenalty = Math.max(0, summaryBaseBalance - activeTaxCreditPenaltyAmount)
+  const summarySurrenderWithPenalty = Math.max(0, summaryBaseSurrenderValue - activeTaxCreditPenaltyAmount)
 
   const handleDisplayCurrencyChange = (value: Currency) => {
     setDisplayCurrency(value)
@@ -6585,12 +6597,23 @@ export function SavingsCalculator() {
                     </span>
                   </div>
 
+                  {showSurrenderFinalBand && (
+                    <div className={`flex items-center justify-between rounded-lg border border-primary/25 p-3 md:p-4 ${activeSummaryTheme.metric}`}>
+                      <span className="text-xs md:text-sm font-medium text-muted-foreground">
+                        Visszavásárlási érték
+                      </span>
+                      <span className="text-lg md:text-xl font-bold tabular-nums">
+                        {formatCurrency(getRealValue(shouldApplyTaxCreditPenalty ? summarySurrenderWithPenalty : summaryBaseSurrenderValue))}
+                      </span>
+                    </div>
+                  )}
+
                   <div className={`flex items-center justify-between rounded-lg p-3 md:p-4 sm:col-span-2 lg:col-span-1 ${activeSummaryTheme.final}`}>
                     <span className="text-xs md:text-sm font-medium">
-                      {isAlfaExclusivePlus ? "Visszavásárlási érték a futamidő végén" : "Egyenleg a futamidő végén"}
+                      Egyenleg a futamidő végén
                     </span>
                     <span className="text-xl md:text-2xl font-bold tabular-nums">
-                      {formatCurrency(getRealValue(shouldApplyTaxCreditPenalty ? summaryFinalWithPenalty : summaryBaseFinalValue))}
+                      {formatCurrency(getRealValue(shouldApplyTaxCreditPenalty ? summaryBalanceWithPenalty : summaryBaseBalance))}
                     </span>
                   </div>
                 </div>
@@ -6679,7 +6702,7 @@ export function SavingsCalculator() {
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle className="text-lg md:text-xl">Éves bontás</CardTitle>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {isAccountSplitOpen && (
+                  {isAccountSplitOpen && !isAllianzEletprogramView && (
                     <div className="flex items-center gap-1 border rounded-md p-1">
                       <Button
                         type="button"
