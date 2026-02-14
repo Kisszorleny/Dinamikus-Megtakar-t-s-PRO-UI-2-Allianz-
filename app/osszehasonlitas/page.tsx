@@ -349,6 +349,13 @@ export default function OsszehasonlitasPage() {
           isAccountSplitOpen: false,
           redemptionEnabled: false,
           isTaxBonusSeparateAccount: false,
+          // Reset fee layers that can leak from the currently selected main-page product preset.
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          adminFeeMonthlyAmount: 0,
         }
 
         const alfaExclusiveInputs: InputsDaily = {
@@ -369,6 +376,12 @@ export default function OsszehasonlitasPage() {
           isTaxBonusSeparateAccount: true,
           bonusMode: "none",
           bonusPercentByYear: {},
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          adminFeeMonthlyAmount: 0,
         }
 
         const alfaFortisInputs: InputsDaily = {
@@ -382,6 +395,12 @@ export default function OsszehasonlitasPage() {
           isTaxBonusSeparateAccount: false,
           bonusMode: "none",
           bonusPercentByYear: {},
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          adminFeeMonthlyAmount: 0,
         }
 
         const dailyInputs: InputsDaily =
