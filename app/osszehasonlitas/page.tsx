@@ -274,6 +274,12 @@ export default function OsszehasonlitasPage() {
         const productId = mapSelectedProductToProductId(insurer, productValue)
         const isAllianzProduct = productId === "allianz-eletprogram"
         const isBonusVariant = productValue === "allianz_bonusz_eletprogram"
+        const effectiveProductVariant =
+          productValue === "alfa_exclusive_plus"
+            ? inputs.enableTaxCredit
+              ? "alfa_exclusive_plus_ny05"
+              : "alfa_exclusive_plus_tr08"
+            : productValue
         const baseInputs: InputsDaily = {
           ...inputs,
           durationUnit,
@@ -291,7 +297,7 @@ export default function OsszehasonlitasPage() {
           isTaxBonusSeparateAccount,
           taxCreditAmountByYear,
           taxCreditLimitByYear,
-          productVariant: productValue,
+          productVariant: effectiveProductVariant,
         }
 
         const dailyInputs: InputsDaily = isAllianzProduct
@@ -310,6 +316,8 @@ export default function OsszehasonlitasPage() {
         const results = calculate(productId, dailyInputs)
         const totalContributions = results.totalContributions ?? 0
         const endBalance = results.endBalance ?? 0
+        const finalYearRow = results.yearlyBreakdown?.[results.yearlyBreakdown.length - 1]
+        const withdrawableValue = finalYearRow?.surrenderValue ?? endBalance
         const totalTaxCredit = results.totalTaxCredit ?? 0
         const netReturn =
           results.totalInterestNet !== undefined
@@ -329,7 +337,7 @@ export default function OsszehasonlitasPage() {
               convertForDisplay(cumulativeBonuses, inputs.currency, displayCurrency, fxRate),
             ),
             [`összesítve-${productKey}`]: Math.round(
-              convertForDisplay(row.endBalance ?? 0, inputs.currency, displayCurrency, fxRate),
+              convertForDisplay(row.surrenderValue ?? row.endBalance ?? 0, inputs.currency, displayCurrency, fxRate),
             ),
           }
         })
@@ -340,6 +348,7 @@ export default function OsszehasonlitasPage() {
           productData,
           totalContributions,
           endBalance,
+          surrenderValue: withdrawableValue,
           totalTaxCredit,
           netReturn,
           chartData,
@@ -351,6 +360,7 @@ export default function OsszehasonlitasPage() {
       productData: { insurer: string; product: ProductMetadata }
       totalContributions: number
       endBalance: number
+      surrenderValue: number
       totalTaxCredit: number
       netReturn: number
       chartData: Array<Record<string, number | string>>
@@ -462,7 +472,7 @@ export default function OsszehasonlitasPage() {
                         <th className="py-3 px-4 text-right font-medium">Összes befizetés</th>
                         <th className="py-3 px-4 text-right font-medium">Adójóváírás</th>
                         <th className="py-3 px-4 text-right font-medium">Nettó hozam</th>
-                        <th className="py-3 px-4 text-right font-medium">Várható egyenleg</th>
+                        <th className="py-3 px-4 text-right font-medium">Kivehető érték (visszavásárlási érték / egyenleg)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -516,7 +526,7 @@ export default function OsszehasonlitasPage() {
                             <td className="py-3 px-4 text-right tabular-nums font-medium">
                               {formatMoney(
                                 convertForDisplay(
-                                  row.endBalance,
+                                  row.surrenderValue,
                                   inputs.currency,
                                   displayCurrency,
                                   inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
