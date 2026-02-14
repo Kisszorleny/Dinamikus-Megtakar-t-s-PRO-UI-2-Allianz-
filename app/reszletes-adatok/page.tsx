@@ -47,6 +47,7 @@ type StoredState = {
   isTaxBonusSeparateAccount: boolean
   selectedInsurer: string | null
   selectedProduct: string | null
+  selectedProductVariant: string | null
 }
 
 export default function ReszletesAdatokPage() {
@@ -138,6 +139,7 @@ export default function ReszletesAdatokPage() {
         isTaxBonusSeparateAccount: readJSON("isTaxBonusSeparateAccount", false),
         selectedInsurer: readJSON("calculator-selectedInsurer", null),
         selectedProduct: readJSON("calculator-selectedProduct", null),
+        selectedProductVariant: readJSON("calculator-selectedProductVariant", null),
       })
     } catch (e) {
       console.error("[v0] Failed to load data from sessionStorage:", e)
@@ -159,6 +161,9 @@ export default function ReszletesAdatokPage() {
     if (!storedState) return "dm-pro"
     const selectedInsurer = storedState.selectedInsurer ?? contextData?.selectedInsurer ?? null
     const selectedProduct = storedState.selectedProduct ?? contextData?.selectedProduct ?? null
+    if (selectedInsurer === "Alfa" && selectedProduct === "alfa_exclusive_plus") {
+      return "alfa-exclusive-plus"
+    }
     if (
       selectedInsurer === "Allianz" ||
       (selectedProduct && selectedProduct.includes("allianz"))
@@ -200,12 +205,18 @@ export default function ReszletesAdatokPage() {
 
     const calcCurrency = (storedState.inputs.currency ?? contextData?.currency ?? "HUF") as Currency
     const isAllianzProduct = productId === "allianz-eletprogram"
+    const effectiveProductVariant =
+      storedState.selectedProduct === "alfa_exclusive_plus"
+        ? storedState.selectedProductVariant === "alfa_exclusive_plus_tr08"
+          ? "alfa_exclusive_plus_tr08"
+          : "alfa_exclusive_plus_ny05"
+        : (storedState.selectedProduct ?? contextData?.selectedProduct ?? undefined)
     const adminFeeMonthlyAmount = isAllianzProduct ? (calcCurrency === "EUR" ? 3.3 : 990) : undefined
 
     const dailyInputs: InputsDaily = {
       ...storedState.inputs,
       currency: calcCurrency,
-      productVariant: storedState.selectedProduct ?? contextData?.selectedProduct ?? undefined,
+      productVariant: effectiveProductVariant,
       durationUnit: storedState.durationUnit,
       durationValue: storedState.durationValue,
       yearsPlanned: totalYears,
@@ -226,7 +237,7 @@ export default function ReszletesAdatokPage() {
 
     const results = calculate(productId, dailyInputs)
     return results.monthlyBreakdown
-  }, [storedState, plan, totalYears, productId])
+  }, [storedState, plan, totalYears, productId, contextData?.selectedProduct])
 
   const formatValue = (value: number, currency: Currency) => {
     const displayValue = convertForDisplay(

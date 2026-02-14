@@ -178,11 +178,15 @@ interface ProductMetadata {
   productType: string
   mnbCode: string
   productCode: string
-  variants?: {
-    productType: string
-    mnbCode: string
-    productCode: string
-  }[]
+  variants?: ProductVariantMetadata[]
+}
+
+interface ProductVariantMetadata {
+  value: string
+  label: string
+  productType: string
+  mnbCode: string
+  productCode: string
 }
 
 // Added taxBonus view mode to YearRow type
@@ -1505,6 +1509,9 @@ export function SavingsCalculator() {
       taxCreditEndYear: undefined,
       stopTaxCreditAfterFirstWithdrawal: false,
       taxCreditYieldPercent: 12,
+      paidUpMaintenanceFeeMonthlyAmount: 0,
+      paidUpMaintenanceFeeStartMonth: 10,
+      insuredEntryAge: 38,
       taxCreditCalendarPostingEnabled: false,
       calculationMode: "simple",
       startDate: new Date().toISOString().split("T")[0],
@@ -2219,6 +2226,19 @@ export function SavingsCalculator() {
     }
     return "allianz_bonusz_eletprogram"
   })
+  const [selectedProductVariant, setSelectedProductVariant] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-selectedProductVariant")
+      if (stored) {
+        try {
+          return JSON.parse(stored)
+        } catch (e) {
+          console.error("[v0] Failed to parse stored selectedProductVariant:", e)
+        }
+      }
+    }
+    return null
+  })
 
   const normalizedInsurer = (selectedInsurer ?? "").trim().toLowerCase()
   const isAllianzFundMode =
@@ -2361,8 +2381,20 @@ export function SavingsCalculator() {
             mnbCode: "13430 / 13450",
             productCode: "NY-05 / TR-08",
             variants: [
-              { productType: "Nyugdíjbiztosítás", mnbCode: "13430", productCode: "NY-05" },
-              { productType: "Életbiztosítás", mnbCode: "13450", productCode: "TR-08" },
+              {
+                value: "alfa_exclusive_plus_ny05",
+                label: "NY-05 (Nyugdíjbiztosítás)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: "13430",
+                productCode: "NY-05",
+              },
+              {
+                value: "alfa_exclusive_plus_tr08",
+                label: "TR-08 (Életbiztosítás)",
+                productType: "Életbiztosítás",
+                mnbCode: "13450",
+                productCode: "TR-08",
+              },
             ],
           },
           {
@@ -2372,9 +2404,27 @@ export function SavingsCalculator() {
             mnbCode: "13470 / 13471 / 13472",
             productCode: "WL-02 / WL-12 / WL-22",
             variants: [
-              { productType: "Életbiztosítás", mnbCode: "13470", productCode: "WL-02" },
-              { productType: "Életbiztosítás", mnbCode: "13471", productCode: "WL-12" },
-              { productType: "Életbiztosítás", mnbCode: "13472", productCode: "WL-22" },
+              {
+                value: "alfa_fortis_wl02",
+                label: "WL-02",
+                productType: "Életbiztosítás",
+                mnbCode: "13470",
+                productCode: "WL-02",
+              },
+              {
+                value: "alfa_fortis_wl12",
+                label: "WL-12",
+                productType: "Életbiztosítás",
+                mnbCode: "13471",
+                productCode: "WL-12",
+              },
+              {
+                value: "alfa_fortis_wl22",
+                label: "WL-22",
+                productType: "Életbiztosítás",
+                mnbCode: "13472",
+                productCode: "WL-22",
+              },
             ],
           },
           // </CHANGE>
@@ -2434,14 +2484,35 @@ export function SavingsCalculator() {
     return getAvailableProductsForInsurer(selectedInsurer)
   }
 
+  const selectedProductMetadata = useMemo(() => {
+    if (!selectedInsurer || !selectedProduct) return null
+    return getAvailableProductsForInsurer(selectedInsurer).find((p) => p.value === selectedProduct) ?? null
+  }, [selectedInsurer, selectedProduct])
+
+  const effectiveSelectedProductVariant = useMemo(() => {
+    if (!selectedProductMetadata?.variants || selectedProductMetadata.variants.length === 0) return null
+    const matchesCurrent = selectedProductMetadata.variants.some((variant) => variant.value === selectedProductVariant)
+    return matchesCurrent ? selectedProductVariant : selectedProductMetadata.variants[0]?.value ?? null
+  }, [selectedProductMetadata, selectedProductVariant])
+
+  const effectiveSelectedProductVariantCode = useMemo(() => {
+    if (!selectedProductMetadata?.variants || selectedProductMetadata.variants.length === 0) return undefined
+    const variant =
+      selectedProductMetadata.variants.find((item) => item.value === effectiveSelectedProductVariant) ??
+      selectedProductMetadata.variants[0]
+    return variant?.productCode
+  }, [selectedProductMetadata, effectiveSelectedProductVariant])
+
   useEffect(() => {
     if (!selectedInsurer) {
       if (selectedProduct !== null) setSelectedProduct(null)
+      if (selectedProductVariant !== null) setSelectedProductVariant(null)
       return
     }
     const products = getAvailableProductsForInsurer(selectedInsurer)
     if (products.length === 0) {
       if (selectedProduct !== null) setSelectedProduct(null)
+      if (selectedProductVariant !== null) setSelectedProductVariant(null)
       return
     }
     const isValid = selectedProduct ? products.some((p) => p.value === selectedProduct) : false
@@ -2452,9 +2523,22 @@ export function SavingsCalculator() {
     if (nextDefault !== selectedProduct) {
       setSelectedProduct(nextDefault)
     }
-  }, [selectedInsurer])
+  }, [selectedInsurer, selectedProduct, selectedProductVariant])
+
+  useEffect(() => {
+    if (!selectedProductMetadata?.variants || selectedProductMetadata.variants.length === 0) {
+      if (selectedProductVariant !== null) setSelectedProductVariant(null)
+      return
+    }
+    const isValidVariant = selectedProductMetadata.variants.some((variant) => variant.value === selectedProductVariant)
+    if (isValidVariant) return
+    setSelectedProductVariant(selectedProductMetadata.variants[0]?.value ?? null)
+  }, [selectedProductMetadata, selectedProductVariant])
 
   const mapSelectedProductToProductId = (productValue: string | null, insurer: string | null): ProductId => {
+    if (insurer === "Alfa" && productValue === "alfa_exclusive_plus") {
+      return "alfa-exclusive-plus"
+    }
     if (insurer === "Allianz") {
       if (productValue === "allianz_eletprogram" || productValue === "allianz_bonusz_eletprogram") {
         return "allianz-eletprogram"
@@ -2490,6 +2574,7 @@ export function SavingsCalculator() {
       setAppliedPresetLabel(`${selectedInsurer} - ${selected.label}`)
 
       if (selectedProduct === "alfa_exclusive_plus") {
+        const isTr08Variant = effectiveSelectedProductVariantCode === "TR-08"
         const durationInYears = Math.ceil(
           durationValue / (durationUnit === "year" ? 1 : durationUnit === "month" ? 12 / 12 : 365 / 12),
         )
@@ -2510,7 +2595,7 @@ export function SavingsCalculator() {
           if (year <= 10) {
             redemptionFeeConfig[year] = 100
           } else {
-            redemptionFeeConfig[year] = 15
+            redemptionFeeConfig[year] = isTr08Variant ? 20 : 15
           }
         }
 
@@ -2572,6 +2657,14 @@ export function SavingsCalculator() {
           bonusPercent: 0,
           bonusStartYear: 1,
           bonusStopYear: 0,
+          enableTaxCredit: !isTr08Variant,
+          taxCreditRatePercent: isTr08Variant ? 0 : 20,
+          taxCreditCapPerYear: isTr08Variant ? 0 : 130000,
+          taxCreditYieldPercent: isTr08Variant ? 0 : prev.taxCreditYieldPercent,
+          taxCreditCalendarPostingEnabled: isTr08Variant ? false : prev.taxCreditCalendarPostingEnabled,
+          paidUpMaintenanceFeeMonthlyAmount: isTr08Variant ? 1000 : 0,
+          paidUpMaintenanceFeeStartMonth: 10,
+          insuredEntryAge: prev.insuredEntryAge ?? 38,
         }))
 
         setInvestedShareByYear(investedShareConfig)
@@ -2588,7 +2681,7 @@ export function SavingsCalculator() {
         // Set redemption configuration
         setRedemptionBaseMode("surplus-only")
         setRedemptionFeeByYear(redemptionFeeConfig)
-        setRedemptionFeeDefaultPercent(15) // Default for years beyond term
+        setRedemptionFeeDefaultPercent(isTr08Variant ? 20 : 15) // Default for years beyond term
       } else if (selectedProduct === "allianz_eletprogram") {
         const fixedCost = inputs.currency === "HUF" ? 11880 : 39.6
         setInputs((prev) => ({
@@ -2718,13 +2811,13 @@ export function SavingsCalculator() {
         // </CHANGE>
       }
     }
-  }, [durationUnit, durationValue, inputs.currency, selectedInsurer, selectedProduct])
+  }, [durationUnit, durationValue, effectiveSelectedProductVariantCode, inputs.currency, selectedInsurer, selectedProduct])
 
   useEffect(() => {
     if (isHydratingRef.current) return
     if (!selectedInsurer || !selectedProduct) return
     applyPreset()
-  }, [applyPreset, selectedInsurer, selectedProduct])
+  }, [applyPreset, selectedInsurer, selectedProduct, effectiveSelectedProductVariant])
 
   useEffect(() => {
     // Only auto-update if Alfa Exclusive Plus or Alfa Fortis is the applied preset
@@ -2987,6 +3080,12 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-selectedProduct", JSON.stringify(selectedProduct))
     }
   }, [selectedProduct])
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-selectedProductVariant", JSON.stringify(selectedProductVariant))
+    }
+  }, [selectedProductVariant])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -3410,6 +3509,15 @@ export function SavingsCalculator() {
         ? "OCR idősor nem használható, kézi hozam fallback aktív."
         : null
 
+  const engineProductVariant = useMemo(() => {
+    if (selectedProduct === "alfa_exclusive_plus") {
+      return effectiveSelectedProductVariant === "alfa_exclusive_plus_tr08"
+        ? "alfa_exclusive_plus_tr08"
+        : "alfa_exclusive_plus_ny05"
+    }
+    return selectedProduct ?? undefined
+  }, [selectedProduct, effectiveSelectedProductVariant])
+
   const dailyInputs = useMemo<InputsDaily>(() => {
     const taxCreditLimits = Object.entries(taxCreditLimitByYear).reduce(
       (acc, [year, limit]) => {
@@ -3463,7 +3571,7 @@ export function SavingsCalculator() {
       taxCreditAmountByYear: taxCreditAmountByYear,
       taxCreditYieldPercent: inputs.taxCreditYieldPercent,
       taxCreditCalendarPostingEnabled: inputs.taxCreditCalendarPostingEnabled,
-      productVariant: selectedProduct ?? undefined,
+      productVariant: engineProductVariant,
       calculationMode: inputs.calculationMode,
       startDate: inputs.startDate,
       referenceYear: parsedDurationFrom?.getFullYear(),
@@ -3488,9 +3596,14 @@ export function SavingsCalculator() {
       riskInsuranceEnabled: enableRiskInsurance,
       riskInsuranceMonthlyFeeAmount: riskInsuranceMonthlyFeeAmount,
       riskInsuranceFeePercentOfMonthlyPayment: riskInsuranceFeePercentOfMonthlyPayment,
+      riskInsuranceDeathBenefitAmount: inputs.riskInsuranceDeathBenefitAmount,
+      riskInsuranceDisabilityBenefitAmount: inputs.riskInsuranceDisabilityBenefitAmount,
       riskInsuranceAnnualIndexPercent: riskInsuranceAnnualIndexPercent,
       riskInsuranceStartYear: riskInsuranceStartYear,
       riskInsuranceEndYear: riskInsuranceEndYear,
+      insuredEntryAge: inputs.insuredEntryAge,
+      paidUpMaintenanceFeeMonthlyAmount: inputs.paidUpMaintenanceFeeMonthlyAmount,
+      paidUpMaintenanceFeeStartMonth: inputs.paidUpMaintenanceFeeStartMonth,
     }
   }, [
     effectiveYieldSourceMode,
@@ -3520,10 +3633,14 @@ export function SavingsCalculator() {
     inputs.taxCreditStartYear,
     inputs.taxCreditEndYear,
     inputs.taxCreditCalendarPostingEnabled,
+    inputs.paidUpMaintenanceFeeMonthlyAmount,
+    inputs.paidUpMaintenanceFeeStartMonth,
+    inputs.insuredEntryAge,
     inputs.stopTaxCreditAfterFirstWithdrawal,
     inputs.calculationMode,
     inputs.startDate,
     parsedDurationFrom,
+    engineProductVariant,
     inputs.bonusPercent,
     inputs.bonusStartYear,
     inputs.bonusStopYear,
@@ -3561,6 +3678,8 @@ export function SavingsCalculator() {
     // </CHANGE>
     enableRiskInsurance,
     riskInsuranceFeePercentOfMonthlyPayment,
+    inputs.riskInsuranceDeathBenefitAmount,
+    inputs.riskInsuranceDisabilityBenefitAmount,
     riskInsuranceMonthlyFeeAmount,
     riskInsuranceAnnualIndexPercent,
     riskInsuranceStartYear,
@@ -5513,49 +5632,66 @@ export function SavingsCalculator() {
                           </div>
                         </div>
 
-                        {selectedProduct &&
-                          selectedInsurer &&
-                          (() => {
-                            const product = getAvailableProducts().find((p) => p.value === selectedProduct)
-                            if (!product) return null
-
-                            // Check if product has variants (Alfa Exclusive Plus)
-                            if (product.variants && product.variants.length > 0) {
-                              return (
-                                <div className="mt-3 pt-3 border-t space-y-2">
-                                  <p className="text-xs font-medium text-muted-foreground">Termékváltozatok:</p>
-                                  {product.variants.map((variant, idx) => (
-                                    <div key={idx} className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
+                        {selectedProduct && selectedInsurer && selectedProductMetadata && (
+                          <>
+                            {selectedProductMetadata.variants && selectedProductMetadata.variants.length > 0 ? (
+                              <div className="mt-3 pt-3 border-t space-y-2">
+                                <div className="space-y-2">
+                                  <Label htmlFor="preset-product-variant">Termékváltozat</Label>
+                                  <Select
+                                    value={effectiveSelectedProductVariant ?? undefined}
+                                    onValueChange={(value) => setSelectedProductVariant(value)}
+                                  >
+                                    <SelectTrigger id="preset-product-variant">
+                                      <SelectValue placeholder="Válassz termékváltozatot" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {selectedProductMetadata.variants.map((variant) => (
+                                        <SelectItem key={variant.value} value={variant.value}>
+                                          {variant.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                {(() => {
+                                  const activeVariant =
+                                    selectedProductMetadata.variants.find((variant) => variant.value === effectiveSelectedProductVariant) ??
+                                    selectedProductMetadata.variants[0]
+                                  if (!activeVariant) return null
+                                  return (
+                                    <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
                                       <div>
-                                        <span className="font-medium">Termék típusa:</span> {variant.productType}
+                                        <span className="font-medium">Aktív variáns:</span> {activeVariant.label}
                                       </div>
                                       <div>
-                                        <span className="font-medium">MNB kód:</span> {variant.mnbCode}
+                                        <span className="font-medium">Termék típusa:</span> {activeVariant.productType}
                                       </div>
                                       <div>
-                                        <span className="font-medium">Termékkód:</span> {variant.productCode}
+                                        <span className="font-medium">MNB kód:</span> {activeVariant.mnbCode}
+                                      </div>
+                                      <div>
+                                        <span className="font-medium">Termékkód:</span> {activeVariant.productCode}
                                       </div>
                                     </div>
-                                  ))}
-                                </div>
-                              )
-                            }
-
-                            // Default: single product display
-                            return (
+                                  )
+                                })()}
+                              </div>
+                            ) : (
                               <div className="mt-3 pt-3 border-t space-y-1 text-xs text-muted-foreground">
                                 <div>
-                                  <span className="font-medium">Termék típusa:</span> {product.productType}
+                                  <span className="font-medium">Termék típusa:</span> {selectedProductMetadata.productType}
                                 </div>
                                 <div>
-                                  <span className="font-medium">MNB kód:</span> {product.mnbCode}
+                                  <span className="font-medium">MNB kód:</span> {selectedProductMetadata.mnbCode}
                                 </div>
                                 <div>
-                                  <span className="font-medium">Termékkód:</span> {product.productCode}
+                                  <span className="font-medium">Termékkód:</span> {selectedProductMetadata.productCode}
                                 </div>
                               </div>
-                            )
-                          })()}
+                            )}
+                          </>
+                        )}
                     </div>
                 </CardContent>
                   </CollapsibleContent>

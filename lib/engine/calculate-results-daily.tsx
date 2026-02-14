@@ -3,6 +3,17 @@ export type Currency = "HUF" | "EUR" | "USD"
 export type ManagementFeeFrequency = "napi" | "havi" | "negyedéves" | "féléves" | "éves"
 export type ManagementFeeValueType = "percent" | "amount"
 
+export interface RiskFeeResolverContext {
+  currentYear: number
+  currentCalendarYear: number
+  monthsElapsed: number
+  monthsBetweenPayments: number
+  paymentPerEvent: number
+  yearlyPayment: number
+  durationYears: number
+  insuredEntryAge: number
+}
+
 export interface InputsDaily {
   currency: Currency
   disableProductDefaults?: boolean
@@ -90,9 +101,15 @@ export interface InputsDaily {
   riskInsuranceEnabled?: boolean
   riskInsuranceMonthlyFeeAmount?: number
   riskInsuranceFeePercentOfMonthlyPayment?: number
+  riskInsuranceDeathBenefitAmount?: number
+  riskInsuranceDisabilityBenefitAmount?: number
   riskInsuranceAnnualIndexPercent?: number
   riskInsuranceStartYear?: number
   riskInsuranceEndYear?: number
+  insuredEntryAge?: number
+  riskFeeResolver?: (context: RiskFeeResolverContext) => number
+  paidUpMaintenanceFeeMonthlyAmount?: number
+  paidUpMaintenanceFeeStartMonth?: number
   bonusCreditOnAnniversaryDay20?: boolean
 }
 
@@ -303,6 +320,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
 
   const ppy = periodsPerYear(inputs.frequency)
   const daysBetweenPayments = DAYS_PER_YEAR / ppy
+  const durationYears = Math.max(1, Math.ceil(totalDays / DAYS_PER_YEAR))
 
   const taxCreditYieldPercent = inputs.taxCreditYieldPercent ?? 0
   const taxCreditCalendarPostingEnabled = inputs.taxCreditCalendarPostingEnabled === true
@@ -527,6 +545,9 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   const mgmtFeeIntervalDays = getFrequencyDays(managementFeeFrequency)
 
   const monthsPerPayment = 12 / ppy
+  const paidUpMaintenanceFeeMonthlyAmount = Math.max(0, inputs.paidUpMaintenanceFeeMonthlyAmount ?? 0)
+  const paidUpMaintenanceFeeStartMonth = Math.max(1, Math.round(inputs.paidUpMaintenanceFeeStartMonth ?? 10))
+  const insuredEntryAge = Math.max(0, Math.round(inputs.insuredEntryAge ?? 38))
 
   for (let day = 0; day < totalDays; day++) {
     while (currentFullYearIndex < fullYearEndOffsets.length && day > fullYearEndOffsets[currentFullYearIndex]) {
@@ -616,18 +637,31 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         const isRiskActive = riskEnabled && currentYear >= riskStartYear && (!riskEndYear || currentYear <= riskEndYear)
 
         if (isRiskActive) {
-          const baseMonthlyPayment = inputs.frequency === "havi" ? paymentPerEvent : yearlyPayment / 12
-          const baseMonthlyRiskFee =
-            inputs.riskInsuranceMonthlyFeeAmount ??
-            (baseMonthlyPayment * ((inputs.riskInsuranceFeePercentOfMonthlyPayment ?? 0) / 100))
-
-          const annualIndexRate = (inputs.riskInsuranceAnnualIndexPercent ?? 0) / 100
-          const yearsSinceStart = Math.max(0, currentYear - riskStartYear)
-          const indexedMonthlyRiskFee = baseMonthlyRiskFee * Math.pow(1 + annualIndexRate, yearsSinceStart)
-
           const monthsBetweenPayments = 12 / ppy
-          const riskFeeForEvent = indexedMonthlyRiskFee * monthsBetweenPayments
-          riskInsuranceCost = Math.min(paymentPerEvent, Math.max(0, riskFeeForEvent))
+          if (typeof inputs.riskFeeResolver === "function") {
+            const resolvedRiskFee = inputs.riskFeeResolver({
+              currentYear,
+              currentCalendarYear,
+              monthsElapsed,
+              monthsBetweenPayments,
+              paymentPerEvent,
+              yearlyPayment,
+              durationYears,
+              insuredEntryAge,
+            })
+            riskInsuranceCost = Math.min(paymentPerEvent, Math.max(0, resolvedRiskFee))
+          } else {
+            const baseMonthlyPayment = inputs.frequency === "havi" ? paymentPerEvent : yearlyPayment / 12
+            const baseMonthlyRiskFee =
+              inputs.riskInsuranceMonthlyFeeAmount ??
+              (baseMonthlyPayment * ((inputs.riskInsuranceFeePercentOfMonthlyPayment ?? 0) / 100))
+
+            const annualIndexRate = (inputs.riskInsuranceAnnualIndexPercent ?? 0) / 100
+            const yearsSinceStart = Math.max(0, currentYear - riskStartYear)
+            const indexedMonthlyRiskFee = baseMonthlyRiskFee * Math.pow(1 + annualIndexRate, yearsSinceStart)
+            const riskFeeForEvent = indexedMonthlyRiskFee * monthsBetweenPayments
+            riskInsuranceCost = Math.min(paymentPerEvent, Math.max(0, riskFeeForEvent))
+          }
         }
 
         const initialCostRate = getInitialCostRate(currentYear)
@@ -884,6 +918,34 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
             taxBonusCostThisYear += adminFee * taxBonusRatio
 
             const reductionFactor = (totalValue - adminFee) / totalValue
+            investedUnits *= reductionFactor
+            clientUnits *= reductionFactor
+            taxBonusUnits *= reductionFactor
+          }
+        }
+      }
+
+      const isPaidUpYear = (inputs.yearlyPaymentsPlan[currentYear] ?? 0) <= 0
+      const currentMonthNumber = monthsElapsed + 1
+      const isPaidUpMaintenanceActive = isPaidUpYear && currentMonthNumber >= paidUpMaintenanceFeeStartMonth
+      if (paidUpMaintenanceFeeMonthlyAmount > 0 && isPaidUpMaintenanceActive) {
+        const totalValue = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+        const maintenanceFee = Math.min(paidUpMaintenanceFeeMonthlyAmount, totalValue)
+        if (maintenanceFee > 0) {
+          totalCosts += maintenanceFee
+          costThisYear += maintenanceFee
+          adminFeeCostThisMonth += maintenanceFee
+          costThisMonth += maintenanceFee
+
+          if (totalValue > 0) {
+            const clientRatio = (clientUnits * clientPrice) / totalValue
+            const investedRatio = (investedUnits * investedPrice) / totalValue
+            const taxBonusRatio = (taxBonusUnits * taxBonusPrice) / totalValue
+            clientCostThisYear += maintenanceFee * clientRatio
+            investedCostThisYear += maintenanceFee * investedRatio
+            taxBonusCostThisYear += maintenanceFee * taxBonusRatio
+
+            const reductionFactor = (totalValue - maintenanceFee) / totalValue
             investedUnits *= reductionFactor
             clientUnits *= reductionFactor
             taxBonusUnits *= reductionFactor

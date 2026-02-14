@@ -22,6 +22,7 @@ interface ProductMetadata {
   mnbCode: string
   productCode: string
   variants?: {
+    label?: string
     productType: string
     mnbCode: string
     productCode: string
@@ -250,6 +251,9 @@ export default function OsszehasonlitasPage() {
   }, [inputs, totalYearsForPlan, indexByYear, paymentByYear, withdrawalByYear])
 
   const mapSelectedProductToProductId = (insurer: string, productValue: string): ProductId => {
+    if (insurer === "Alfa" && productValue === "alfa_exclusive_plus") {
+      return "alfa-exclusive-plus"
+    }
     if (insurer === "Allianz" && productValue.includes("allianz")) {
       return "allianz-eletprogram"
     }
