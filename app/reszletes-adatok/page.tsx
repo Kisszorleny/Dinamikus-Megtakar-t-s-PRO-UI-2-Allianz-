@@ -159,9 +159,10 @@ export default function ReszletesAdatokPage() {
     if (!storedState) return "dm-pro"
     const selectedInsurer = storedState.selectedInsurer ?? contextData?.selectedInsurer ?? null
     const selectedProduct = storedState.selectedProduct ?? contextData?.selectedProduct ?? null
-    if (selectedInsurer === "Alfa" && selectedProduct === "alfa_exclusive_plus") {
+    if (selectedProduct === "alfa_exclusive_plus") {
       return "alfa-exclusive-plus"
     }
+    if (selectedProduct === "alfa_fortis") return "alfa-fortis"
     if (
       selectedInsurer === "Allianz" ||
       (selectedProduct && selectedProduct.includes("allianz"))

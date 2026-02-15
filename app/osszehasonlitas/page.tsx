@@ -10,6 +10,7 @@ import { ArrowLeft } from "lucide-react"
 import { convertForDisplay, formatMoney } from "@/lib/currency-conversion"
 import { buildYearlyPlan } from "@/lib/plan"
 import { calculate, type InputsDaily, type ProductId } from "@/lib/engine"
+import { FORTIS_MIN_ANNUAL_PAYMENT } from "@/lib/engine/products/alfa-fortis-config"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts"
 
@@ -237,9 +238,10 @@ export default function OsszehasonlitasPage() {
   }, [inputs, totalYearsForPlan, indexByYear, paymentByYear, withdrawalByYear])
 
   const mapSelectedProductToProductId = (insurer: string, productValue: string): ProductId => {
-    if (insurer === "Alfa" && productValue === "alfa_exclusive_plus") {
+    if (productValue === "alfa_exclusive_plus") {
       return "alfa-exclusive-plus"
     }
+    if (productValue === "alfa_fortis") return "alfa-fortis"
     if (insurer === "Allianz" && productValue.includes("allianz")) {
       return "allianz-eletprogram"
     }
@@ -319,23 +321,17 @@ export default function OsszehasonlitasPage() {
           return config
         }
 
-        const buildAlfaFortisRedemption = (years: number): Record<number, number> => {
-          const config: Record<number, number> = {}
-          for (let year = 1; year <= years; year++) {
-            if (year === 1) config[year] = 3.5
-            else if (year >= 2 && year <= 8) config[year] = 1.95
-            else if (year >= 9 && year <= 15) config[year] = 1.5
-            else config[year] = 0
-          }
-          return config
-        }
-
         const baseInputs: InputsDaily = {
           ...inputs,
           durationUnit,
           durationValue,
           yearsPlanned: totalYearsForPlan,
-          yearlyPaymentsPlan: plan.yearlyPaymentsPlan,
+          yearlyPaymentsPlan:
+            productValue === "alfa_fortis"
+              ? plan.yearlyPaymentsPlan.map((value, year) =>
+                  year <= 0 || value <= 0 ? value : Math.max(FORTIS_MIN_ANNUAL_PAYMENT, value),
+                )
+              : plan.yearlyPaymentsPlan,
           yearlyWithdrawalsPlan: plan.yearlyWithdrawalsPlan,
           taxCreditAmountByYear,
           taxCreditLimitByYear,
@@ -384,31 +380,10 @@ export default function OsszehasonlitasPage() {
           adminFeeMonthlyAmount: 0,
         }
 
-        const alfaFortisInputs: InputsDaily = {
-          ...baseInputs,
-          initialCostByYear: { 1: 75, 2: 42, 3: 15 },
-          initialCostDefaultPercent: 0,
-          assetBasedFeePercent: 0,
-          redemptionFeeByYear: buildAlfaFortisRedemption(durationInYears),
-          redemptionEnabled: true,
-          isAccountSplitOpen: false,
-          isTaxBonusSeparateAccount: false,
-          bonusMode: "none",
-          bonusPercentByYear: {},
-          yearlyManagementFeePercent: 0,
-          yearlyFixedManagementFeeAmount: 0,
-          managementFeeFrequency: "éves",
-          managementFeeValueType: "percent",
-          managementFeeValue: 0,
-          adminFeeMonthlyAmount: 0,
-        }
-
         const dailyInputs: InputsDaily =
           productValue === "alfa_exclusive_plus"
             ? alfaExclusiveInputs
-            : productValue === "alfa_fortis"
-              ? alfaFortisInputs
-              : isAllianzProduct
+            : isAllianzProduct
                 ? {
                     ...baseInputs,
                     // Force Allianz-specific cost structure per product variant
@@ -432,9 +407,11 @@ export default function OsszehasonlitasPage() {
 
         let cumulativeCosts = 0
         let cumulativeBonuses = 0
+        let cumulativeContributions = 0
         const chartData = (results.yearlyBreakdown ?? []).map((row: any) => {
           cumulativeCosts += row.costForYear ?? 0
           cumulativeBonuses += (row.bonusForYear ?? 0) + (row.wealthBonusForYear ?? 0)
+          cumulativeContributions = row.totalContributions ?? cumulativeContributions
 
           return {
             year: row.year.toString(),
@@ -447,6 +424,9 @@ export default function OsszehasonlitasPage() {
             ),
             [`visszavásárlási-érték-${productKey}`]: Math.round(
               convertForDisplay(row.surrenderValue ?? row.endBalance ?? 0, inputs.currency, displayCurrency, fxRate),
+            ),
+            [`befizetés-${productKey}`]: Math.round(
+              convertForDisplay(cumulativeContributions, inputs.currency, displayCurrency, fxRate),
             ),
           }
         })
@@ -674,6 +654,7 @@ export default function OsszehasonlitasPage() {
                         yearData[`bónuszok-${productKey}`] = yearRow[`bónuszok-${productKey}`]
                         yearData[`egyenleg-${productKey}`] = yearRow[`egyenleg-${productKey}`]
                         yearData[`visszavásárlási-érték-${productKey}`] = yearRow[`visszavásárlási-érték-${productKey}`]
+                        yearData[`befizetés-${productKey}`] = yearRow[`befizetés-${productKey}`]
                       }
                     })
                     
@@ -734,6 +715,10 @@ export default function OsszehasonlitasPage() {
                       label: `${productData.insurer} - ${productData.product.label}`,
                       color,
                     }
+                    chartConfig[`befizetés-${productKey}`] = {
+                      label: `${productData.insurer} - ${productData.product.label}`,
+                      color,
+                    }
                   })
 
                   return (
@@ -759,6 +744,37 @@ export default function OsszehasonlitasPage() {
                                     dataKey={`egyenleg-${productKey}`}
                                     stroke={productColors[productKey]}
                                     strokeWidth={4}
+                                  />
+                                ))}
+                              </LineChart>
+                            </ChartContainer>
+                          </div>
+
+                          <div>
+                            <h3 className="text-sm font-medium mb-4">Kumulált befizetés vs egyenleg</h3>
+                            <ChartContainer config={chartConfig}>
+                              <LineChart data={mergedChartData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="year" />
+                                <YAxis />
+                                <ChartTooltip content={<ChartTooltipContent />} />
+                                {allProductsData.map(({ productKey }) => (
+                                  <Line
+                                    key={`contribution-${productKey}`}
+                                    type="monotone"
+                                    dataKey={`befizetés-${productKey}`}
+                                    stroke={productColors[productKey]}
+                                    strokeWidth={2}
+                                    strokeDasharray="6 3"
+                                  />
+                                ))}
+                                {allProductsData.map(({ productKey }) => (
+                                  <Line
+                                    key={`balance-vs-${productKey}`}
+                                    type="monotone"
+                                    dataKey={`egyenleg-${productKey}`}
+                                    stroke={productColors[productKey]}
+                                    strokeWidth={3}
                                   />
                                 ))}
                               </LineChart>

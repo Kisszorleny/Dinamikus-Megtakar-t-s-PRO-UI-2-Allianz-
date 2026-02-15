@@ -71,6 +71,7 @@ export interface InputsDaily {
   bonusOnContributionPercent?: number
   bonusFromYear?: number
   bonusPercentByYear?: Record<number, number>
+  bonusAmountByYear?: Record<number, number>
 
   enableTaxCredit?: boolean
   taxCreditRatePercent?: number
@@ -84,6 +85,9 @@ export interface InputsDaily {
   taxCreditYieldPercent?: number
   taxCreditCalendarPostingEnabled?: boolean
   adminFeeMonthlyAmount?: number
+  adminFeePercentOfPayment?: number
+  accountMaintenanceMonthlyPercent?: number
+  accountMaintenanceStartMonth?: number
   productVariant?: string
 
   // Account split
@@ -547,6 +551,9 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   const monthsPerPayment = 12 / ppy
   const paidUpMaintenanceFeeMonthlyAmount = Math.max(0, inputs.paidUpMaintenanceFeeMonthlyAmount ?? 0)
   const paidUpMaintenanceFeeStartMonth = Math.max(1, Math.round(inputs.paidUpMaintenanceFeeStartMonth ?? 10))
+  const adminFeePercentOfPayment = Math.max(0, inputs.adminFeePercentOfPayment ?? 0)
+  const accountMaintenanceMonthlyPercent = Math.max(0, inputs.accountMaintenanceMonthlyPercent ?? 0)
+  const accountMaintenanceStartMonth = Math.max(1, Math.round(inputs.accountMaintenanceStartMonth ?? 1))
   const insuredEntryAge = Math.max(0, Math.round(inputs.insuredEntryAge ?? 38))
 
   for (let day = 0; day < totalDays; day++) {
@@ -670,6 +677,10 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           initialCostTotalByYear[currentYear] = (initialCostTotalByYear[currentYear] ?? 0) + upfrontCost
         }
 
+        if (adminFeePercentOfPayment > 0) {
+          adminFeeCost = paymentPerEvent * (adminFeePercentOfPayment / 100)
+        }
+
         if (bonusMode === "percentOnContribution" && currentYear >= bonusFromYear && bonusRate > 0) {
           bonusOnContribution = paymentPerEvent * bonusRate
           totalBonus += bonusOnContribution
@@ -719,10 +730,12 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       payThisYear += paymentPerEvent
       paymentThisMonth += paymentPerEvent
       upfrontCostThisMonth += upfrontCost
+      adminFeeCostThisMonth += adminFeeCost
       riskInsuranceCostThisMonth += riskInsuranceCost
-      costThisMonth += upfrontCost + riskInsuranceCost
-      totalCosts += upfrontCost + riskInsuranceCost
-      costThisYear += upfrontCost + riskInsuranceCost
+      costThisMonth += upfrontCost + adminFeeCost + riskInsuranceCost
+      totalCosts += upfrontCost + adminFeeCost + riskInsuranceCost
+      costThisYear += upfrontCost + adminFeeCost + riskInsuranceCost
+      clientCostThisYear += adminFeeCost
       totalRiskInsuranceCost += riskInsuranceCost
       riskInsuranceCostThisYear += riskInsuranceCost
     }
@@ -898,6 +911,29 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
     const isLastDay = day === totalDays - 1
 
     if (isMonthEnd) {
+      const currentMonthNumber = monthsElapsed + 1
+      const isAccountMaintenanceActive = currentMonthNumber >= accountMaintenanceStartMonth
+      if (accountMaintenanceMonthlyPercent > 0 && isAccountMaintenanceActive) {
+        const totalValue = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+        const accountMaintenanceFee = totalValue * (accountMaintenanceMonthlyPercent / 100)
+        if (accountMaintenanceFee > 0 && totalValue > 0) {
+          totalCosts += accountMaintenanceFee
+          costThisYear += accountMaintenanceFee
+          adminFeeCostThisMonth += accountMaintenanceFee
+          costThisMonth += accountMaintenanceFee
+          const clientRatio = (clientUnits * clientPrice) / totalValue
+          const investedRatio = (investedUnits * investedPrice) / totalValue
+          const taxBonusRatio = (taxBonusUnits * taxBonusPrice) / totalValue
+          clientCostThisYear += accountMaintenanceFee * clientRatio
+          investedCostThisYear += accountMaintenanceFee * investedRatio
+          taxBonusCostThisYear += accountMaintenanceFee * taxBonusRatio
+          const reductionFactor = (totalValue - accountMaintenanceFee) / totalValue
+          investedUnits *= reductionFactor
+          clientUnits *= reductionFactor
+          taxBonusUnits *= reductionFactor
+        }
+      }
+
       const adminFeeMonthlyAmount = inputs.adminFeeMonthlyAmount ?? 0
       const isAdminFeeActive = currentYear > 1
       if (adminFeeMonthlyAmount > 0 && isAdminFeeActive) {
@@ -926,7 +962,6 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       }
 
       const isPaidUpYear = (inputs.yearlyPaymentsPlan[currentYear] ?? 0) <= 0
-      const currentMonthNumber = monthsElapsed + 1
       const isPaidUpMaintenanceActive = isPaidUpYear && currentMonthNumber >= paidUpMaintenanceFeeStartMonth
       if (paidUpMaintenanceFeeMonthlyAmount > 0 && isPaidUpMaintenanceActive) {
         const totalValue = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
@@ -1046,6 +1081,15 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           investedWealthBonusThisYear = wealthBonusAmount
           bonusThisMonth += wealthBonusAmount
         }
+      }
+
+      const bonusAmount = !isPartialPeriod ? Math.max(0, inputs.bonusAmountByYear?.[currentYear] ?? 0) : 0
+      if (bonusAmount > 0) {
+        investedUnits += bonusAmount / investedPrice
+        totalBonus += bonusAmount
+        wealthBonusThisYear += bonusAmount
+        investedWealthBonusThisYear += bonusAmount
+        bonusThisMonth += bonusAmount
       }
 
       const endingSurplusValue = investedUnits * investedPrice

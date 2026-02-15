@@ -52,6 +52,12 @@ import { RedemptionFeeByYear } from "@/components/redemption-fee-by-year" // Add
 import { InvestedShareByYear } from "./invested-share-by-year" // Added import
 import { parseChartImageToSeries } from "@/lib/chart-image-parser"
 import type { ParsedChartSeries } from "@/lib/chart-series"
+import {
+  FORTIS_MAX_ENTRY_AGE,
+  FORTIS_MIN_ANNUAL_PAYMENT,
+  FORTIS_MIN_ENTRY_AGE,
+  FORTIS_MIN_EXTRAORDINARY_PAYMENT,
+} from "@/lib/engine/products/alfa-fortis-config"
 
 type DurationUnit = "year" | "month" | "day"
 type FutureInflationMode = "fix" | "converging"
@@ -2525,6 +2531,9 @@ export function SavingsCalculator() {
     if (productValue === "alfa_exclusive_plus") {
       return "alfa-exclusive-plus"
     }
+    if (productValue === "alfa_fortis") {
+      return "alfa-fortis"
+    }
     if (insurer === "Allianz") {
       if (productValue === "allianz_eletprogram" || productValue === "allianz_bonusz_eletprogram") {
         return "allianz-eletprogram"
@@ -2735,8 +2744,10 @@ export function SavingsCalculator() {
         const redemptionFeeConfig: Record<number, number> = {}
         for (let year = 1; year <= durationInYears; year++) {
           if (year === 1) {
+            redemptionFeeConfig[year] = 100
+          } else if (year === 2) {
             redemptionFeeConfig[year] = 3.5
-          } else if (year >= 2 && year <= 8) {
+          } else if (year >= 3 && year <= 8) {
             redemptionFeeConfig[year] = 1.95
           } else if (year >= 9 && year <= 15) {
             redemptionFeeConfig[year] = 1.5
@@ -3510,6 +3521,16 @@ export function SavingsCalculator() {
       effectiveYieldSourceMode === "fund" && fundCalculationMode === "replay" && fundSeriesPoints.length > 1
     const useParsedChartSeries = effectiveYieldSourceMode === "ocr" && (parsedChartSeries?.points.length ?? 0) > 1
     const effectiveAnnualYieldPercent = effectiveYieldSourceMode === "manual" ? manualYieldPercent : inputs.annualYieldPercent
+    const isFortisProduct = selectedProduct === "alfa_fortis"
+    const fortisNormalizedYearlyPaymentsPlan =
+      isFortisProduct
+        ? plan.yearlyPaymentsPlan.map((value, year) =>
+            year <= 0 || value <= 0 ? value : Math.max(FORTIS_MIN_ANNUAL_PAYMENT, value),
+          )
+        : plan.yearlyPaymentsPlan
+    const fortisClampedEntryAge = isFortisProduct
+      ? Math.min(FORTIS_MAX_ENTRY_AGE, Math.max(FORTIS_MIN_ENTRY_AGE, Math.round(inputs.insuredEntryAge ?? 38)))
+      : (inputs.insuredEntryAge ?? 38)
 
     return {
       currency: inputs.currency,
@@ -3518,7 +3539,7 @@ export function SavingsCalculator() {
       annualYieldPercent: effectiveAnnualYieldPercent,
       frequency: inputs.frequency,
       yearsPlanned: totalYearsForPlan,
-      yearlyPaymentsPlan: plan.yearlyPaymentsPlan,
+      yearlyPaymentsPlan: fortisNormalizedYearlyPaymentsPlan,
       yearlyWithdrawalsPlan: plan.yearlyWithdrawalsPlan,
       initialCostByYear: inputs.initialCostByYear,
       initialCostDefaultPercent: inputs.initialCostDefaultPercent,
@@ -3579,7 +3600,7 @@ export function SavingsCalculator() {
       riskInsuranceAnnualIndexPercent: riskInsuranceAnnualIndexPercent,
       riskInsuranceStartYear: riskInsuranceStartYear,
       riskInsuranceEndYear: riskInsuranceEndYear,
-      insuredEntryAge: inputs.insuredEntryAge,
+      insuredEntryAge: fortisClampedEntryAge,
       paidUpMaintenanceFeeMonthlyAmount: inputs.paidUpMaintenanceFeeMonthlyAmount,
       paidUpMaintenanceFeeStartMonth: inputs.paidUpMaintenanceFeeStartMonth,
     }
@@ -3619,6 +3640,7 @@ export function SavingsCalculator() {
     inputs.startDate,
     parsedDurationFrom,
     engineProductVariant,
+    selectedProduct,
     inputs.bonusPercent,
     inputs.bonusStartYear,
     inputs.bonusStopYear,
@@ -3703,7 +3725,12 @@ export function SavingsCalculator() {
       durationValue: Math.min(esetiDurationValue, esetiDurationMaxByUnit[esetiDurationUnit]),
       annualYieldPercent: esetiBaseInputs.annualYieldPercent,
       frequency: esetiFrequency,
-      yearlyPaymentsPlan: esetiPlan.yearlyPaymentsPlan,
+      yearlyPaymentsPlan:
+        selectedProduct === "alfa_fortis"
+          ? esetiPlan.yearlyPaymentsPlan.map((value, year) =>
+              year <= 0 || value <= 0 ? value : Math.max(FORTIS_MIN_EXTRAORDINARY_PAYMENT, value),
+            )
+          : esetiPlan.yearlyPaymentsPlan,
       yearlyWithdrawalsPlan: esetiPlan.yearlyWithdrawalsPlan,
       taxCreditLimitByYear: esetiTaxCreditLimitsByYear,
       annualIndexPercent: esetiBaseInputs.annualIndexPercent,
@@ -3723,6 +3750,9 @@ export function SavingsCalculator() {
       bonusStopYear: 0,
       bonusPercentByYear: {},
       adminFeeMonthlyAmount: 0,
+      adminFeePercentOfPayment: selectedProduct === "alfa_fortis" ? 2 : 0,
+      accountMaintenanceMonthlyPercent: selectedProduct === "alfa_fortis" ? 0.165 : 0,
+      accountMaintenanceStartMonth: 1,
       riskInsuranceEnabled: false,
       riskInsuranceMonthlyFeeAmount: 0,
       riskInsuranceFeePercentOfMonthlyPayment: 0,
@@ -3737,6 +3767,7 @@ export function SavingsCalculator() {
       esetiPlan,
       esetiFrequency,
       esetiTaxCreditLimitsByYear,
+      selectedProduct,
     ],
   )
   const resultsEseti = useMemo(
@@ -4578,6 +4609,14 @@ export function SavingsCalculator() {
           : 18250
   const effectiveYearlyViewMode =
     yearlyAccountView === "main" && isAccountSplitOpen ? yearlyViewMode : "total"
+  const settingsYear1Payment = isSettingsEseti
+    ? (esetiPlan.yearlyPaymentsPlan[1] ?? 0)
+    : (plan.yearlyPaymentsPlan[1] ?? 0)
+  const shouldWarnFortisMainMinimum = selectedProduct === "alfa_fortis" && !isSettingsEseti && settingsYear1Payment > 0 && settingsYear1Payment < FORTIS_MIN_ANNUAL_PAYMENT
+  const shouldWarnFortisEsetiMinimum = selectedProduct === "alfa_fortis" && isSettingsEseti && settingsYear1Payment > 0 && settingsYear1Payment < FORTIS_MIN_EXTRAORDINARY_PAYMENT
+  const shouldWarnFortisAgeClamp =
+    selectedProduct === "alfa_fortis" &&
+    ((inputs.insuredEntryAge ?? 38) < FORTIS_MIN_ENTRY_AGE || (inputs.insuredEntryAge ?? 38) > FORTIS_MAX_ENTRY_AGE)
 
   useEffect(() => {
     // If account split controls are hidden, force the table back to total mode
@@ -5314,6 +5353,10 @@ export function SavingsCalculator() {
                     <div className={`flex flex-wrap items-center gap-3 text-xs ${isSettingsEseti ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
                       {selectedProduct === "alfa_exclusive_plus" && <p>Minimum éves díj: 360 000 Ft</p>}
                       {selectedProduct === "alfa_fortis" && <p>Minimum éves díj: 300 000 Ft</p>}
+                      {selectedProduct === "alfa_fortis" && isSettingsEseti && <p>Eseti minimum díj: 50 000 Ft</p>}
+                      {shouldWarnFortisMainMinimum && <p className="text-amber-600">A Fortis minimum éves díjra korrigálva számol.</p>}
+                      {shouldWarnFortisEsetiMinimum && <p className="text-amber-600">Az eseti Fortis minimum díjra korrigálva számol.</p>}
+                      {shouldWarnFortisAgeClamp && <p className="text-amber-600">A belépési életkor Fortisnál 16-70 év között kerül figyelembe vételre.</p>}
                       {isSettingsEseti ? <p>Az eseti futamidő legfeljebb a fő számla futamideje lehet.</p> : null}
                     </div>
                   )}

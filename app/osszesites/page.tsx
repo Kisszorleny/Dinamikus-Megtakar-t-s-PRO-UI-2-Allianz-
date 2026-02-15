@@ -186,6 +186,7 @@ export default function OsszesitesPage() {
   const getProductLabel = (productValue: string): string => {
     const productMap: Record<string, string> = {
       alfa_exclusive_plus: "Alfa Exclusive Plus",
+      alfa_fortis: "Alfa Fortis (WL-02)",
       allianz_eletprogram: "Allianz Életprogram",
       allianz_bonusz_eletprogram: "Allianz Bónusz Életprogram",
     }
@@ -193,9 +194,10 @@ export default function OsszesitesPage() {
   }
 
   const mapSelectedProductToProductId = (productValue: string | null, insurer: string | null): ProductId => {
-    if (insurer === "Alfa" && productValue === "alfa_exclusive_plus") {
+    if (productValue === "alfa_exclusive_plus") {
       return "alfa-exclusive-plus"
     }
+    if (productValue === "alfa_fortis") return "alfa-fortis"
     if (insurer === "Allianz") {
       if (productValue === "allianz_eletprogram" || productValue === "allianz_bonusz_eletprogram") {
         return "allianz-eletprogram"
