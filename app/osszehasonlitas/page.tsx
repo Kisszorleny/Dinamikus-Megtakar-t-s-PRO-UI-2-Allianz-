@@ -151,7 +151,12 @@ export default function OsszehasonlitasPage() {
   // Save selectedProductsForComparison to sessionStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
-      sessionStorage.setItem("calculator-selectedProductsForComparison", JSON.stringify(selectedProductsForComparison))
+      const validKeys = new Set(getAllProductsForComparison().map(({ insurer, product }) => `${insurer}-${product.value}`))
+      const sanitized = selectedProductsForComparison.filter((key) => validKeys.has(key))
+      sessionStorage.setItem("calculator-selectedProductsForComparison", JSON.stringify(sanitized))
+      if (sanitized.length !== selectedProductsForComparison.length) {
+        setSelectedProductsForComparison(sanitized)
+      }
     }
   }, [selectedProductsForComparison])
 
@@ -280,11 +285,12 @@ export default function OsszehasonlitasPage() {
 
     return selectedProductsForComparison
       .map((productKey) => {
-        const [insurer, productValue] = productKey.split("-")
         const allProducts = getAllProductsForComparison()
         const productData = allProducts.find((p) => `${p.insurer}-${p.product.value}` === productKey)
         if (!productData) return null
 
+        const insurer = productData.insurer
+        const productValue = productData.product.value
         const productId = mapSelectedProductToProductId(insurer, productValue)
         const isAllianzProduct = productId === "allianz-eletprogram"
         const isBonusVariant = productValue === "allianz_bonusz_eletprogram"
