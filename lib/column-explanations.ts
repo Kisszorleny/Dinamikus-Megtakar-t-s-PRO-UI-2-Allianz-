@@ -121,7 +121,8 @@ export const COLUMN_EXPLANATIONS: Record<string, ColumnExplanation> = {
   surrenderValue: {
     title: "Visszavásárlási érték",
     summary: "A szerződés idő előtti megszüntetésekor kivehető érték.",
-    detail: "A visszavásárlási költségek levonása után számolt összeg.",
+    detail:
+      "Az Egyenlegből számoljuk: abból vonjuk le a visszavásárlási költséget. Alfa Exclusive Plusnál ez az LTSZ-re: 1-120. hónapban TR-08: 100%, NY-05: 100%; 121. hónaptól TR-08: 20%, NY-05: 15%.",
   },
   strategy: {
     title: "Stratégia",
@@ -272,11 +273,11 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
   },
   "alfa_exclusive_plus_ny05:assetFee": {
     costTypeLabel: "Vagyonarányos költség",
-    rationale: "Éves százalékos levonás a számlaértékre vetítve.",
+    rationale: "Havi százalékos levonás a számlaértékre vetítve.",
   },
   "alfa_exclusive_plus_tr08:assetFee": {
     costTypeLabel: "Vagyonarányos költség",
-    rationale: "Éves százalékos levonás a számlaértékre vetítve.",
+    rationale: "Havi százalékos levonás a számlaértékre vetítve.",
   },
   "dm_pro:assetFee": {
     costTypeLabel: "Konfigurációfüggő",

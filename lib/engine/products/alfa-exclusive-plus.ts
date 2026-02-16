@@ -49,7 +49,7 @@ function buildAlfaExclusiveDefaultInvestedShare(durationYears: number): Record<n
 function buildAlfaExclusiveDefaultAssetCost(durationYears: number): Record<number, number> {
   const config: Record<number, number> = {}
   for (let year = 1; year <= durationYears; year++) {
-    config[year] = 0.145
+    config[year] = year <= 3 ? 0 : 0.145
   }
   return config
 }
@@ -58,6 +58,14 @@ function buildAlfaExclusiveDefaultAssetCostClient(durationYears: number): Record
   const config: Record<number, number> = {}
   for (let year = 1; year <= durationYears; year++) {
     config[year] = year <= 3 ? 0 : 0.145
+  }
+  return config
+}
+
+function buildAlfaExclusiveDefaultAssetCostInvestedTaxBonus(durationYears: number): Record<number, number> {
+  const config: Record<number, number> = {}
+  for (let year = 1; year <= durationYears; year++) {
+    config[year] = 0.145
   }
   return config
 }
@@ -74,6 +82,8 @@ export const alfaExclusivePlus: ProductDefinition = {
     const investedShareByYearDefault = buildAlfaExclusiveDefaultInvestedShare(durationYears)
     const assetCostPercentByYearDefault = buildAlfaExclusiveDefaultAssetCost(durationYears)
     const assetCostPercentByYearClientDefault = buildAlfaExclusiveDefaultAssetCostClient(durationYears)
+    const assetCostPercentByYearInvestedTaxBonusDefault =
+      buildAlfaExclusiveDefaultAssetCostInvestedTaxBonus(durationYears)
     // In default mode, always derive the redemption schedule from the resolved variant.
     // This prevents stale NY-05/TR-08 maps from leaking after product/toggle switches.
     const redemptionFeeByYear = shouldUseProductDefaults
@@ -93,15 +103,18 @@ export const alfaExclusivePlus: ProductDefinition = {
       investedShareByYear: shouldUseProductDefaults ? investedShareByYearDefault : inputs.investedShareByYear,
       investedShareDefaultPercent: shouldUseProductDefaults ? 100 : inputs.investedShareDefaultPercent,
       assetBasedFeePercent: shouldUseProductDefaults ? 0.145 : inputs.assetBasedFeePercent,
+      assetFeeSettlementMode: shouldUseProductDefaults
+        ? "monthEndDeductNextMonthStart"
+        : inputs.assetFeeSettlementMode,
       assetCostPercentByYear: shouldUseProductDefaults ? assetCostPercentByYearDefault : inputs.assetCostPercentByYear,
       assetCostPercentByYearClient: shouldUseProductDefaults
         ? assetCostPercentByYearClientDefault
         : inputs.assetCostPercentByYearClient,
       assetCostPercentByYearInvested: shouldUseProductDefaults
-        ? assetCostPercentByYearDefault
+        ? assetCostPercentByYearInvestedTaxBonusDefault
         : inputs.assetCostPercentByYearInvested,
       assetCostPercentByYearTaxBonus: shouldUseProductDefaults
-        ? assetCostPercentByYearDefault
+        ? assetCostPercentByYearInvestedTaxBonusDefault
         : inputs.assetCostPercentByYearTaxBonus,
       isAccountSplitOpen: shouldUseProductDefaults ? true : inputs.isAccountSplitOpen,
       isTaxBonusSeparateAccount: shouldUseProductDefaults ? true : inputs.isTaxBonusSeparateAccount,

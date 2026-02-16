@@ -397,7 +397,7 @@ export default function OsszehasonlitasPage() {
           initialCostDefaultPercent: 0,
           assetBasedFeePercent: 0.145,
           assetCostPercentByYear: Object.fromEntries(
-            Array.from({ length: durationInYears }, (_, i) => [i + 1, 0.145]),
+            Array.from({ length: durationInYears }, (_, i) => [i + 1, i < 3 ? 0 : 0.145]),
           ) as Record<number, number>,
           investedShareByYear: buildAlfaExclusiveInvestedShare(durationInYears),
           redemptionFeeByYear: buildAlfaExclusiveRedemption(

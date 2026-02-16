@@ -809,6 +809,16 @@ function MobileYearCard({
   const isEsetiView = yearlyAccountView === "eseti"
   const effectiveYearlyViewMode =
     yearlyAccountView === "main" && isAccountSplitOpen ? yearlyViewMode : "total"
+  const isAlfaExclusivePlusVariant =
+    typeof inputs?.productVariant === "string" && inputs.productVariant.startsWith("alfa_exclusive_plus")
+  const shouldShowAcquisitionInCurrentView =
+    !(isAlfaExclusivePlusVariant && isAccountSplitOpen && effectiveYearlyViewMode !== "total")
+  const defaultAssetPercentForView =
+    isAlfaExclusivePlusVariant && effectiveYearlyViewMode === "invested"
+      ? 0.145
+      : isAlfaExclusivePlusVariant && effectiveYearlyViewMode === "taxBonus"
+        ? 0.145
+        : (assetCostPercentByYear?.[row.year] ?? inputs?.assetBasedFeePercent ?? 0)
   const effectiveCurrentIndex = isEsetiView ? indexByYear?.[row.year] ?? currentIndex ?? 0 : currentIndex
   const effectiveCurrentPayment = isEsetiView ? paymentByYear?.[row.year] ?? currentPayment ?? 0 : currentPayment
   const paymentInputValue = isPartialReadOnly ? row.yearlyPayment ?? 0 : effectiveCurrentPayment
@@ -1109,7 +1119,7 @@ function MobileYearCard({
               {formatValue(applyRealValue(displayData.costForYear), displayCurrency)}
             </span>
           </div>
-          {(displayData.upfrontCostForYear ?? 0) > 0 && (
+          {shouldShowAcquisitionInCurrentView && (displayData.upfrontCostForYear ?? 0) > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Akvizíciós költség</span>
               <span className="text-destructive tabular-nums">
@@ -1163,12 +1173,14 @@ function MobileYearCard({
             updateAssetCostPercent &&
             !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Vagyon%</Label>
+                <Label className="text-xs text-muted-foreground">
+                  {isAlfaExclusivePlusVariant ? "Számlavezetési költség" : "Vagyon%"}
+                </Label>
                 <div className="flex items-center gap-1">
                   <Input
                     type="number"
                     inputMode="decimal"
-                    value={isEsetiView ? 0 : assetCostPercentByYear[row.year] ?? inputs.assetBasedFeePercent}
+                    value={isEsetiView ? 0 : defaultAssetPercentForView}
                     onChange={(e) => {
                       const val = Number(e.target.value)
                       if (!isNaN(val) && val >= 0 && val <= 100) {
@@ -3055,16 +3067,12 @@ export function SavingsCalculator() {
           initialCostConfig[3] = 10
         }
 
-        // Client account: 0% for years 1-3, 0.145% from year 4 onwards
-        // Invested and taxBonus accounts: 0.145% from year 1
-        // Since the current system uses a single assetCostPercentByYear (not per-account),
-        // we set a default that applies globally. Per-account logic would require
-        // extending the calculation system which is beyond preset configuration.
+        // Alfa Exclusive Plus base table UX:
+        // show 0% in years 1-3, then 0.145% from year 4 onwards.
+        // (Engine applies account-specific logic for client/invested/taxBonus internally.)
         const assetCostConfig: Record<number, number> = {}
         for (let year = 1; year <= durationInYears; year++) {
-          // Setting 0.145% for all years as a baseline
-          // Note: true per-account fees (client 0% for years 1-3) requires calculation logic changes
-          assetCostConfig[year] = 0.145
+          assetCostConfig[year] = year <= 3 ? 0 : 0.145
         }
         // </CHANGE>
 
@@ -4423,13 +4431,17 @@ export function SavingsCalculator() {
           ? (fortisConfig?.accountMaintenanceMonthlyPercent ?? dailyInputs.accountMaintenanceMonthlyPercent ?? 0)
           : selectedProduct === "alfa_jade"
             ? (jadeConfig?.accountMaintenanceMonthlyPercent ?? dailyInputs.accountMaintenanceMonthlyPercent ?? 0)
-          : 0,
+            : selectedProduct === "alfa_exclusive_plus"
+              ? 0.145
+              : 0,
       accountMaintenanceStartMonth:
         selectedProduct === "alfa_fortis"
           ? (fortisConfig?.accountMaintenanceStartMonthExtra ?? 1)
           : selectedProduct === "alfa_jade"
             ? (jadeConfig?.accountMaintenanceExtraStartMonth ?? 1)
-            : 1,
+            : selectedProduct === "alfa_exclusive_plus"
+              ? 1
+              : 1,
       riskInsuranceEnabled: false,
       riskInsuranceMonthlyFeeAmount: 0,
       riskInsuranceFeePercentOfMonthlyPayment: 0,
@@ -5391,6 +5403,8 @@ export function SavingsCalculator() {
           : 18250
   const effectiveYearlyViewMode =
     yearlyAccountView === "main" && isAccountSplitOpen ? yearlyViewMode : "total"
+  const shouldShowAcquisitionInYearlyTableView =
+    !(selectedProduct === "alfa_exclusive_plus" && isAccountSplitOpen && effectiveYearlyViewMode !== "total")
   const yearlyPanelProductKey = useMemo(
     () => resolveProductContextKey(selectedProduct, { enableTaxCredit: inputs.enableTaxCredit }),
     [selectedProduct, inputs.enableTaxCredit],
@@ -7812,7 +7826,9 @@ export function SavingsCalculator() {
                         <col style={{ width: "90px" }} />
                       )}
                       {showCostBreakdown && showPlusCostColumn && <col style={{ width: "120px" }} />}
-                      {showCostBreakdown && showAcquisitionColumn && <col style={{ width: "120px" }} />}
+                      {showCostBreakdown && showAcquisitionColumn && shouldShowAcquisitionInYearlyTableView && (
+                        <col style={{ width: "120px" }} />
+                      )}
                       <col style={{ width: "100px" }} />
                       {showBonusColumns &&
                         showBonusBreakdown &&
@@ -7889,14 +7905,16 @@ export function SavingsCalculator() {
                           </th>
                         )}
                         {showCostBreakdown && showAssetFeeColumn && !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
-                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("assetFee")}>Vagyon (%)</th>
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("assetFee")}>
+                            {selectedProduct === "alfa_exclusive_plus" ? "Számlavezetési költség" : "Vagyon (%)"}
+                          </th>
                         )}
                         {showCostBreakdown && showPlusCostColumn && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("plusCost")}>
                             Plusz költség (Ft)
                           </th>
                         )}
-                        {showCostBreakdown && showAcquisitionColumn && (
+                        {showCostBreakdown && showAcquisitionColumn && shouldShowAcquisitionInYearlyTableView && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("acquisitionFee")}>
                             {selectedProduct === "alfa_fortis"
                               || selectedProduct === "alfa_jade"
@@ -8020,8 +8038,15 @@ export function SavingsCalculator() {
                           productPresetBaseline.bonusOnContributionPercentByYear[row.year] ?? 0
                         const baselineRefundInitialCostBonusPercent =
                           productPresetBaseline.refundInitialCostBonusPercentByYear[row.year] ?? 0
+                        const isExclusivePlusSplitView = isAlfaExclusivePlus && isAccountSplitOpen
+                        const assetPercentDefaultForView =
+                          isExclusivePlusSplitView && effectiveYearlyViewMode === "invested"
+                            ? 0.145
+                            : isExclusivePlusSplitView && effectiveYearlyViewMode === "taxBonus"
+                              ? 0.145
+                              : (productPresetBaseline.assetCostPercentByYear[row.year] ?? productPresetBaseline.assetBasedFeePercent)
                         const baselineAssetCostPercent =
-                          productPresetBaseline.assetCostPercentByYear[row.year] ?? productPresetBaseline.assetBasedFeePercent
+                          assetPercentDefaultForView
                         const adminFeeDisplay = isEsetiView ? 0 : (sourceRow.adminCostForYear ?? 0)
                         const adminFeePercentDisplay = isEsetiView
                           ? 0
@@ -8061,7 +8086,11 @@ export function SavingsCalculator() {
                           Math.abs(refundInitialCostBonusPercentDisplay - refundInitialCostBonusPercentDefault) > 1e-9
                         const assetCostPercentDisplay = isEsetiView
                           ? 0
-                          : (assetCostPercentByYear[row.year] ?? inputs.assetBasedFeePercent)
+                          : isExclusivePlusSplitView && effectiveYearlyViewMode === "invested"
+                            ? 0.145
+                            : isExclusivePlusSplitView && effectiveYearlyViewMode === "taxBonus"
+                              ? 0.145
+                              : (assetCostPercentByYear[row.year] ?? inputs.assetBasedFeePercent)
                         const isAssetCostPercentModified = Math.abs(assetCostPercentDisplay - baselineAssetCostPercent) > 1e-9
                         const displayPaymentValue = sourceRow.yearlyPayment ?? currentPayment
 
@@ -8487,7 +8516,7 @@ export function SavingsCalculator() {
                                 </div>
                               </td>
                             )}
-                            {showCostBreakdown && showAcquisitionColumn && (
+                            {showCostBreakdown && showAcquisitionColumn && shouldShowAcquisitionInYearlyTableView && (
                               <td className="py-2 px-3 text-right align-top">
                                 <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                   <Input
