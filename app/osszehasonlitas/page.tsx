@@ -139,7 +139,11 @@ export default function OsszehasonlitasPage() {
       const stored = sessionStorage.getItem("calculator-selectedProductsForComparison")
       if (stored) {
         try {
-          return JSON.parse(stored)
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed)) {
+            return parsed.filter((entry): entry is string => typeof entry === "string")
+          }
+          return []
         } catch (e) {
           console.error("[v0] Failed to parse stored selectedProductsForComparison:", e)
         }
@@ -285,30 +289,32 @@ export default function OsszehasonlitasPage() {
 
     return selectedProductsForComparison
       .map((productKey) => {
+        if (typeof productKey !== "string") return null
         const allProducts = getAllProductsForComparison()
         const productData = allProducts.find((p) => `${p.insurer}-${p.product.value}` === productKey)
         if (!productData) return null
 
-        const insurer = productData.insurer
-        const productValue = productData.product.value
-        const productId = mapSelectedProductToProductId(insurer, productValue)
-        const isAllianzProduct = productId === "allianz-eletprogram"
-        const isBonusVariant = productValue === "allianz_bonusz_eletprogram"
-        const effectiveCurrency = productValue === "alfa_jade" ? "EUR" : inputs.currency
-        const effectiveProductVariant =
-          productValue === "alfa_exclusive_plus"
-            ? inputs.enableTaxCredit
-              ? "alfa_exclusive_plus_ny05"
-              : "alfa_exclusive_plus_tr08"
-            : productValue === "alfa_jade"
-              ? "alfa_jade_tr19"
-            : productValue
-        const durationInYears = Math.max(
-          1,
-          Math.ceil(
-            durationValue / (durationUnit === "year" ? 1 : durationUnit === "month" ? 12 : 365),
-          ),
-        )
+        try {
+          const insurer = productData.insurer
+          const productValue = productData.product.value
+          const productId = mapSelectedProductToProductId(insurer, productValue)
+          const isAllianzProduct = productId === "allianz-eletprogram"
+          const isBonusVariant = productValue === "allianz_bonusz_eletprogram"
+          const effectiveCurrency = productValue === "alfa_jade" ? "EUR" : inputs.currency
+          const effectiveProductVariant =
+            productValue === "alfa_exclusive_plus"
+              ? inputs.enableTaxCredit
+                ? "alfa_exclusive_plus_ny05"
+                : "alfa_exclusive_plus_tr08"
+              : productValue === "alfa_jade"
+                ? "alfa_jade_tr19"
+                : productValue
+          const durationInYears = Math.max(
+            1,
+            Math.ceil(
+              durationValue / (durationUnit === "year" ? 1 : durationUnit === "month" ? 12 : 365),
+            ),
+          )
 
         const buildAlfaExclusiveInitialCosts = (years: number): Record<number, number> => {
           const initialCostConfig: Record<number, number> = {}
@@ -356,7 +362,7 @@ export default function OsszehasonlitasPage() {
           return config
         }
 
-        const baseInputs: InputsDaily = {
+          const baseInputs: InputsDaily = {
           ...inputs,
           currency: effectiveCurrency,
           durationUnit,
@@ -385,7 +391,7 @@ export default function OsszehasonlitasPage() {
           adminFeeMonthlyAmount: 0,
         }
 
-        const alfaExclusiveInputs: InputsDaily = {
+          const alfaExclusiveInputs: InputsDaily = {
           ...baseInputs,
           initialCostByYear: buildAlfaExclusiveInitialCosts(durationInYears),
           initialCostDefaultPercent: 0,
@@ -411,67 +417,71 @@ export default function OsszehasonlitasPage() {
           adminFeeMonthlyAmount: 0,
         }
 
-        const dailyInputs: InputsDaily =
-          productValue === "alfa_exclusive_plus"
-            ? alfaExclusiveInputs
-            : isAllianzProduct
-                ? {
-                    ...baseInputs,
-                    // Force Allianz-specific cost structure per product variant
-                    // Do not merge global initialCostByYear; it can leak from the main page selected product.
-                    initialCostByYear: { 1: isBonusVariant ? 79 : 33 },
-                    initialCostDefaultPercent: 0,
-                    bonusMode: isBonusVariant ? "refundInitialCostIncreasing" : "none",
-                  }
-                : baseInputs
+          const dailyInputs: InputsDaily =
+            productValue === "alfa_exclusive_plus"
+              ? alfaExclusiveInputs
+              : isAllianzProduct
+                  ? {
+                      ...baseInputs,
+                      // Force Allianz-specific cost structure per product variant
+                      // Do not merge global initialCostByYear; it can leak from the main page selected product.
+                      initialCostByYear: { 1: isBonusVariant ? 79 : 33 },
+                      initialCostDefaultPercent: 0,
+                      bonusMode: isBonusVariant ? "refundInitialCostIncreasing" : "none",
+                    }
+                  : baseInputs
 
-        const results = calculate(productId, dailyInputs)
-        const totalContributions = results.totalContributions ?? 0
-        const endBalance = results.endBalance ?? 0
-        const finalYearRow = results.yearlyBreakdown?.[results.yearlyBreakdown.length - 1]
-        const withdrawableValue = finalYearRow?.surrenderValue ?? endBalance
-        const totalTaxCredit = results.totalTaxCredit ?? 0
-        const netReturn =
-          results.totalInterestNet !== undefined
-            ? results.totalInterestNet
-            : endBalance - totalContributions + totalTaxCredit
+          const results = calculate(productId, dailyInputs)
+          const totalContributions = results.totalContributions ?? 0
+          const endBalance = results.endBalance ?? 0
+          const finalYearRow = results.yearlyBreakdown?.[results.yearlyBreakdown.length - 1]
+          const withdrawableValue = finalYearRow?.surrenderValue ?? endBalance
+          const totalTaxCredit = results.totalTaxCredit ?? 0
+          const netReturn =
+            results.totalInterestNet !== undefined
+              ? results.totalInterestNet
+              : endBalance - totalContributions + totalTaxCredit
 
-        let cumulativeCosts = 0
-        let cumulativeBonuses = 0
-        let cumulativeContributions = 0
-        const chartData = (results.yearlyBreakdown ?? []).map((row: any) => {
-          cumulativeCosts += row.costForYear ?? 0
-          cumulativeBonuses += (row.bonusForYear ?? 0) + (row.wealthBonusForYear ?? 0)
-          cumulativeContributions = row.totalContributions ?? cumulativeContributions
+          let cumulativeCosts = 0
+          let cumulativeBonuses = 0
+          let cumulativeContributions = 0
+          const chartData = (results.yearlyBreakdown ?? []).map((row: any) => {
+            cumulativeCosts += row.costForYear ?? 0
+            cumulativeBonuses += (row.bonusForYear ?? 0) + (row.wealthBonusForYear ?? 0)
+            cumulativeContributions = row.totalContributions ?? cumulativeContributions
+
+            return {
+              year: row.year.toString(),
+              [`költségek-${productKey}`]: Math.round(convertForDisplay(cumulativeCosts, inputs.currency, displayCurrency, fxRate)),
+              [`bónuszok-${productKey}`]: Math.round(
+                convertForDisplay(cumulativeBonuses, inputs.currency, displayCurrency, fxRate),
+              ),
+              [`egyenleg-${productKey}`]: Math.round(
+                convertForDisplay(row.endBalance ?? 0, inputs.currency, displayCurrency, fxRate),
+              ),
+              [`visszavásárlási-érték-${productKey}`]: Math.round(
+                convertForDisplay(row.surrenderValue ?? row.endBalance ?? 0, inputs.currency, displayCurrency, fxRate),
+              ),
+              [`befizetés-${productKey}`]: Math.round(
+                convertForDisplay(cumulativeContributions, inputs.currency, displayCurrency, fxRate),
+              ),
+            }
+          })
 
           return {
-            year: row.year.toString(),
-            [`költségek-${productKey}`]: Math.round(convertForDisplay(cumulativeCosts, inputs.currency, displayCurrency, fxRate)),
-            [`bónuszok-${productKey}`]: Math.round(
-              convertForDisplay(cumulativeBonuses, inputs.currency, displayCurrency, fxRate),
-            ),
-            [`egyenleg-${productKey}`]: Math.round(
-              convertForDisplay(row.endBalance ?? 0, inputs.currency, displayCurrency, fxRate),
-            ),
-            [`visszavásárlási-érték-${productKey}`]: Math.round(
-              convertForDisplay(row.surrenderValue ?? row.endBalance ?? 0, inputs.currency, displayCurrency, fxRate),
-            ),
-            [`befizetés-${productKey}`]: Math.round(
-              convertForDisplay(cumulativeContributions, inputs.currency, displayCurrency, fxRate),
-            ),
+            productKey,
+            insurer,
+            productData,
+            totalContributions,
+            endBalance,
+            surrenderValue: withdrawableValue,
+            totalTaxCredit,
+            netReturn,
+            chartData,
           }
-        })
-
-        return {
-          productKey,
-          insurer,
-          productData,
-          totalContributions,
-          endBalance,
-          surrenderValue: withdrawableValue,
-          totalTaxCredit,
-          netReturn,
-          chartData,
+        } catch (error) {
+          console.error("[v0] Comparison calculation failed for product key:", productKey, error)
+          return null
         }
       })
       .filter(Boolean) as Array<{

@@ -322,10 +322,10 @@ export function resolveProductContextKey(
   },
 ): ProductContextKey {
   if (Array.isArray(options?.selectedProductsForComparison)) {
-    const arr = options.selectedProductsForComparison
+    const arr = options.selectedProductsForComparison.filter((value): value is string => typeof value === "string")
     if (arr.length > 1) return "mixed"
     if (arr.length === 1) {
-      const raw = arr[0]?.split("-")[1] ?? null
+      const raw = typeof arr[0] === "string" ? (arr[0].split("-")[1] ?? null) : null
       return resolveProductContextKey(raw, options)
     }
   }
