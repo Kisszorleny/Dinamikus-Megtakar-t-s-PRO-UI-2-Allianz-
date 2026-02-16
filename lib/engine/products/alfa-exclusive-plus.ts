@@ -54,6 +54,14 @@ function buildAlfaExclusiveDefaultAssetCost(durationYears: number): Record<numbe
   return config
 }
 
+function buildAlfaExclusiveDefaultAssetCostClient(durationYears: number): Record<number, number> {
+  const config: Record<number, number> = {}
+  for (let year = 1; year <= durationYears; year++) {
+    config[year] = year <= 3 ? 0 : 0.145
+  }
+  return config
+}
+
 export const alfaExclusivePlus: ProductDefinition = {
   id: "alfa-exclusive-plus",
   label: "Alfa Exclusive Plus",
@@ -65,6 +73,7 @@ export const alfaExclusivePlus: ProductDefinition = {
     const initialCostByYearDefault = buildAlfaExclusiveDefaultInitialCosts(durationYears)
     const investedShareByYearDefault = buildAlfaExclusiveDefaultInvestedShare(durationYears)
     const assetCostPercentByYearDefault = buildAlfaExclusiveDefaultAssetCost(durationYears)
+    const assetCostPercentByYearClientDefault = buildAlfaExclusiveDefaultAssetCostClient(durationYears)
     // In default mode, always derive the redemption schedule from the resolved variant.
     // This prevents stale NY-05/TR-08 maps from leaking after product/toggle switches.
     const redemptionFeeByYear = shouldUseProductDefaults
@@ -85,6 +94,15 @@ export const alfaExclusivePlus: ProductDefinition = {
       investedShareDefaultPercent: shouldUseProductDefaults ? 100 : inputs.investedShareDefaultPercent,
       assetBasedFeePercent: shouldUseProductDefaults ? 0.145 : inputs.assetBasedFeePercent,
       assetCostPercentByYear: shouldUseProductDefaults ? assetCostPercentByYearDefault : inputs.assetCostPercentByYear,
+      assetCostPercentByYearClient: shouldUseProductDefaults
+        ? assetCostPercentByYearClientDefault
+        : inputs.assetCostPercentByYearClient,
+      assetCostPercentByYearInvested: shouldUseProductDefaults
+        ? assetCostPercentByYearDefault
+        : inputs.assetCostPercentByYearInvested,
+      assetCostPercentByYearTaxBonus: shouldUseProductDefaults
+        ? assetCostPercentByYearDefault
+        : inputs.assetCostPercentByYearTaxBonus,
       isAccountSplitOpen: shouldUseProductDefaults ? true : inputs.isAccountSplitOpen,
       isTaxBonusSeparateAccount: shouldUseProductDefaults ? true : inputs.isTaxBonusSeparateAccount,
       bonusMode: shouldUseProductDefaults ? "none" : inputs.bonusMode,

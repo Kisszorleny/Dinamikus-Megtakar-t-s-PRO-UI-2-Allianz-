@@ -1177,7 +1177,7 @@ function MobileYearCard({
                     }}
                     min={0}
                     max={100}
-                    step={0.1}
+                    step={0.001}
                     className={`${MOBILE_LAYOUT.inputHeight} text-base tabular-nums flex-1 ${assetCostPercentByYear[row.year] !== undefined ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
                   />
                   {assetCostPercentByYear[row.year] !== undefined && (
@@ -2685,13 +2685,14 @@ export function SavingsCalculator() {
   }, [isFortisProduct, fundOptions, selectedFundId, fortisVariantConfig, inputs.currency])
 
   const getAcquisitionCostTitle = () => {
-    if (selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade") {
+    if (
+      selectedProduct === "alfa_fortis" ||
+      selectedProduct === "alfa_jade" ||
+      selectedProduct === "alfa_exclusive_plus"
+    ) {
       return "Szerződéskötési költség (év szerint)"
     }
     const baseTitle = "Akvizíciós költség (év szerint)"
-    if (appliedPresetLabel && appliedPresetLabel.includes("Alfa Exclusive Plus")) {
-      return `${baseTitle} – Szerződéskötési költség`
-    }
     return baseTitle
   }
   const hasMapDiff = useCallback((current: Record<number, number> = {}, baseline: Record<number, number> = {}) => {
@@ -7899,6 +7900,7 @@ export function SavingsCalculator() {
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("acquisitionFee")}>
                             {selectedProduct === "alfa_fortis"
                               || selectedProduct === "alfa_jade"
+                              || selectedProduct === "alfa_exclusive_plus"
                               ? "Szerződéskötési költség"
                               : isAllianzEletprogramView
                                 ? "Kezdeti költség"
@@ -8388,7 +8390,7 @@ export function SavingsCalculator() {
                                         : editingFields[`assetCost-${row.year}`]
                                           ? assetCostInputByYear[row.year] ?? ""
                                           : assetCostPercentDisplay
-                                              .toLocaleString("hu-HU", { maximumFractionDigits: 2 })
+                                              .toLocaleString("hu-HU", { maximumFractionDigits: 3 })
                                               .replace(/\u00A0/g, " ")
                                     }
                                     onFocus={() => {
@@ -8416,7 +8418,7 @@ export function SavingsCalculator() {
                                     }}
                                     min={0}
                                     max={100}
-                                    step={0.1}
+                                    step={0.001}
                                     className={`w-20 h-8 text-right tabular-nums text-red-600 ${isAssetCostPercentModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
                                   />
                                   <p className="text-xs text-muted-foreground tabular-nums">

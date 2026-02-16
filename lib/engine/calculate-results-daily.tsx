@@ -73,6 +73,9 @@ export interface InputsDaily {
   // Asset-based cost (annual %, deducted daily)
   assetBasedFeePercent?: number
   assetCostPercentByYear?: Record<number, number> // Added per-year asset cost percentage overrides
+  assetCostPercentByYearClient?: Record<number, number>
+  assetCostPercentByYearInvested?: Record<number, number>
+  assetCostPercentByYearTaxBonus?: Record<number, number>
   plusCostByYear?: Record<number, number> // Per-year additional fixed costs
 
   // Bonus mode
@@ -300,6 +303,24 @@ function getAssetBasedFeePercent(inputs: InputsDaily, year: number): number {
     return inputs.assetCostPercentByYear[year] ?? 0
   }
   return inputs.assetBasedFeePercent ?? 0
+}
+
+function getAssetBasedFeePercentForAccount(
+  inputs: InputsDaily,
+  year: number,
+  account: "client" | "invested" | "taxBonus",
+): number {
+  const globalPercent = getAssetBasedFeePercent(inputs, year)
+  const byYear =
+    account === "client"
+      ? inputs.assetCostPercentByYearClient
+      : account === "invested"
+        ? inputs.assetCostPercentByYearInvested
+        : inputs.assetCostPercentByYearTaxBonus
+  if (byYear && byYear[year] !== undefined) {
+    return byYear[year] ?? globalPercent
+  }
+  return globalPercent
 }
 
 function getAccountMaintenanceMonthlyPercent(inputs: InputsDaily, year: number): number {
@@ -930,35 +951,92 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         }
       }
 
-      const feePercentForYear = getAssetBasedFeePercent(inputs, currentYear)
-      const assetAnnual = feePercentForYear / 100
-      const assetDailyRate = assetAnnual / DAYS_PER_YEAR
+      const hasAccountSpecificAssetFeeConfig =
+        (inputs.assetCostPercentByYearClient && Object.keys(inputs.assetCostPercentByYearClient).length > 0) ||
+        (inputs.assetCostPercentByYearInvested && Object.keys(inputs.assetCostPercentByYearInvested).length > 0) ||
+        (inputs.assetCostPercentByYearTaxBonus && Object.keys(inputs.assetCostPercentByYearTaxBonus).length > 0)
 
-      if (assetDailyRate > 0) {
-        const v0 = totalValue
-        const v1 = v0 * (1 - assetDailyRate)
-        const c = v0 - v1
-        if (c > 0) {
-          totalCosts += c
-          costThisYear += c
-          totalAssetBasedCost += c
-          assetCostThisYear += c
-          assetCostThisMonth += c
-          costThisMonth += c
-          const clientRatio = clientValueBeforeFees / totalValue
-          const investedRatio = investedValueBeforeFees / totalValue
-          const taxBonusRatio = taxBonusValueBeforeFees / totalValue
-          clientAssetCostThisYear += c * clientRatio
-          investedAssetCostThisYear += c * investedRatio
-          taxBonusAssetCostThisYear += c * taxBonusRatio
-          clientCostThisYear += c * clientRatio
-          investedCostThisYear += c * investedRatio
-          taxBonusCostThisYear += c * taxBonusRatio
-          // Apply reduction to all accounts proportionally
-          const reductionFactor = 1 - assetDailyRate
-          investedUnits *= reductionFactor
-          clientUnits *= reductionFactor
-          taxBonusUnits *= reductionFactor
+      if (inputs.isAccountSplitOpen && hasAccountSpecificAssetFeeConfig) {
+        const clientAnnual = Math.max(0, getAssetBasedFeePercentForAccount(inputs, currentYear, "client")) / 100
+        const investedAnnual = Math.max(0, getAssetBasedFeePercentForAccount(inputs, currentYear, "invested")) / 100
+        const taxBonusAnnual = Math.max(0, getAssetBasedFeePercentForAccount(inputs, currentYear, "taxBonus")) / 100
+        const clientDailyRate = clientAnnual / DAYS_PER_YEAR
+        const investedDailyRate = investedAnnual / DAYS_PER_YEAR
+        const taxBonusDailyRate = taxBonusAnnual / DAYS_PER_YEAR
+
+        const clientValueBeforeAssetFee = clientUnits * clientPrice
+        const investedValueBeforeAssetFee = investedUnits * investedPrice
+        const taxBonusValueBeforeAssetFee = taxBonusUnits * taxBonusPrice
+
+        if (clientDailyRate > 0 && clientValueBeforeAssetFee > 0) {
+          const clientCost = clientValueBeforeAssetFee * clientDailyRate
+          totalCosts += clientCost
+          costThisYear += clientCost
+          totalAssetBasedCost += clientCost
+          assetCostThisYear += clientCost
+          assetCostThisMonth += clientCost
+          costThisMonth += clientCost
+          clientAssetCostThisYear += clientCost
+          clientCostThisYear += clientCost
+          clientUnits *= 1 - clientDailyRate
+        }
+
+        if (investedDailyRate > 0 && investedValueBeforeAssetFee > 0) {
+          const investedCost = investedValueBeforeAssetFee * investedDailyRate
+          totalCosts += investedCost
+          costThisYear += investedCost
+          totalAssetBasedCost += investedCost
+          assetCostThisYear += investedCost
+          assetCostThisMonth += investedCost
+          costThisMonth += investedCost
+          investedAssetCostThisYear += investedCost
+          investedCostThisYear += investedCost
+          investedUnits *= 1 - investedDailyRate
+        }
+
+        if (taxBonusDailyRate > 0 && taxBonusValueBeforeAssetFee > 0) {
+          const taxBonusCost = taxBonusValueBeforeAssetFee * taxBonusDailyRate
+          totalCosts += taxBonusCost
+          costThisYear += taxBonusCost
+          totalAssetBasedCost += taxBonusCost
+          assetCostThisYear += taxBonusCost
+          assetCostThisMonth += taxBonusCost
+          costThisMonth += taxBonusCost
+          taxBonusAssetCostThisYear += taxBonusCost
+          taxBonusCostThisYear += taxBonusCost
+          taxBonusUnits *= 1 - taxBonusDailyRate
+        }
+      } else {
+        const feePercentForYear = getAssetBasedFeePercent(inputs, currentYear)
+        const assetAnnual = feePercentForYear / 100
+        const assetDailyRate = assetAnnual / DAYS_PER_YEAR
+
+        if (assetDailyRate > 0) {
+          const v0 = totalValue
+          const v1 = v0 * (1 - assetDailyRate)
+          const c = v0 - v1
+          if (c > 0) {
+            totalCosts += c
+            costThisYear += c
+            totalAssetBasedCost += c
+            assetCostThisYear += c
+            assetCostThisMonth += c
+            costThisMonth += c
+            const clientRatio = clientValueBeforeFees / totalValue
+            const investedRatio = investedValueBeforeFees / totalValue
+            const taxBonusRatio = taxBonusValueBeforeFees / totalValue
+            clientAssetCostThisYear += c * clientRatio
+            investedAssetCostThisYear += c * investedRatio
+            taxBonusAssetCostThisYear += c * taxBonusRatio
+            clientCostThisYear += c * clientRatio
+            investedCostThisYear += c * investedRatio
+            taxBonusCostThisYear += c * taxBonusRatio
+            // Apply reduction to all accounts proportionally
+            const reductionFactor = 1 - assetDailyRate
+            investedUnits *= reductionFactor
+            clientUnits *= reductionFactor
+            taxBonusUnits *= reductionFactor
+          }
         }
       }
 
