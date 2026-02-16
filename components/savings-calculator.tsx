@@ -50,20 +50,36 @@ import { useMobile } from "@/lib/mobile-context"
 import { InitialCostByYear } from "./initial-cost-by-year"
 import { RedemptionFeeByYear } from "@/components/redemption-fee-by-year" // Added import
 import { InvestedShareByYear } from "./invested-share-by-year" // Added import
+import { ColumnHoverInfoPanel } from "@/components/column-hover-info-panel"
 import { parseChartImageToSeries } from "@/lib/chart-image-parser"
 import type { ParsedChartSeries } from "@/lib/chart-series"
 import {
+  buildFortisBonusPercentByYear,
   FORTIS_MAX_ENTRY_AGE,
-  FORTIS_MIN_ANNUAL_PAYMENT,
   FORTIS_MIN_ENTRY_AGE,
-  FORTIS_MIN_EXTRAORDINARY_PAYMENT,
+  getFortisVariantConfig,
+  resolveFortisVariant,
+  toFortisProductVariantId,
 } from "@/lib/engine/products/alfa-fortis-config"
+import {
+  buildJadeInitialCostByYear,
+  buildJadeInvestedShareByYear,
+  buildJadeRedemptionSchedule,
+  getJadeVariantConfig,
+  toJadeProductVariantId,
+} from "@/lib/engine/products/alfa-jade-config"
+import { resolveProductContextKey } from "@/lib/column-explanations"
 
 type DurationUnit = "year" | "month" | "day"
 type FutureInflationMode = "fix" | "converging"
 type DurationSource = "dates" | "value"
 type ChartParseStatus = "idle" | "processing" | "success" | "error"
 type YieldSourceMode = "manual" | "fund" | "ocr"
+const INPUT_CURRENCY_OPTIONS: Array<{ value: Currency; label: string }> = [
+  { value: "HUF", label: "HUF" },
+  { value: "EUR", label: "EUR" },
+  { value: "USD", label: "USD" },
+]
 
 const MAX_CHART_IMAGE_SIZE_MB = 8
 const SUPPORTED_CHART_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"]
@@ -82,6 +98,20 @@ type CalculatorInputs = Omit<
   bonusPercent: number
   bonusStartYear: number
   bonusStopYear: number
+}
+
+type ProductPresetBaseline = {
+  initialCostByYear: Record<number, number>
+  initialCostDefaultPercent: number
+  assetBasedFeePercent: number
+  assetCostPercentByYear: Record<number, number>
+  accountMaintenanceMonthlyPercent: number
+  accountMaintenancePercentByYear: Record<number, number>
+  adminFeePercentOfPayment: number
+  adminFeePercentByYear: Record<number, number>
+  bonusOnContributionPercentByYear: Record<number, number>
+  refundInitialCostBonusPercentByYear: Record<number, number>
+  bonusPercentByYear: Record<number, number>
 }
 
 type ExtraServiceFrequency = "daily" | "monthly" | "quarterly" | "semi-annual" | "annual"
@@ -202,6 +232,10 @@ type YearRow = {
   endBalance: number
   interestForYear: number
   costForYear: number
+  upfrontCostForYear: number
+  adminCostForYear: number
+  accountMaintenanceCostForYear: number
+  managementFeeCostForYear: number
   assetBasedCostForYear: number
   plusCostForYear: number
   wealthBonusForYear: number
@@ -382,6 +416,10 @@ const buildCumulativeByYear = (yearlyBreakdown: Array<any> = []) => {
   let acc = {
     interestForYear: 0,
     costForYear: 0,
+    upfrontCostForYear: 0,
+    adminCostForYear: 0,
+    accountMaintenanceCostForYear: 0,
+    managementFeeCostForYear: 0,
     assetBasedCostForYear: 0,
     plusCostForYear: 0,
     bonusForYear: 0,
@@ -420,6 +458,10 @@ const buildCumulativeByYear = (yearlyBreakdown: Array<any> = []) => {
     acc = {
       interestForYear: acc.interestForYear + (row.interestForYear ?? 0),
       costForYear: acc.costForYear + (row.costForYear ?? 0),
+      upfrontCostForYear: acc.upfrontCostForYear + (row.upfrontCostForYear ?? 0),
+      adminCostForYear: acc.adminCostForYear + (row.adminCostForYear ?? 0),
+      accountMaintenanceCostForYear: acc.accountMaintenanceCostForYear + (row.accountMaintenanceCostForYear ?? 0),
+      managementFeeCostForYear: acc.managementFeeCostForYear + (row.managementFeeCostForYear ?? 0),
       assetBasedCostForYear: acc.assetBasedCostForYear + (row.assetBasedCostForYear ?? 0),
       plusCostForYear: acc.plusCostForYear + (row.plusCostForYear ?? 0),
       bonusForYear: acc.bonusForYear + (row.bonusForYear ?? 0),
@@ -457,6 +499,10 @@ const buildCumulativeByYear = (yearlyBreakdown: Array<any> = []) => {
       ...row,
       interestForYear: acc.interestForYear,
       costForYear: acc.costForYear,
+      upfrontCostForYear: acc.upfrontCostForYear,
+      adminCostForYear: acc.adminCostForYear,
+      accountMaintenanceCostForYear: acc.accountMaintenanceCostForYear,
+      managementFeeCostForYear: acc.managementFeeCostForYear,
       assetBasedCostForYear: acc.assetBasedCostForYear,
       plusCostForYear: acc.plusCostForYear,
       bonusForYear: acc.bonusForYear,
@@ -517,6 +563,11 @@ const mergeYearRows = (mainRow?: any, esetiRow?: any) => {
     totalContributions: numeric(main.totalContributions) + numeric(eseti.totalContributions),
     interestForYear: numeric(main.interestForYear) + numeric(eseti.interestForYear),
     costForYear: numeric(main.costForYear) + numeric(eseti.costForYear),
+    upfrontCostForYear: numeric(main.upfrontCostForYear) + numeric(eseti.upfrontCostForYear),
+    adminCostForYear: numeric(main.adminCostForYear) + numeric(eseti.adminCostForYear),
+    accountMaintenanceCostForYear:
+      numeric(main.accountMaintenanceCostForYear) + numeric(eseti.accountMaintenanceCostForYear),
+    managementFeeCostForYear: numeric(main.managementFeeCostForYear) + numeric(eseti.managementFeeCostForYear),
     assetBasedCostForYear: numeric(main.assetBasedCostForYear) + numeric(eseti.assetBasedCostForYear),
     plusCostForYear: numeric(main.plusCostForYear) + numeric(eseti.plusCostForYear),
     bonusForYear: numeric(main.bonusForYear) + numeric(eseti.bonusForYear),
@@ -766,6 +817,10 @@ function MobileYearCard({
     endBalance: row.endBalance,
     interestForYear: row.interestForYear,
     costForYear: row.costForYear,
+    upfrontCostForYear: row.upfrontCostForYear ?? 0,
+    adminCostForYear: row.adminCostForYear ?? 0,
+    accountMaintenanceCostForYear: row.accountMaintenanceCostForYear ?? 0,
+    managementFeeCostForYear: row.managementFeeCostForYear ?? 0,
     assetBasedCostForYear: row.assetBasedCostForYear,
     plusCostForYear: row.plusCostForYear,
     bonusForYear: row.bonusForYear,
@@ -777,6 +832,10 @@ function MobileYearCard({
       endBalance: row.client.endBalance,
       interestForYear: row.client.interestForYear,
       costForYear: row.client.costForYear,
+      upfrontCostForYear: 0,
+      adminCostForYear: 0,
+      accountMaintenanceCostForYear: 0,
+      managementFeeCostForYear: 0,
       assetBasedCostForYear: row.client.assetBasedCostForYear,
       plusCostForYear: row.client.plusCostForYear,
       bonusForYear: row.client.bonusForYear,
@@ -787,6 +846,10 @@ function MobileYearCard({
       endBalance: row.invested.endBalance,
       interestForYear: row.invested.interestForYear,
       costForYear: row.invested.costForYear,
+      upfrontCostForYear: 0,
+      adminCostForYear: 0,
+      accountMaintenanceCostForYear: 0,
+      managementFeeCostForYear: 0,
       assetBasedCostForYear: row.invested.assetBasedCostForYear,
       plusCostForYear: row.invested.plusCostForYear,
       bonusForYear: row.invested.bonusForYear,
@@ -797,6 +860,10 @@ function MobileYearCard({
       endBalance: row.taxBonus.endBalance,
       interestForYear: row.taxBonus.interestForYear,
       costForYear: row.taxBonus.costForYear,
+      upfrontCostForYear: 0,
+      adminCostForYear: 0,
+      accountMaintenanceCostForYear: 0,
+      managementFeeCostForYear: 0,
       assetBasedCostForYear: row.taxBonus.assetBasedCostForYear,
       plusCostForYear: row.taxBonus.plusCostForYear,
       bonusForYear: row.taxBonus.bonusForYear,
@@ -809,6 +876,10 @@ function MobileYearCard({
     displayData = {
       ...displayData,
       costForYear: 0,
+      upfrontCostForYear: 0,
+      adminCostForYear: 0,
+      accountMaintenanceCostForYear: 0,
+      managementFeeCostForYear: 0,
       assetBasedCostForYear: 0,
       plusCostForYear: 0,
       bonusForYear: 0,
@@ -1038,6 +1109,54 @@ function MobileYearCard({
               {formatValue(applyRealValue(displayData.costForYear), displayCurrency)}
             </span>
           </div>
+          {(displayData.upfrontCostForYear ?? 0) > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Akvizíciós költség</span>
+              <span className="text-destructive tabular-nums">
+                {formatValue(applyRealValue(displayData.upfrontCostForYear), displayCurrency)}
+              </span>
+            </div>
+          )}
+          {(displayData.adminCostForYear ?? 0) > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Admin. díj</span>
+              <span className="text-destructive tabular-nums">
+                {formatValue(applyRealValue(displayData.adminCostForYear), displayCurrency)}
+              </span>
+            </div>
+          )}
+          {(displayData.accountMaintenanceCostForYear ?? 0) > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Számlavezetési költség</span>
+              <span className="text-destructive tabular-nums">
+                {formatValue(applyRealValue(displayData.accountMaintenanceCostForYear), displayCurrency)}
+              </span>
+            </div>
+          )}
+          {(displayData.managementFeeCostForYear ?? 0) > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Kezelési díj</span>
+              <span className="text-destructive tabular-nums">
+                {formatValue(applyRealValue(displayData.managementFeeCostForYear), displayCurrency)}
+              </span>
+            </div>
+          )}
+          {(displayData.assetBasedCostForYear ?? 0) > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Vagyonarányos költség</span>
+              <span className="text-destructive tabular-nums">
+                {formatValue(applyRealValue(displayData.assetBasedCostForYear), displayCurrency)}
+              </span>
+            </div>
+          )}
+          {(displayData.plusCostForYear ?? 0) > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Plusz költség</span>
+              <span className="text-destructive tabular-nums">
+                {formatValue(applyRealValue(displayData.plusCostForYear), displayCurrency)}
+              </span>
+            </div>
+          )}
           {row.assetBasedCostForYear > 0 &&
             inputs &&
             assetCostPercentByYear &&
@@ -1235,10 +1354,24 @@ export function SavingsCalculator() {
   }, [])
 
   const [yearlyViewMode, setYearlyViewMode] = useState<"total" | "client" | "invested" | "taxBonus">("total")
-  const [yearlyAccountView, setYearlyAccountView] = useState<"summary" | "main" | "eseti">("summary")
+  const [yearlyAccountView, setYearlyAccountView] = useState<"summary" | "main" | "eseti">("main")
   const [yearlyAggregationMode, setYearlyAggregationMode] = useState<"year" | "sum">("year")
   const [showCostBreakdown, setShowCostBreakdown] = useState(false)
+  const [activeYearlyColumnInfoKey, setActiveYearlyColumnInfoKey] = useState<string | null>(null)
   const [showBonusBreakdown, setShowBonusBreakdown] = useState(false)
+  const [productPresetBaseline, setProductPresetBaseline] = useState<ProductPresetBaseline>({
+    initialCostByYear: {},
+    initialCostDefaultPercent: 0,
+    assetBasedFeePercent: 0,
+    assetCostPercentByYear: {},
+    accountMaintenanceMonthlyPercent: 0,
+    accountMaintenancePercentByYear: {},
+    adminFeePercentOfPayment: 0,
+    adminFeePercentByYear: {},
+    bonusOnContributionPercentByYear: {},
+    refundInitialCostBonusPercentByYear: {},
+    bonusPercentByYear: {},
+  })
   // </CHANGE>
 
   const [yieldSourceMode, setYieldSourceMode] = useState<YieldSourceMode>(() => {
@@ -1381,6 +1514,9 @@ export function SavingsCalculator() {
     }
   }, [fundSeriesPoints])
 
+  type FundFeeClass = "equityOrMixed" | "bondOrMoneyMarket" | "europeanEquityOrInternationalBond" | "internationalMoneyMarket"
+  type FundOption = { id: string; name: string; historicalYield: number; feeClass?: FundFeeClass }
+
   // Default fund data (non-Allianz or non-HUF)
   const baseFundOptions = [
     { id: "fund-1", name: "OTP Alapkezelő Részvényalap", historicalYield: 8.5 },
@@ -1394,7 +1530,7 @@ export function SavingsCalculator() {
   ]
 
   // Allianz HUF fund data (use longest available horizon, not "Indulástól")
-  const allianzHufFundOptions = [
+  const allianzHufFundOptions: FundOption[] = [
     { id: "AGA", name: "Allianz Állampapír Alap", historicalYield: 3.0 },
     { id: "AHA", name: "Allianz Aktív Menedzselt Hozamkereső Alap", historicalYield: 11.19 },
     { id: "AKA", name: "Allianz Aktív Menedzselt Kiegyensúlyozott Alap", historicalYield: 7.51 },
@@ -1421,7 +1557,7 @@ export function SavingsCalculator() {
   ]
 
   // Allianz EUR fund data (use longest available horizon, not "Indulástól")
-  const allianzEurFundOptions = [
+  const allianzEurFundOptions: FundOption[] = [
     { id: "AHE", name: "Allianz Aktív Menedzselt Hozamkereső Euró Alap", historicalYield: 12.83 },
     { id: "AKE", name: "Allianz Aktív Menedzselt Kiegyensúlyozott Euró Alap", historicalYield: 9.54 },
     { id: "BKE", name: "Allianz Biztonságos Kötvény Euró Alap", historicalYield: -0.36 },
@@ -1434,6 +1570,60 @@ export function SavingsCalculator() {
     { id: "KLE", name: "Klíma- és Környezetvédelem Részvény Euró Alap", historicalYield: 4.76 },
     { id: "NPE", name: "Allianz Nemzetközi Pénzpiaci Euró Alap", historicalYield: 1.89 },
     { id: "VRE", name: "Allianz Világgazdasági Részvény Euró Alap", historicalYield: 10.09 },
+  ]
+
+  const fortisHufFundOptions: FundOption[] = [
+    { id: "FORTIS_HUF_EQ_1", name: "Alfa Fortis HUF Részvény Alap", historicalYield: 10.5, feeClass: "equityOrMixed" },
+    { id: "FORTIS_HUF_MIX_1", name: "Alfa Fortis HUF Vegyes Alap", historicalYield: 7.4, feeClass: "equityOrMixed" },
+    { id: "FORTIS_HUF_BOND_1", name: "Alfa Fortis HUF Kötvény Alap", historicalYield: 3.8, feeClass: "bondOrMoneyMarket" },
+    { id: "FORTIS_HUF_MM_1", name: "Alfa Fortis HUF Pénzpiaci Alap", historicalYield: 2.5, feeClass: "bondOrMoneyMarket" },
+  ]
+
+  const fortisEurFundOptions: FundOption[] = [
+    { id: "FORTIS_EUR_EQ_1", name: "Alfa Fortis EUR Részvény Alap", historicalYield: 9.1, feeClass: "equityOrMixed" },
+    { id: "FORTIS_EUR_MIX_1", name: "Alfa Fortis EUR Vegyes Alap", historicalYield: 6.2, feeClass: "equityOrMixed" },
+    {
+      id: "FORTIS_EUR_EU_EQ_1",
+      name: "Alfa Fortis Európai Részvény Alap (EUR)",
+      historicalYield: 7.6,
+      feeClass: "europeanEquityOrInternationalBond",
+    },
+    {
+      id: "FORTIS_EUR_INT_BOND_1",
+      name: "Alfa Fortis Nemzetközi Kötvény Alap (EUR)",
+      historicalYield: 3.1,
+      feeClass: "europeanEquityOrInternationalBond",
+    },
+    {
+      id: "ALFA_INT_MM_EUR",
+      name: "Alfa International Money Market Fund (EUR)",
+      historicalYield: 1.8,
+      feeClass: "internationalMoneyMarket",
+    },
+  ]
+  const fortisUsdFundOptions: FundOption[] = [
+    {
+      id: "FORTIS_USD_AE",
+      name: "Alfa American Equity (USD)",
+      historicalYield: 8.4,
+      feeClass: "europeanEquityOrInternationalBond",
+    },
+    {
+      id: "FORTIS_USD_IB",
+      name: "Alfa Int. Bond (USD)",
+      historicalYield: 3.2,
+      feeClass: "europeanEquityOrInternationalBond",
+    },
+    {
+      id: "ALFA_INT_MM_USD",
+      name: "Alfa International Money Market Fund (USD)",
+      historicalYield: 2.0,
+      feeClass: "internationalMoneyMarket",
+    },
+    { id: "FORTIS_USD_GLOBAL", name: "Alfa Global Equity (USD)", historicalYield: 7.1, feeClass: "equityOrMixed" },
+    { id: "FORTIS_USD_ESG", name: "Alfa ESG Equity (USD)", historicalYield: 6.8, feeClass: "equityOrMixed" },
+    { id: "FORTIS_USD_TREND", name: "Alfa Trend Equity (USD)", historicalYield: 7.9, feeClass: "equityOrMixed" },
+    { id: "FORTIS_USD_GOLD", name: "Alfa Gold Fund (USD)", historicalYield: 5.9, feeClass: "equityOrMixed" },
   ]
 
   const [durationUnit, setDurationUnit] = useState<DurationUnit>(() => {
@@ -1771,6 +1961,32 @@ export function SavingsCalculator() {
     return {}
   })
   // </CHANGE>
+  const [accountMaintenancePercentByYear, setAccountMaintenancePercentByYear] = useState<Record<number, number>>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-accountMaintenancePercentByYear")
+      if (stored) {
+        try {
+          return JSON.parse(stored)
+        } catch (e) {
+          console.error("[v0] Failed to parse stored accountMaintenancePercentByYear:", e)
+        }
+      }
+    }
+    return {}
+  })
+  const [adminFeePercentByYear, setAdminFeePercentByYear] = useState<Record<number, number>>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-adminFeePercentByYear")
+      if (stored) {
+        try {
+          return JSON.parse(stored)
+        } catch (e) {
+          console.error("[v0] Failed to parse stored adminFeePercentByYear:", e)
+        }
+      }
+    }
+    return {}
+  })
 
   const [plusCostByYear, setPlusCostByYear] = useState<Record<number, number>>(() => {
     if (typeof window !== "undefined") {
@@ -1851,6 +2067,34 @@ export function SavingsCalculator() {
     return {}
   })
   // </CHANGE>
+  const [bonusOnContributionPercentByYear, setBonusOnContributionPercentByYear] = useState<Record<number, number>>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-bonusOnContributionPercentByYear")
+      if (stored) {
+        try {
+          return JSON.parse(stored)
+        } catch (e) {
+          console.error("[v0] Failed to parse stored bonusOnContributionPercentByYear:", e)
+        }
+      }
+    }
+    return {}
+  })
+  const [refundInitialCostBonusPercentByYear, setRefundInitialCostBonusPercentByYear] = useState<Record<number, number>>(
+    () => {
+      if (typeof window !== "undefined") {
+        const stored = sessionStorage.getItem("calculator-refundInitialCostBonusPercentByYear")
+        if (stored) {
+          try {
+            return JSON.parse(stored)
+          } catch (e) {
+            console.error("[v0] Failed to parse stored refundInitialCostBonusPercentByYear:", e)
+          }
+        }
+      }
+      return {}
+    },
+  )
 
   const [isTaxBonusSeparateAccount, setIsTaxBonusSeparateAccount] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -2241,17 +2485,50 @@ export function SavingsCalculator() {
     normalizedInsurer.includes("allianz") ||
     (selectedProduct !== null &&
       (selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram"))
+  const isFortisProduct = selectedProduct === "alfa_fortis"
+  const effectiveFortisVariant = isFortisProduct
+    ? resolveFortisVariant(undefined, inputs.currency)
+    : resolveFortisVariant(undefined, inputs.currency)
+  const fortisVariantConfig = useMemo(
+    () => getFortisVariantConfig(toFortisProductVariantId(effectiveFortisVariant), inputs.currency),
+    [effectiveFortisVariant, inputs.currency],
+  )
   const isAllianzEletprogramView =
     selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram"
   const canUseFundYield = Boolean(selectedProduct)
+  const allowedInputCurrencies = useMemo<Currency[]>(() => {
+    if (selectedProduct === "alfa_exclusive_plus") return ["HUF"]
+    if (selectedProduct === "alfa_fortis") {
+      return ["HUF", "EUR", "USD"]
+    }
+    if (selectedProduct === "alfa_jade") return ["EUR"]
+    if (selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram") {
+      return ["HUF", "EUR"]
+    }
+    return ["HUF", "EUR", "USD"]
+  }, [selectedProduct])
 
-  const fundOptions = isAllianzFundMode
+  useEffect(() => {
+    if (!allowedInputCurrencies.includes(inputs.currency)) {
+      setInputs((prev) => ({ ...prev, currency: allowedInputCurrencies[0] }))
+    }
+  }, [allowedInputCurrencies, inputs.currency])
+
+  const fundOptions: FundOption[] = isFortisProduct
     ? inputs.currency === "HUF"
-      ? allianzHufFundOptions
+      ? fortisHufFundOptions
       : inputs.currency === "EUR"
-        ? allianzEurFundOptions
-        : baseFundOptions
-    : baseFundOptions
+        ? fortisEurFundOptions
+        : inputs.currency === "USD"
+          ? fortisUsdFundOptions
+          : baseFundOptions
+    : isAllianzFundMode
+      ? inputs.currency === "HUF"
+        ? allianzHufFundOptions
+        : inputs.currency === "EUR"
+          ? allianzEurFundOptions
+          : baseFundOptions
+      : baseFundOptions
 
   useEffect(() => {
     if (yieldSourceMode !== "fund") return
@@ -2355,18 +2632,127 @@ export function SavingsCalculator() {
     )
   }, [yieldSourceMode, fundOptions, selectedFundId])
 
+  useEffect(() => {
+    if (!isFortisProduct) return
+    if (fundOptions.length === 0) return
+    if (selectedFundId) {
+      const exists = fundOptions.some((fund) => fund.id === selectedFundId)
+      if (exists) return
+    }
+    setSelectedFundId(fundOptions[0].id)
+  }, [isFortisProduct, fundOptions, selectedFundId])
+
+  useEffect(() => {
+    if (!isFortisProduct) return
+    if (fundOptions.length === 0) return
+    const activeFund = fundOptions.find((fund) => fund.id === selectedFundId) ?? fundOptions[0]
+    if (!activeFund) return
+
+    const vakByClass = fortisVariantConfig.vakPercentByFundClass
+    const vakPercent =
+      activeFund.feeClass === "bondOrMoneyMarket"
+        ? vakByClass.bondOrMoneyMarket
+        : activeFund.feeClass === "europeanEquityOrInternationalBond"
+          ? (vakByClass.europeanEquityOrInternationalBond ?? vakByClass.bondOrMoneyMarket)
+          : activeFund.feeClass === "internationalMoneyMarket"
+            ? (vakByClass.internationalMoneyMarket ?? vakByClass.bondOrMoneyMarket)
+            : vakByClass.equityOrMixed
+    const maintenancePercent =
+      activeFund.feeClass === "internationalMoneyMarket" && inputs.currency === "EUR"
+        ? (fortisVariantConfig.eurMoneyMarketReducedMaintenancePercent ?? fortisVariantConfig.accountMaintenanceMonthlyPercent)
+        : activeFund.feeClass === "internationalMoneyMarket" && inputs.currency === "USD"
+          ? (fortisVariantConfig.usdMoneyMarketReducedMaintenancePercent ?? fortisVariantConfig.accountMaintenanceMonthlyPercent)
+        : fortisVariantConfig.accountMaintenanceMonthlyPercent
+
+    setInputs((prev) => {
+      if (
+        Math.abs((prev.assetBasedFeePercent ?? 0) - vakPercent) < 1e-9 &&
+        Math.abs((prev.accountMaintenanceMonthlyPercent ?? 0) - maintenancePercent) < 1e-9 &&
+        prev.managementFeeValueType === "amount" &&
+        Math.abs((prev.managementFeeValue ?? 0) - fortisVariantConfig.policyFeeAnnualAmount) < 1e-9
+      ) {
+        return prev
+      }
+      return {
+        ...prev,
+        assetBasedFeePercent: vakPercent,
+        accountMaintenanceMonthlyPercent: maintenancePercent,
+        managementFeeFrequency: "éves",
+        managementFeeValueType: "amount",
+        managementFeeValue: fortisVariantConfig.policyFeeAnnualAmount,
+      }
+    })
+  }, [isFortisProduct, fundOptions, selectedFundId, fortisVariantConfig, inputs.currency])
+
   const getAcquisitionCostTitle = () => {
+    if (selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade") {
+      return "Szerződéskötési költség (év szerint)"
+    }
     const baseTitle = "Akvizíciós költség (év szerint)"
     if (appliedPresetLabel && appliedPresetLabel.includes("Alfa Exclusive Plus")) {
       return `${baseTitle} – Szerződéskötési költség`
     }
     return baseTitle
   }
+  const hasMapDiff = useCallback((current: Record<number, number> = {}, baseline: Record<number, number> = {}) => {
+    const years = new Set<number>([
+      ...Object.keys(current).map((key) => Number(key)),
+      ...Object.keys(baseline).map((key) => Number(key)),
+    ])
+    for (const year of years) {
+      const currentValue = current[year] ?? 0
+      const baselineValue = baseline[year] ?? 0
+      if (Math.abs(currentValue - baselineValue) > 1e-9) return true
+    }
+    return false
+  }, [])
+  const hasInitialCostOverrides = useMemo(() => {
+    if (Math.abs((inputs.initialCostDefaultPercent ?? 0) - productPresetBaseline.initialCostDefaultPercent) > 1e-9) {
+      return true
+    }
+    return hasMapDiff(inputs.initialCostByYear ?? {}, productPresetBaseline.initialCostByYear)
+  }, [hasMapDiff, inputs.initialCostByYear, inputs.initialCostDefaultPercent, productPresetBaseline])
+  const hasAssetCostOverrides = useMemo(
+    () =>
+      Math.abs((inputs.assetBasedFeePercent ?? 0) - productPresetBaseline.assetBasedFeePercent) > 1e-9 ||
+      hasMapDiff(assetCostPercentByYear, productPresetBaseline.assetCostPercentByYear),
+    [assetCostPercentByYear, hasMapDiff, inputs.assetBasedFeePercent, productPresetBaseline],
+  )
+  const hasAccountMaintenanceOverrides = useMemo(
+    () =>
+      Math.abs((inputs.accountMaintenanceMonthlyPercent ?? 0) - productPresetBaseline.accountMaintenanceMonthlyPercent) >
+        1e-9 ||
+      hasMapDiff(accountMaintenancePercentByYear, productPresetBaseline.accountMaintenancePercentByYear),
+    [accountMaintenancePercentByYear, hasMapDiff, inputs.accountMaintenanceMonthlyPercent, productPresetBaseline],
+  )
+  const hasAdminFeeOverrides = useMemo(
+    () =>
+      Math.abs((inputs.adminFeePercentOfPayment ?? 0) - productPresetBaseline.adminFeePercentOfPayment) > 1e-9 ||
+      hasMapDiff(adminFeePercentByYear, productPresetBaseline.adminFeePercentByYear),
+    [adminFeePercentByYear, hasMapDiff, inputs.adminFeePercentOfPayment, productPresetBaseline],
+  )
+  const hasBonusOnContributionOverrides = useMemo(
+    () => hasMapDiff(bonusOnContributionPercentByYear, productPresetBaseline.bonusOnContributionPercentByYear),
+    [bonusOnContributionPercentByYear, hasMapDiff, productPresetBaseline],
+  )
+  const hasRefundInitialCostBonusOverrides = useMemo(
+    () => hasMapDiff(refundInitialCostBonusPercentByYear, productPresetBaseline.refundInitialCostBonusPercentByYear),
+    [hasMapDiff, productPresetBaseline, refundInitialCostBonusPercentByYear],
+  )
+  const hasWealthBonusOverrides = useMemo(
+    () => hasMapDiff(bonusPercentByYear, productPresetBaseline.bonusPercentByYear),
+    [bonusPercentByYear, hasMapDiff, productPresetBaseline],
+  )
 
   const [appliedPresetLabel, setAppliedPresetLabel] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<string>("settings")
   const [editingFields, setEditingFields] = useState<Record<string, boolean | undefined>>({})
   const [assetCostInputByYear, setAssetCostInputByYear] = useState<Record<number, string>>({})
+  const [accountMaintenanceInputByYear, setAccountMaintenanceInputByYear] = useState<Record<number, string>>({})
+  const [adminFeeInputByYear, setAdminFeeInputByYear] = useState<Record<number, string>>({})
+  const [bonusOnContributionInputByYear, setBonusOnContributionInputByYear] = useState<Record<number, string>>({})
+  const [refundInitialCostBonusInputByYear, setRefundInitialCostBonusInputByYear] = useState<Record<number, string>>({})
+  const [acquisitionCostInputByYear, setAcquisitionCostInputByYear] = useState<Record<number, string>>({})
 
   const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
     switch (insurer) {
@@ -2422,6 +2808,22 @@ export function SavingsCalculator() {
                 productType: "Életbiztosítás",
                 mnbCode: "13472",
                 productCode: "WL-22",
+              },
+            ],
+          },
+          {
+            value: "alfa_jade",
+            label: "Alfa Jáde EUR",
+            productType: "Életbiztosítás",
+            mnbCode: "TR19",
+            productCode: "TR19",
+            variants: [
+              {
+                value: "alfa_jade_tr19",
+                label: "TR19 (EUR)",
+                productType: "Életbiztosítás",
+                mnbCode: "TR19",
+                productCode: "TR19",
               },
             ],
           },
@@ -2488,9 +2890,17 @@ export function SavingsCalculator() {
   }, [selectedInsurer, selectedProduct])
 
   const effectiveSelectedProductVariantCode = useMemo(() => {
-    if (selectedProduct !== "alfa_exclusive_plus") return undefined
-    return inputs.enableTaxCredit ? "NY-05" : "TR-08"
-  }, [selectedProduct, inputs.enableTaxCredit])
+    if (selectedProduct === "alfa_exclusive_plus") {
+      return inputs.enableTaxCredit ? "NY-05" : "TR-08"
+    }
+    if (selectedProduct === "alfa_fortis") {
+      return fortisVariantConfig.code
+    }
+    if (selectedProduct === "alfa_jade") {
+      return "TR19"
+    }
+    return undefined
+  }, [selectedProduct, inputs.enableTaxCredit, fortisVariantConfig.code])
 
   const activeProductVariantMetadata = useMemo(() => {
     if (!selectedProductMetadata?.variants || selectedProductMetadata.variants.length === 0) return null
@@ -2502,8 +2912,22 @@ export function SavingsCalculator() {
         null
       )
     }
+    if (selectedProduct === "alfa_fortis") {
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.productCode === fortisVariantConfig.code) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "alfa_jade") {
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.productCode === "TR19") ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
     return selectedProductMetadata.variants[0] ?? null
-  }, [selectedProductMetadata, selectedProduct, inputs.enableTaxCredit])
+  }, [selectedProductMetadata, selectedProduct, inputs.enableTaxCredit, fortisVariantConfig.code])
 
   useEffect(() => {
     if (!selectedInsurer) {
@@ -2533,6 +2957,9 @@ export function SavingsCalculator() {
     }
     if (productValue === "alfa_fortis") {
       return "alfa-fortis"
+    }
+    if (productValue === "alfa_jade") {
+      return "alfa-jade"
     }
     if (insurer === "Allianz") {
       if (productValue === "allianz_eletprogram" || productValue === "allianz_bonusz_eletprogram") {
@@ -2664,6 +3091,22 @@ export function SavingsCalculator() {
 
         setInvestedShareByYear(investedShareConfig)
         setAssetCostPercentByYear(assetCostConfig)
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear({})
+        setProductPresetBaseline({
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0.145,
+          assetCostPercentByYear: assetCostConfig,
+          accountMaintenanceMonthlyPercent: 0,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: 0,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: {},
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: {},
+        })
         // </CHANGE>
 
         setIsTaxBonusSeparateAccount(true)
@@ -2697,12 +3140,32 @@ export function SavingsCalculator() {
         // Reset specific per-year configurations for this preset
         setInvestedShareByYear({})
         setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear({})
+        setRefundInitialCostBonusPercentByYear({})
+        setProductPresetBaseline({
+          initialCostByYear: { 1: 33 },
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 1.19,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: 0,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: 0,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: {},
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: {},
+        })
         setRedemptionFeeByYear({})
         setRedemptionFeeDefaultPercent(0)
         setRedemptionBaseMode("surplus-only")
         setIsTaxBonusSeparateAccount(false)
         // </CHANGE>
       } else if (selectedProduct === "allianz_bonusz_eletprogram") {
+        const durationInYears = Math.ceil(
+          durationValue / (durationUnit === "year" ? 1 : durationUnit === "month" ? 12 / 12 : 365 / 12),
+        )
         const fixedCost = inputs.currency === "HUF" ? 11880 : 39.6
         setInputs((prev) => ({
           ...prev,
@@ -2722,6 +3185,27 @@ export function SavingsCalculator() {
         // Reset specific per-year configurations for this preset
         setInvestedShareByYear({})
         setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear({})
+        const refundInitialBonusPercentConfig: Record<number, number> = {}
+        for (let year = 1; year <= durationInYears; year++) {
+          refundInitialBonusPercentConfig[year] = year >= 2 ? year - 1 : 0
+        }
+        setRefundInitialCostBonusPercentByYear(refundInitialBonusPercentConfig)
+        setProductPresetBaseline({
+          initialCostByYear: { 1: 79 },
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 1.19,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: 0,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: 0,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: {},
+          refundInitialCostBonusPercentByYear: refundInitialBonusPercentConfig,
+          bonusPercentByYear: {},
+        })
         setRedemptionFeeByYear({})
         setRedemptionFeeDefaultPercent(0)
         setIsTaxBonusSeparateAccount(false)
@@ -2763,17 +3247,38 @@ export function SavingsCalculator() {
           yearlyManagementFeePercent: 0, // Replaced by managementFeeValue
           yearlyFixedManagementFeeAmount: 0, // Replaced by managementFeeValue
           managementFeeFrequency: "éves", // Reset to default
-          managementFeeValueType: "percent", // Reset to default
-          managementFeeValue: 0, // Reset to default
-          assetBasedFeePercent: 0,
-          bonusMode: "none",
+          managementFeeValueType: "amount",
+          managementFeeValue: fortisVariantConfig.policyFeeAnnualAmount,
+          assetBasedFeePercent: fortisVariantConfig.vakPercentByFundClass.equityOrMixed,
+          bonusMode: "percentOnContribution",
+          bonusOnContributionPercent: 0,
           bonusPercent: 0,
           bonusStartYear: 1,
           bonusStopYear: 0,
+          accountMaintenanceMonthlyPercent: fortisVariantConfig.accountMaintenanceMonthlyPercent,
+          riskInsuranceDeathBenefitAmount: fortisVariantConfig.riskBenefitAccidentalDeath,
         }))
 
         setInvestedShareByYear({})
         setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        const fortisBonusPercentConfig = buildFortisBonusPercentByYear(effectiveFortisVariant)
+        setBonusOnContributionPercentByYear(fortisBonusPercentConfig)
+        setRefundInitialCostBonusPercentByYear({})
+        setProductPresetBaseline({
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: fortisVariantConfig.vakPercentByFundClass.equityOrMixed,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: fortisVariantConfig.accountMaintenanceMonthlyPercent,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: 4,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: fortisBonusPercentConfig,
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: {},
+        })
         setRedemptionFeeByYear(redemptionFeeConfig)
         setRedemptionFeeDefaultPercent(0)
         setRedemptionBaseMode("surplus-only")
@@ -2781,6 +3286,73 @@ export function SavingsCalculator() {
         setIsAccountSplitOpen(false)
         setIsRedemptionOpen(true)
         // </CHANGE>
+      } else if (selectedProduct === "alfa_jade") {
+        const jadeConfig = getJadeVariantConfig(toJadeProductVariantId("tr19"), "EUR")
+        const durationInYears = Math.ceil(
+          durationValue / (durationUnit === "year" ? 1 : durationUnit === "month" ? 12 / 12 : 365 / 12),
+        )
+        const initialCostConfig = buildJadeInitialCostByYear()
+        const investedShareConfig = buildJadeInvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildJadeRedemptionSchedule(durationInYears)
+
+        setDurationUnit("year")
+        setDurationValue(15)
+        setInputs((prev) => ({
+          ...prev,
+          currency: "EUR",
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          initialCostBaseMode: "afterRisk",
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          assetBasedFeePercent: 0,
+          bonusMode: "none",
+          bonusOnContributionPercent: 0,
+          bonusPercent: 0,
+          bonusStartYear: 1,
+          bonusStopYear: 0,
+          adminFeePercentOfPayment: jadeConfig.regularAdminFeePercent,
+          adminFeeBaseMode: "afterRisk",
+          accountMaintenanceMonthlyPercent: jadeConfig.accountMaintenanceMonthlyPercent,
+          accountMaintenanceStartMonth: 1,
+          accountMaintenanceClientStartMonth: jadeConfig.accountMaintenanceClientStartMonth,
+          accountMaintenanceInvestedStartMonth: jadeConfig.accountMaintenanceInvestedStartMonth,
+          accountMaintenanceTaxBonusStartMonth: jadeConfig.accountMaintenanceExtraStartMonth,
+          riskInsuranceEnabled: true,
+          riskInsuranceMonthlyFeeAmount: jadeConfig.riskMonthlyFeeAmount,
+          riskInsuranceDeathBenefitAmount: jadeConfig.riskBenefitAccidentalDeath,
+          riskInsuranceStartYear: 1,
+          riskInsuranceEndYear: 15,
+          partialSurrenderFeeAmount: jadeConfig.partialSurrenderFixedFeeAmount,
+        }))
+        setInvestedShareByYear(investedShareConfig)
+        setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear({})
+        setRefundInitialCostBonusPercentByYear({})
+        setProductPresetBaseline({
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: jadeConfig.accountMaintenanceMonthlyPercent,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: jadeConfig.regularAdminFeePercent,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: {},
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: {},
+        })
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+        setRedemptionBaseMode("surplus-only")
+        setIsTaxBonusSeparateAccount(false)
+        setIsAccountSplitOpen(true)
+        setIsRedemptionOpen(true)
       } else {
         // Default placeholder for other products
         setInputs((prev) => ({
@@ -2801,6 +3373,23 @@ export function SavingsCalculator() {
         // Reset specific per-year configurations for default
         setInvestedShareByYear({})
         setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear({})
+        setRefundInitialCostBonusPercentByYear({})
+        setProductPresetBaseline({
+          initialCostByYear: {},
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: 0,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: 0,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: {},
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: {},
+        })
         setRedemptionFeeByYear({})
         setRedemptionFeeDefaultPercent(0)
         setRedemptionBaseMode("surplus-only")
@@ -2808,7 +3397,16 @@ export function SavingsCalculator() {
         // </CHANGE>
       }
     }
-  }, [durationUnit, durationValue, effectiveSelectedProductVariantCode, inputs.currency, selectedInsurer, selectedProduct])
+  }, [
+    durationUnit,
+    durationValue,
+    effectiveFortisVariant,
+    effectiveSelectedProductVariantCode,
+    fortisVariantConfig,
+    inputs.currency,
+    selectedInsurer,
+    selectedProduct,
+  ])
 
   useEffect(() => {
     if (isHydratingRef.current) return
@@ -2817,10 +3415,12 @@ export function SavingsCalculator() {
   }, [applyPreset, selectedInsurer, selectedProduct, inputs.enableTaxCredit])
 
   useEffect(() => {
-    // Only auto-update if Alfa Exclusive Plus or Alfa Fortis is the applied preset
+    // Only auto-update if product preset controls duration-dependent schedules.
     if (
       appliedPresetLabel &&
-      (appliedPresetLabel.includes("Alfa Exclusive Plus") || appliedPresetLabel.includes("Alfa Fortis"))
+      (appliedPresetLabel.includes("Alfa Exclusive Plus") ||
+        appliedPresetLabel.includes("Alfa Fortis") ||
+        appliedPresetLabel.includes("Alfa Jáde"))
     ) {
       const durationInYears = Math.ceil(
         durationValue / (durationUnit === "year" ? 1 : durationUnit === "month" ? 12 / 12 : 365 / 12),
@@ -2858,6 +3458,10 @@ export function SavingsCalculator() {
         // Alfa Fortis initial cost schedule
         initialCostConfig[1] = 75
         initialCostConfig[2] = 42
+        initialCostConfig[3] = 15
+      } else if (appliedPresetLabel.includes("Alfa Jáde")) {
+        initialCostConfig[1] = 75
+        initialCostConfig[2] = 45
         initialCostConfig[3] = 15
       }
 
@@ -2907,6 +3511,12 @@ export function SavingsCalculator() {
         setInvestedShareByYear({}) // Reset invested share for Fortis
         setRedemptionFeeByYear(redemptionFeeConfig)
         setRedemptionFeeDefaultPercent(0) // Reset default redemption fee for Fortis
+      } else if (appliedPresetLabel.includes("Alfa Jáde")) {
+        const investedShareConfig = buildJadeInvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildJadeRedemptionSchedule(durationInYears)
+        setInvestedShareByYear(investedShareConfig)
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
       }
     }
   }, [durationValue, durationUnit, appliedPresetLabel])
@@ -3021,6 +3631,19 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-assetCostPercentByYear", JSON.stringify(assetCostPercentByYear))
     }
   }, [assetCostPercentByYear])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(
+        "calculator-accountMaintenancePercentByYear",
+        JSON.stringify(accountMaintenancePercentByYear),
+      )
+    }
+  }, [accountMaintenancePercentByYear])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-adminFeePercentByYear", JSON.stringify(adminFeePercentByYear))
+    }
+  }, [adminFeePercentByYear])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -3104,6 +3727,22 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-bonusPercentByYear", JSON.stringify(bonusPercentByYear))
     }
   }, [bonusPercentByYear])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(
+        "calculator-bonusOnContributionPercentByYear",
+        JSON.stringify(bonusOnContributionPercentByYear),
+      )
+    }
+  }, [bonusOnContributionPercentByYear])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(
+        "calculator-refundInitialCostBonusPercentByYear",
+        JSON.stringify(refundInitialCostBonusPercentByYear),
+      )
+    }
+  }, [refundInitialCostBonusPercentByYear])
   // </CHANGE>
 
   const toYearsFromDuration = (unit: DurationUnit, value: number) => {
@@ -3504,8 +4143,14 @@ export function SavingsCalculator() {
     if (selectedProduct === "alfa_exclusive_plus") {
       return inputs.enableTaxCredit ? "alfa_exclusive_plus_ny05" : "alfa_exclusive_plus_tr08"
     }
+    if (selectedProduct === "alfa_fortis") {
+      return toFortisProductVariantId(resolveFortisVariant(undefined, inputs.currency))
+    }
+    if (selectedProduct === "alfa_jade") {
+      return toJadeProductVariantId("tr19")
+    }
     return selectedProduct ?? undefined
-  }, [selectedProduct, inputs.enableTaxCredit])
+  }, [selectedProduct, inputs.currency, inputs.enableTaxCredit])
 
   const dailyInputs = useMemo<InputsDaily>(() => {
     const taxCreditLimits = Object.entries(taxCreditLimitByYear).reduce(
@@ -3522,12 +4167,7 @@ export function SavingsCalculator() {
     const useParsedChartSeries = effectiveYieldSourceMode === "ocr" && (parsedChartSeries?.points.length ?? 0) > 1
     const effectiveAnnualYieldPercent = effectiveYieldSourceMode === "manual" ? manualYieldPercent : inputs.annualYieldPercent
     const isFortisProduct = selectedProduct === "alfa_fortis"
-    const fortisNormalizedYearlyPaymentsPlan =
-      isFortisProduct
-        ? plan.yearlyPaymentsPlan.map((value, year) =>
-            year <= 0 || value <= 0 ? value : Math.max(FORTIS_MIN_ANNUAL_PAYMENT, value),
-          )
-        : plan.yearlyPaymentsPlan
+    const fortisConfig = isFortisProduct ? getFortisVariantConfig(engineProductVariant, inputs.currency) : null
     const fortisClampedEntryAge = isFortisProduct
       ? Math.min(FORTIS_MAX_ENTRY_AGE, Math.max(FORTIS_MIN_ENTRY_AGE, Math.round(inputs.insuredEntryAge ?? 38)))
       : (inputs.insuredEntryAge ?? 38)
@@ -3539,7 +4179,7 @@ export function SavingsCalculator() {
       annualYieldPercent: effectiveAnnualYieldPercent,
       frequency: inputs.frequency,
       yearsPlanned: totalYearsForPlan,
-      yearlyPaymentsPlan: fortisNormalizedYearlyPaymentsPlan,
+      yearlyPaymentsPlan: plan.yearlyPaymentsPlan,
       yearlyWithdrawalsPlan: plan.yearlyWithdrawalsPlan,
       initialCostByYear: inputs.initialCostByYear,
       initialCostDefaultPercent: inputs.initialCostDefaultPercent,
@@ -3549,6 +4189,8 @@ export function SavingsCalculator() {
       managementFeeStopYear: inputs.managementFeeStopYear || undefined,
       assetBasedFeePercent: inputs.assetBasedFeePercent,
       assetCostPercentByYear: assetCostPercentByYear,
+      adminFeePercentByYear: adminFeePercentByYear,
+      accountMaintenancePercentByYear: accountMaintenancePercentByYear,
       plusCostByYear: plusCostByYear,
       // </CHANGE>
       managementFeeFrequency: inputs.managementFeeFrequency, // Added managementFeeFrequency
@@ -3556,6 +4198,8 @@ export function SavingsCalculator() {
       managementFeeValue: inputs.managementFeeValue, // Added managementFeeValue
       // </CHANGE>
       bonusPercentByYear: bonusPercentByYear, // Added bonusPercentByYear to daily inputs
+      bonusOnContributionPercentByYear: bonusOnContributionPercentByYear,
+      refundInitialCostBonusPercentByYear: refundInitialCostBonusPercentByYear,
       // </CHANGE>
       bonusMode: inputs.bonusMode,
       bonusOnContributionPercent: inputs.bonusOnContributionPercent,
@@ -3571,6 +4215,7 @@ export function SavingsCalculator() {
       taxCreditYieldPercent: inputs.taxCreditYieldPercent,
       taxCreditCalendarPostingEnabled: inputs.taxCreditCalendarPostingEnabled,
       productVariant: engineProductVariant,
+      selectedFundId,
       calculationMode: inputs.calculationMode,
       startDate: inputs.startDate,
       referenceYear: parsedDurationFrom?.getFullYear(),
@@ -3603,6 +4248,15 @@ export function SavingsCalculator() {
       insuredEntryAge: fortisClampedEntryAge,
       paidUpMaintenanceFeeMonthlyAmount: inputs.paidUpMaintenanceFeeMonthlyAmount,
       paidUpMaintenanceFeeStartMonth: inputs.paidUpMaintenanceFeeStartMonth,
+      partialSurrenderFeeAmount: isFortisProduct
+        ? fortisConfig?.partialSurrenderFixedFee ?? inputs.partialSurrenderFeeAmount
+        : inputs.partialSurrenderFeeAmount,
+      minimumBalanceAfterPartialSurrender: isFortisProduct
+        ? fortisConfig?.minBalanceAfterPartialSurrender ?? inputs.minimumBalanceAfterPartialSurrender
+        : inputs.minimumBalanceAfterPartialSurrender,
+      minimumPaidUpValue: isFortisProduct
+        ? fortisConfig?.minPaidUpValue ?? inputs.minimumPaidUpValue
+        : inputs.minimumPaidUpValue,
     }
   }, [
     effectiveYieldSourceMode,
@@ -3667,8 +4321,12 @@ export function SavingsCalculator() {
     redemptionBaseMode, // Added to dependency array
     isRedemptionOpen, // Added to dependency array
     assetCostPercentByYear,
+    adminFeePercentByYear,
+    accountMaintenancePercentByYear,
     plusCostByYear, // Added dependency
     bonusPercentByYear, // Added bonusPercentByYear dependency
+    bonusOnContributionPercentByYear,
+    refundInitialCostBonusPercentByYear,
     // Added dependencies for new management fee fields
     inputs.managementFeeFrequency,
     inputs.managementFeeValueType,
@@ -3684,6 +4342,7 @@ export function SavingsCalculator() {
     riskInsuranceAnnualIndexPercent,
     riskInsuranceStartYear,
     riskInsuranceEndYear,
+    selectedFundId,
     canUseFundYield,
     isFundDataReady,
     isOcrDataReady,
@@ -3718,19 +4377,17 @@ export function SavingsCalculator() {
     return map
   }, [inputs.taxCreditCapPerYear, totalYearsForPlan, taxCreditLimitByYear, mainTaxCreditByYear])
   const dailyInputsEseti = useMemo<InputsDaily>(
-    () => ({
+    () => {
+      const fortisConfig = selectedProduct === "alfa_fortis" ? getFortisVariantConfig(engineProductVariant, inputs.currency) : null
+      const jadeConfig = selectedProduct === "alfa_jade" ? getJadeVariantConfig(engineProductVariant, inputs.currency) : null
+      return {
       ...dailyInputs,
       disableProductDefaults: true,
       durationUnit: esetiDurationUnit,
       durationValue: Math.min(esetiDurationValue, esetiDurationMaxByUnit[esetiDurationUnit]),
       annualYieldPercent: esetiBaseInputs.annualYieldPercent,
       frequency: esetiFrequency,
-      yearlyPaymentsPlan:
-        selectedProduct === "alfa_fortis"
-          ? esetiPlan.yearlyPaymentsPlan.map((value, year) =>
-              year <= 0 || value <= 0 ? value : Math.max(FORTIS_MIN_EXTRAORDINARY_PAYMENT, value),
-            )
-          : esetiPlan.yearlyPaymentsPlan,
+      yearlyPaymentsPlan: esetiPlan.yearlyPaymentsPlan,
       yearlyWithdrawalsPlan: esetiPlan.yearlyWithdrawalsPlan,
       taxCreditLimitByYear: esetiTaxCreditLimitsByYear,
       annualIndexPercent: esetiBaseInputs.annualIndexPercent,
@@ -3741,6 +4398,7 @@ export function SavingsCalculator() {
       managementFeeValue: 0,
       assetBasedFeePercent: 0,
       assetCostPercentByYear: {},
+      accountMaintenancePercentByYear: {},
       plusCostByYear: {},
       bonusMode: "none",
       bonusOnContributionPercent: 0,
@@ -3749,15 +4407,35 @@ export function SavingsCalculator() {
       bonusStartYear: 1,
       bonusStopYear: 0,
       bonusPercentByYear: {},
+      bonusOnContributionPercentByYear: {},
+      refundInitialCostBonusPercentByYear: {},
       adminFeeMonthlyAmount: 0,
-      adminFeePercentOfPayment: selectedProduct === "alfa_fortis" ? 2 : 0,
-      accountMaintenanceMonthlyPercent: selectedProduct === "alfa_fortis" ? 0.165 : 0,
-      accountMaintenanceStartMonth: 1,
+      adminFeePercentOfPayment:
+        selectedProduct === "alfa_fortis"
+          ? 2
+          : selectedProduct === "alfa_jade"
+            ? (jadeConfig?.extraordinaryAdminFeePercent ?? 2)
+            : 0,
+      adminFeePercentByYear: {},
+      accountMaintenanceMonthlyPercent:
+        selectedProduct === "alfa_fortis"
+          ? (fortisConfig?.accountMaintenanceMonthlyPercent ?? dailyInputs.accountMaintenanceMonthlyPercent ?? 0)
+          : selectedProduct === "alfa_jade"
+            ? (jadeConfig?.accountMaintenanceMonthlyPercent ?? dailyInputs.accountMaintenanceMonthlyPercent ?? 0)
+          : 0,
+      accountMaintenanceStartMonth:
+        selectedProduct === "alfa_fortis"
+          ? (fortisConfig?.accountMaintenanceStartMonthExtra ?? 1)
+          : selectedProduct === "alfa_jade"
+            ? (jadeConfig?.accountMaintenanceExtraStartMonth ?? 1)
+            : 1,
       riskInsuranceEnabled: false,
       riskInsuranceMonthlyFeeAmount: 0,
       riskInsuranceFeePercentOfMonthlyPayment: 0,
       riskInsuranceAnnualIndexPercent: 0,
-    }),
+      selectedFundId,
+    }
+    },
     [
       dailyInputs,
       esetiDurationUnit,
@@ -3768,6 +4446,9 @@ export function SavingsCalculator() {
       esetiFrequency,
       esetiTaxCreditLimitsByYear,
       selectedProduct,
+      engineProductVariant,
+      inputs.currency,
+      selectedFundId,
     ],
   )
   const resultsEseti = useMemo(
@@ -4084,7 +4765,7 @@ export function SavingsCalculator() {
   const activeSummaryTheme = summaryThemeByAccount[yearlyAccountView]
   const isAlfaExclusivePlus = selectedProduct === "alfa_exclusive_plus"
   const showSurrenderFinalBand = isRedemptionOpen
-  const showBonusColumns = !isAlfaExclusivePlus
+  const showBonusColumns = !isAlfaExclusivePlus && selectedProduct !== "allianz_eletprogram"
   const activeTaxCreditPenaltyAmount = shouldApplyTaxCreditPenalty ? activeSummaryTotals.totalTaxCredit * 1.2 : 0
   const summaryBaseBalance = enableNetting && finalNetData ? finalNetData.netBalance : activeSummaryTotals.endBalance
   const summaryBaseSurrenderValue = activeSummaryTotals.surrenderValue
@@ -4317,8 +4998,11 @@ export function SavingsCalculator() {
     // Also clear custom initial costs
     setInputs((prev) => ({
       ...prev,
-      initialCostByYear: {},
-      initialCostDefaultPercent: 0,
+      initialCostByYear: { ...productPresetBaseline.initialCostByYear },
+      initialCostDefaultPercent: productPresetBaseline.initialCostDefaultPercent,
+      assetBasedFeePercent: productPresetBaseline.assetBasedFeePercent,
+      accountMaintenanceMonthlyPercent: productPresetBaseline.accountMaintenanceMonthlyPercent,
+      adminFeePercentOfPayment: productPresetBaseline.adminFeePercentOfPayment,
     }))
     // Clear new per-year configurations
     setInvestedShareByYear({})
@@ -4331,11 +5015,15 @@ export function SavingsCalculator() {
     setRedemptionFeeDefaultPercent(0)
     setRedemptionBaseMode("surplus-only")
     // Clear asset cost overrides
-    setAssetCostPercentByYear({})
+    setAssetCostPercentByYear({ ...productPresetBaseline.assetCostPercentByYear })
+    setAccountMaintenancePercentByYear({ ...productPresetBaseline.accountMaintenancePercentByYear })
+    setAdminFeePercentByYear({ ...productPresetBaseline.adminFeePercentByYear })
+    setBonusOnContributionPercentByYear({ ...productPresetBaseline.bonusOnContributionPercentByYear })
+    setRefundInitialCostBonusPercentByYear({ ...productPresetBaseline.refundInitialCostBonusPercentByYear })
     setPlusCostByYear({})
     // </CHANGE>
     // Clear bonus percent overrides
-    setBonusPercentByYear({})
+    setBonusPercentByYear({ ...productPresetBaseline.bonusPercentByYear })
     // </CHANGE>
     setAppliedPresetLabel(null) // Also clear applied preset
   }
@@ -4456,6 +5144,30 @@ export function SavingsCalculator() {
     }
     return yearlyAccountView === "eseti" ? resultsEseti : results
   }, [yearlyAccountView, results, resultsEseti, summaryYearlyBreakdown])
+  const showAdminCostColumn = useMemo(
+    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => (row?.adminCostForYear ?? 0) > 0),
+    [adjustedResults?.yearlyBreakdown],
+  )
+  const showAccountMaintenanceColumn = useMemo(
+    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => (row?.accountMaintenanceCostForYear ?? 0) > 0),
+    [adjustedResults?.yearlyBreakdown],
+  )
+  const showManagementFeeColumn = useMemo(
+    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => (row?.managementFeeCostForYear ?? 0) > 0),
+    [adjustedResults?.yearlyBreakdown],
+  )
+  const showAssetFeeColumn = useMemo(
+    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => (row?.assetBasedCostForYear ?? 0) > 0),
+    [adjustedResults?.yearlyBreakdown],
+  )
+  const showPlusCostColumn = useMemo(
+    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => (row?.plusCostForYear ?? 0) > 0),
+    [adjustedResults?.yearlyBreakdown],
+  )
+  const showAcquisitionColumn = useMemo(
+    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => (row?.upfrontCostForYear ?? 0) > 0),
+    [adjustedResults?.yearlyBreakdown],
+  )
 
   const addExtraService = () => {
     const newService: ExtraService = {
@@ -4484,13 +5196,55 @@ export function SavingsCalculator() {
     setAssetCostPercentByYear((prev) => {
       const updated = { ...prev }
       for (let y = year; y <= totalYearsForPlan; y++) {
-        if (value === inputs.assetBasedFeePercent) {
+        const defaultPercentForYear =
+          productPresetBaseline.assetCostPercentByYear[y] ?? productPresetBaseline.assetBasedFeePercent
+        if (Math.abs(value - defaultPercentForYear) < 1e-9) {
           delete updated[y]
         } else {
           updated[y] = value
         }
       }
       return updated
+    })
+    if (appliedPresetLabel) setAppliedPresetLabel(null)
+  }
+  const updateAccountMaintenancePercent = (year: number, value: number) => {
+    const defaultPercent =
+      productPresetBaseline.accountMaintenancePercentByYear[year] ?? productPresetBaseline.accountMaintenanceMonthlyPercent
+    setAccountMaintenancePercentByYear((prev) => {
+      const updated = { ...prev }
+      if (Math.abs(value - defaultPercent) < 1e-9) {
+        delete updated[year]
+      } else {
+        updated[year] = value
+      }
+      return updated
+    })
+    if (appliedPresetLabel) setAppliedPresetLabel(null)
+  }
+  const updateAdminFeePercent = (year: number, value: number) => {
+    const defaultPercent = productPresetBaseline.adminFeePercentByYear[year] ?? productPresetBaseline.adminFeePercentOfPayment
+    setAdminFeePercentByYear((prev) => {
+      const updated = { ...prev }
+      if (Math.abs(value - defaultPercent) < 1e-9) {
+        delete updated[year]
+      } else {
+        updated[year] = value
+      }
+      return updated
+    })
+    if (appliedPresetLabel) setAppliedPresetLabel(null)
+  }
+  const updateInitialCostPercent = (year: number, value: number) => {
+    const defaultPercent = productPresetBaseline.initialCostByYear[year] ?? productPresetBaseline.initialCostDefaultPercent
+    setInputs((prev) => {
+      const nextInitialCostByYear = { ...(prev.initialCostByYear ?? {}) }
+      if (Math.abs(value - defaultPercent) < 1e-9) {
+        delete nextInitialCostByYear[year]
+      } else {
+        nextInitialCostByYear[year] = value
+      }
+      return { ...prev, initialCostByYear: nextInitialCostByYear }
     })
     if (appliedPresetLabel) setAppliedPresetLabel(null)
   }
@@ -4513,6 +5267,32 @@ export function SavingsCalculator() {
     setBonusPercentByYear((prev) => {
       const updated = { ...prev }
       if (percent === 0) {
+        delete updated[year]
+      } else {
+        updated[year] = percent
+      }
+      return updated
+    })
+    if (appliedPresetLabel) setAppliedPresetLabel(null)
+  }
+  const updateBonusOnContributionPercent = (year: number, percent: number) => {
+    const defaultPercent = productPresetBaseline.bonusOnContributionPercentByYear[year] ?? 0
+    setBonusOnContributionPercentByYear((prev) => {
+      const updated = { ...prev }
+      if (Math.abs(percent - defaultPercent) < 1e-9) {
+        delete updated[year]
+      } else {
+        updated[year] = percent
+      }
+      return updated
+    })
+    if (appliedPresetLabel) setAppliedPresetLabel(null)
+  }
+  const updateRefundInitialCostBonusPercent = (year: number, percent: number) => {
+    const defaultPercent = productPresetBaseline.refundInitialCostBonusPercentByYear[year] ?? 0
+    setRefundInitialCostBonusPercentByYear((prev) => {
+      const updated = { ...prev }
+      if (Math.abs(percent - defaultPercent) < 1e-9) {
         delete updated[year]
       } else {
         updated[year] = percent
@@ -4597,6 +5377,7 @@ export function SavingsCalculator() {
   const isEsetiView = yearlyAccountView === "eseti"
   const settingsAccountView: "main" | "eseti" = yearlyAccountView === "eseti" ? "eseti" : "main"
   const isSettingsEseti = settingsAccountView === "eseti"
+  const isTaxCreditSupportedForSelectedProduct = selectedProduct !== "alfa_fortis" && selectedProduct !== "alfa_jade"
   const settingsDurationUnit = isSettingsEseti ? esetiDurationUnit : durationUnit
   const settingsDurationValue = isSettingsEseti ? esetiDurationValue : durationValue
   const settingsDurationMax =
@@ -4609,11 +5390,38 @@ export function SavingsCalculator() {
           : 18250
   const effectiveYearlyViewMode =
     yearlyAccountView === "main" && isAccountSplitOpen ? yearlyViewMode : "total"
-  const settingsYear1Payment = isSettingsEseti
-    ? (esetiPlan.yearlyPaymentsPlan[1] ?? 0)
-    : (plan.yearlyPaymentsPlan[1] ?? 0)
-  const shouldWarnFortisMainMinimum = selectedProduct === "alfa_fortis" && !isSettingsEseti && settingsYear1Payment > 0 && settingsYear1Payment < FORTIS_MIN_ANNUAL_PAYMENT
-  const shouldWarnFortisEsetiMinimum = selectedProduct === "alfa_fortis" && isSettingsEseti && settingsYear1Payment > 0 && settingsYear1Payment < FORTIS_MIN_EXTRAORDINARY_PAYMENT
+  const yearlyPanelProductKey = useMemo(
+    () => resolveProductContextKey(selectedProduct, { enableTaxCredit: inputs.enableTaxCredit }),
+    [selectedProduct, inputs.enableTaxCredit],
+  )
+  const getYearlyHeaderInfoHandlers = (key: string) => ({
+    onMouseEnter: () => setActiveYearlyColumnInfoKey(key),
+    onMouseLeave: () => setActiveYearlyColumnInfoKey(null),
+    onFocus: () => setActiveYearlyColumnInfoKey(key),
+    onBlur: () => setActiveYearlyColumnInfoKey(null),
+    tabIndex: 0,
+  })
+  useEffect(() => {
+    if (!isTaxCreditSupportedForSelectedProduct && inputs.enableTaxCredit) {
+      setInputs((prev) => ({ ...prev, enableTaxCredit: false }))
+    }
+  }, [isTaxCreditSupportedForSelectedProduct, inputs.enableTaxCredit])
+  const minimumAnnualFeeLabel =
+    selectedProduct === "alfa_exclusive_plus"
+      ? `${formatNumber(360000)} Ft`
+      : selectedProduct === "alfa_fortis"
+        ? inputs.currency === "EUR"
+          ? `${formatNumber(fortisVariantConfig.minAnnualPayment)} Euro`
+          : inputs.currency === "USD"
+            ? `${formatNumber(fortisVariantConfig.minAnnualPayment)} USD`
+            : `${formatNumber(fortisVariantConfig.minAnnualPayment)} Ft`
+        : selectedProduct === "alfa_jade"
+          ? `${formatNumber(getJadeVariantConfig(toJadeProductVariantId("tr19"), "EUR").minAnnualPayment)} Euro`
+        : isAllianzEletprogramView
+          ? inputs.currency === "EUR"
+            ? "840 Euro"
+            : `${formatNumber(144000)} Ft`
+          : null
   const shouldWarnFortisAgeClamp =
     selectedProduct === "alfa_fortis" &&
     ((inputs.insuredEntryAge ?? 38) < FORTIS_MIN_ENTRY_AGE || (inputs.insuredEntryAge ?? 38) > FORTIS_MAX_ENTRY_AGE)
@@ -4881,9 +5689,15 @@ export function SavingsCalculator() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="HUF">HUF</SelectItem>
-                            <SelectItem value="EUR">EUR</SelectItem>
-                            <SelectItem value="USD">USD</SelectItem>
+                            {INPUT_CURRENCY_OPTIONS.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                                disabled={!allowedInputCurrencies.includes(option.value)}
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -4935,6 +5749,9 @@ export function SavingsCalculator() {
                           max={settingsDurationMax}
                           className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field}`}
                         />
+                        {selectedProduct === "alfa_jade" && !isSettingsEseti ? (
+                          <p className={SETTINGS_UI.helper}>Fix 15 éves termék (TR19), az alapérték 15 év.</p>
+                        ) : null}
                       </div>
 
                       <div className={MOBILE_LAYOUT.settingsField}>
@@ -5349,13 +6166,30 @@ export function SavingsCalculator() {
                     </div>
                   </div>
 
-                  {(selectedProduct === "alfa_exclusive_plus" || selectedProduct === "alfa_fortis" || isSettingsEseti) && (
+                  {(
+                    minimumAnnualFeeLabel ||
+                    ((selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade") && isSettingsEseti) ||
+                    shouldWarnFortisAgeClamp ||
+                    isSettingsEseti
+                  ) && (
                     <div className={`flex flex-wrap items-center gap-3 text-xs ${isSettingsEseti ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
-                      {selectedProduct === "alfa_exclusive_plus" && <p>Minimum éves díj: 360 000 Ft</p>}
-                      {selectedProduct === "alfa_fortis" && <p>Minimum éves díj: 300 000 Ft</p>}
-                      {selectedProduct === "alfa_fortis" && isSettingsEseti && <p>Eseti minimum díj: 50 000 Ft</p>}
-                      {shouldWarnFortisMainMinimum && <p className="text-amber-600">A Fortis minimum éves díjra korrigálva számol.</p>}
-                      {shouldWarnFortisEsetiMinimum && <p className="text-amber-600">Az eseti Fortis minimum díjra korrigálva számol.</p>}
+                      {minimumAnnualFeeLabel && <p>Minimum éves díj: {minimumAnnualFeeLabel}</p>}
+                      {selectedProduct === "alfa_fortis" && isSettingsEseti && (
+                        <p>
+                          Eseti minimum díj:{" "}
+                          {inputs.currency === "EUR"
+                            ? `${formatNumber(fortisVariantConfig.minExtraordinaryPayment)} Euro`
+                            : inputs.currency === "USD"
+                              ? `${formatNumber(fortisVariantConfig.minExtraordinaryPayment)} USD`
+                              : `${formatNumber(fortisVariantConfig.minExtraordinaryPayment)} Ft`}
+                        </p>
+                      )}
+                      {selectedProduct === "alfa_jade" && isSettingsEseti && (
+                        <p>
+                          Eseti minimum díj:{" "}
+                          {`${formatNumber(getJadeVariantConfig(toJadeProductVariantId("tr19"), "EUR").minExtraordinaryPayment)} Euro`}
+                        </p>
+                      )}
                       {shouldWarnFortisAgeClamp && <p className="text-amber-600">A belépési életkor Fortisnál 16-70 év között kerül figyelembe vételre.</p>}
                       {isSettingsEseti ? <p>Az eseti futamidő legfeljebb a fő számla futamideje lehet.</p> : null}
                     </div>
@@ -5450,27 +6284,42 @@ export function SavingsCalculator() {
                   </div>
 
                   {/* Tax Credit Section */}
-                  <div className={`pt-4 border-t space-y-4 ${isSettingsEseti ? "opacity-60" : ""}`}>
-                    <label className={`flex items-center gap-3 ${isSettingsEseti ? "cursor-not-allowed" : "cursor-pointer"}`}>
+                  <div
+                    className={`pt-4 border-t space-y-4 ${
+                      isSettingsEseti || !isTaxCreditSupportedForSelectedProduct ? "opacity-60" : ""
+                    }`}
+                  >
+                    <label
+                      className={`flex items-center gap-3 ${
+                        isSettingsEseti || !isTaxCreditSupportedForSelectedProduct
+                          ? "cursor-not-allowed"
+                          : "cursor-pointer"
+                      }`}
+                    >
                       <Checkbox
                         checked={inputs.enableTaxCredit}
                         onCheckedChange={(checked) => {
-                          if (!isSettingsEseti) {
+                          if (!isSettingsEseti && isTaxCreditSupportedForSelectedProduct) {
                             setInputs({ ...inputs, enableTaxCredit: checked === true })
                           }
                         }}
-                        disabled={isSettingsEseti}
+                        disabled={isSettingsEseti || !isTaxCreditSupportedForSelectedProduct}
                         className="w-5 h-5"
                       />
                       <span>Adójóváírás bekapcsolása</span>
                     </label>
+                    {!isTaxCreditSupportedForSelectedProduct ? (
+                      <p className="text-xs text-muted-foreground">
+                        Ennél a terméknél nincs adójóváírás.
+                      </p>
+                    ) : null}
                     {isSettingsEseti ? (
                       <p className="text-xs text-muted-foreground">
                         Itt csak megjelenítjük az alapbeállításokban kiválasztott adójóváírás állapotot.
                       </p>
                     ) : null}
 
-                      {!isSettingsEseti && inputs.enableTaxCredit && (
+                      {!isSettingsEseti && isTaxCreditSupportedForSelectedProduct && inputs.enableTaxCredit && (
                         <>
                       <div className="space-y-2">
                         <Label>Adójóváírás mértéke (%)</Label>
@@ -5674,10 +6523,17 @@ export function SavingsCalculator() {
                           <>
                             {selectedProductMetadata.variants && selectedProductMetadata.variants.length > 0 ? (
                               <div className="mt-3 pt-3 border-t space-y-2">
-                                <p className="text-xs text-muted-foreground">
-                                  A termékváltozat automatikusan az adójóváírás alapján választódik:
-                                  bekapcsolva `NY-05`, kikapcsolva `TR-08`.
-                                </p>
+                                {selectedProduct === "alfa_exclusive_plus" ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    A termékváltozat automatikusan az adójóváírás alapján választódik:
+                                    bekapcsolva `NY-05`, kikapcsolva `TR-08`.
+                                  </p>
+                                ) : selectedProduct === "alfa_fortis" ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    A Fortis termékváltozat automatikusan a deviza alapján választódik:
+                                    HUF=`WL-02`, EUR=`WL-12`, USD=`WL-22`.
+                                  </p>
+                                ) : null}
                                 {activeProductVariantMetadata ? (
                                   <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
                                     <div>
@@ -6833,12 +7689,16 @@ export function SavingsCalculator() {
                       Object.keys(withdrawalByYear).length === 0 &&
                       Object.keys(taxCreditLimitByYear).length === 0 &&
                       Object.keys(taxCreditAmountByYear).length === 0 &&
-                      Object.keys(assetCostPercentByYear).length === 0 &&
+                      !hasAssetCostOverrides &&
+                      !hasAccountMaintenanceOverrides &&
+                      !hasAdminFeeOverrides &&
                       Object.keys(plusCostByYear).length === 0 &&
-                      Object.keys(bonusPercentByYear).length === 0 &&
+                      !hasWealthBonusOverrides &&
+                      !hasBonusOnContributionOverrides &&
+                      !hasRefundInitialCostBonusOverrides &&
                       Object.keys(investedShareByYear).length === 0 &&
                       Object.keys(redemptionFeeByYear).length === 0 &&
-                      Object.keys(inputs.initialCostByYear ?? {}).length === 0
+                      !hasInitialCostOverrides
                     }
                     className="h-9 text-xs md:text-sm bg-transparent"
                   >
@@ -6944,14 +7804,21 @@ export function SavingsCalculator() {
                       <col style={{ width: "120px" }} />
                       <col style={{ width: "100px" }} />
                       <col style={{ width: "100px" }} />
-                      {showCostBreakdown && <col style={{ width: "110px" }} />}
-                      {showCostBreakdown && !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
+                      {showCostBreakdown && showAdminCostColumn && <col style={{ width: "110px" }} />}
+                      {showCostBreakdown && showAccountMaintenanceColumn && <col style={{ width: "140px" }} />}
+                      {showCostBreakdown && showManagementFeeColumn && <col style={{ width: "120px" }} />}
+                      {showCostBreakdown && showAssetFeeColumn && !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
                         <col style={{ width: "90px" }} />
                       )}
-                      {showCostBreakdown && <col style={{ width: "120px" }} />}
-                      {showCostBreakdown && <col style={{ width: "120px" }} />}
+                      {showCostBreakdown && showPlusCostColumn && <col style={{ width: "120px" }} />}
+                      {showCostBreakdown && showAcquisitionColumn && <col style={{ width: "120px" }} />}
                       <col style={{ width: "100px" }} />
-                      {showBonusColumns && showBonusBreakdown && <col style={{ width: "120px" }} />}
+                      {showBonusColumns &&
+                        showBonusBreakdown &&
+                        selectedProduct !== "allianz_bonusz_eletprogram" &&
+                        selectedProduct !== "alfa_fortis" && (
+                        <col style={{ width: "120px" }} />
+                      )}
                       {showBonusColumns && showBonusBreakdown && <col style={{ width: "120px" }} />}
                       {enableRiskInsurance && <col style={{ width: "100px" }} />}
                       {totalExtraServicesCost > 0 && <col style={{ width: "100px" }} />}
@@ -6962,11 +7829,11 @@ export function SavingsCalculator() {
                     </colgroup>
                     <thead>
                       <tr className="border-b">
-                        <th className="py-3 px-3 text-center font-medium w-16 sticky left-0 z-20 bg-background/95">Év</th>
+                        <th className="py-3 px-3 text-center font-medium w-16 sticky left-0 z-20 bg-background/95" {...getYearlyHeaderInfoHandlers("year")}>Év</th>
                         {!isYearlyReadOnly && (
-                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap">Index (%)</th>
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap" {...getYearlyHeaderInfoHandlers("index")}>Index (%)</th>
                         )}
-                        <th className="py-3 px-3 text-right font-medium whitespace-nowrap">
+                        <th className="py-3 px-3 text-right font-medium whitespace-nowrap" {...getYearlyHeaderInfoHandlers("payment")}>
                           {isEsetiView ? (
                             <div className="flex items-center justify-end">
                               <Select
@@ -6993,30 +7860,49 @@ export function SavingsCalculator() {
                             "Befizetés/év"
                           )}
                         </th>
-                        <th className="py-3 px-3 text-right font-medium whitespace-nowrap">Hozam</th>
+                        <th className="py-3 px-3 text-right font-medium whitespace-nowrap" {...getYearlyHeaderInfoHandlers("interest")}>Hozam</th>
                         <th className="py-3 px-2 text-right font-medium">
                           <button
                             type="button"
                             onClick={() => setShowCostBreakdown((prev) => !prev)}
+                            onMouseEnter={() => setActiveYearlyColumnInfoKey("totalCost")}
+                            onMouseLeave={() => setActiveYearlyColumnInfoKey(null)}
+                            onFocus={() => setActiveYearlyColumnInfoKey("totalCost")}
+                            onBlur={() => setActiveYearlyColumnInfoKey(null)}
                             className="text-red-600 hover:text-red-700 transition-colors whitespace-nowrap"
                           >
                             Költség
                           </button>
                         </th>
-                        {showCostBreakdown && (
-                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600">Admin. díj</th>
+                        {showCostBreakdown && showAdminCostColumn && (
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("adminFee")}>Admin. díj</th>
                         )}
-                        {showCostBreakdown && !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
-                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600">Vagyon (%)</th>
+                        {showCostBreakdown && showAccountMaintenanceColumn && (
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("accountMaintenance")}>
+                            Számlavezetési költség
+                          </th>
                         )}
-                        {showCostBreakdown && (
-                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600">
+                        {showCostBreakdown && showManagementFeeColumn && (
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("managementFee")}>
+                            Kezelési díj
+                          </th>
+                        )}
+                        {showCostBreakdown && showAssetFeeColumn && !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("assetFee")}>Vagyon (%)</th>
+                        )}
+                        {showCostBreakdown && showPlusCostColumn && (
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("plusCost")}>
                             Plusz költség (Ft)
                           </th>
                         )}
-                        {showCostBreakdown && (
-                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600">
-                            Akkvizíciós költség
+                        {showCostBreakdown && showAcquisitionColumn && (
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("acquisitionFee")}>
+                            {selectedProduct === "alfa_fortis"
+                              || selectedProduct === "alfa_jade"
+                              ? "Szerződéskötési költség"
+                              : isAllianzEletprogramView
+                                ? "Kezdeti költség"
+                                : "Akkvizíciós költség"}
                           </th>
                         )}
                         {showBonusColumns && (
@@ -7024,40 +7910,54 @@ export function SavingsCalculator() {
                             <button
                               type="button"
                               onClick={() => setShowBonusBreakdown((prev) => !prev)}
+                              onMouseEnter={() => setActiveYearlyColumnInfoKey("bonus")}
+                              onMouseLeave={() => setActiveYearlyColumnInfoKey(null)}
+                              onFocus={() => setActiveYearlyColumnInfoKey("bonus")}
+                              onBlur={() => setActiveYearlyColumnInfoKey(null)}
                               className="text-emerald-600 hover:text-emerald-700 transition-colors whitespace-nowrap"
                             >
                               Bónusz
                             </button>
                           </th>
                         )}
-                        {showBonusColumns && showBonusBreakdown && (
-                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-emerald-600">
+                        {showBonusColumns &&
+                          showBonusBreakdown &&
+                          selectedProduct !== "allianz_bonusz_eletprogram" &&
+                          selectedProduct !== "alfa_fortis" && (
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-emerald-600" {...getYearlyHeaderInfoHandlers("wealthBonusPercent")}>
                             Vagyon bónusz (%)
                           </th>
                         )}
                         {showBonusColumns && showBonusBreakdown && (
-                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-emerald-600">
-                            Bónusz (Ft)
+                          <th
+                            className="py-3 px-3 text-right font-medium whitespace-nowrap text-emerald-600"
+                            {...getYearlyHeaderInfoHandlers(selectedProduct === "alfa_fortis" ? "bonus" : "bonusAmount")}
+                          >
+                            {selectedProduct === "alfa_fortis"
+                              ? "Bónusz (%)"
+                              : selectedProduct === "allianz_bonusz_eletprogram"
+                                ? "Bónusz (%)"
+                                : "Bónusz (Ft)"}
                           </th>
                         )}
                         {/* </CHANGE> */}
                         {enableRiskInsurance && (
-                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap">Kock.bizt.</th>
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap" {...getYearlyHeaderInfoHandlers("riskFee")}>Kock.bizt.</th>
                         )}
                         {/* Display extra services cost column if totalExtraServicesCost > 0 */}
                         {totalExtraServicesCost > 0 && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap">Extrák</th>
                         )}
                         {inputs.enableTaxCredit && (
-                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28">Adójóv.</th>
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28" {...getYearlyHeaderInfoHandlers("taxCredit")}>Adójóv.</th>
                         )}
-                        <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28">Kivonás</th>
+                        <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28" {...getYearlyHeaderInfoHandlers("withdrawal")}>Kivonás</th>
                         {isAlfaExclusivePlus && (
-                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-32 min-w-32">
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-32 min-w-32" {...getYearlyHeaderInfoHandlers("balance")}>
                             {enableNetting ? "Nettó egyenleg" : "Egyenleg"}
                           </th>
                         )}
-                        <th className="py-3 pl-1 pr-[2ch] text-right text-xs md:text-sm font-semibold sticky right-0 z-20 bg-background/95 w-[1%] whitespace-nowrap">
+                        <th className="py-3 pl-1 pr-[2ch] text-right text-xs md:text-sm font-semibold sticky right-0 z-20 bg-background/95 w-[1%] whitespace-nowrap" {...getYearlyHeaderInfoHandlers(isAlfaExclusivePlus ? "surrenderValue" : "balance")}>
                           {isAlfaExclusivePlus ? "Visszavásárlási érték" : enableNetting ? "Nettó egyenleg" : "Egyenleg"}
                         </th>
                       </tr>
@@ -7078,30 +7978,6 @@ export function SavingsCalculator() {
                         const updateIndexForView = isEsetiView ? updateEsetiIndex : updateIndex
                         const updatePaymentForView = isEsetiView ? updateEsetiPayment : updatePayment
                         const updateWithdrawalForView = isEsetiView ? updateEsetiWithdrawal : updateWithdrawal
-                        const isAllianzProduct =
-                          selectedInsurer === "Allianz" &&
-                          (selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram")
-                        const isAllianzBonusProduct =
-                          selectedInsurer === "Allianz" && selectedProduct === "allianz_bonusz_eletprogram"
-                        const monthlyAdminFee =
-                          isAllianzProduct && inputs.currency === "EUR" ? 3.3 : isAllianzProduct ? 990 : 0
-                        const getAdminFeeForYear = (targetYear: number) =>
-                          isAllianzProduct
-                            ? targetYear === 1
-                              ? 0
-                              : monthlyAdminFee * 12
-                            : (inputs.yearlyFixedManagementFeeAmount ?? 0)
-                        const adminFeeYear = getAdminFeeForYear(row.year)
-                        const adminFeeDisplay =
-                          yearlyAggregationMode === "sum"
-                            ? Array.from({ length: row.year }, (_, idx) => getAdminFeeForYear(idx + 1)).reduce(
-                                (total, value) => total + value,
-                                0,
-                              )
-                            : adminFeeYear
-                        const acquisitionCostRate = isAllianzBonusProduct ? 0.79 : 0.33
-                        const acquisitionCostYear =
-                          isAllianzProduct && row.year === 1 ? row.yearlyPayment * acquisitionCostRate : 0
                         const currentTaxCreditLimit = taxCreditLimitByYear[row.year]
                         const baseTaxCreditCapForYear =
                           currentTaxCreditLimit ?? inputs.taxCreditCapPerYear ?? Number.POSITIVE_INFINITY
@@ -7131,12 +8007,70 @@ export function SavingsCalculator() {
                             ? cumulativeByYearSummary
                             : cumulativeByYear
                         const sourceRow = yearlyAggregationMode === "sum" ? sourceCumulativeByYear[row.year] ?? row : row
+                        const baselineAdminFeePercent =
+                          productPresetBaseline.adminFeePercentByYear[row.year] ?? productPresetBaseline.adminFeePercentOfPayment
+                        const baselineAccountMaintenancePercent =
+                          productPresetBaseline.accountMaintenancePercentByYear[row.year] ??
+                          productPresetBaseline.accountMaintenanceMonthlyPercent
+                        const baselineAcquisitionPercent =
+                          productPresetBaseline.initialCostByYear[row.year] ?? productPresetBaseline.initialCostDefaultPercent
+                        const baselineBonusOnContributionPercent =
+                          productPresetBaseline.bonusOnContributionPercentByYear[row.year] ?? 0
+                        const baselineRefundInitialCostBonusPercent =
+                          productPresetBaseline.refundInitialCostBonusPercentByYear[row.year] ?? 0
+                        const baselineAssetCostPercent =
+                          productPresetBaseline.assetCostPercentByYear[row.year] ?? productPresetBaseline.assetBasedFeePercent
+                        const adminFeeDisplay = isEsetiView ? 0 : (sourceRow.adminCostForYear ?? 0)
+                        const adminFeePercentDisplay = isEsetiView
+                          ? 0
+                          : (adminFeePercentByYear[row.year] ??
+                              inputs.adminFeePercentOfPayment ??
+                              (selectedProduct === "alfa_fortis" ? 4 : 0))
+                        const adminFeePercentDefault = baselineAdminFeePercent
+                        const isAdminFeePercentModified = Math.abs(adminFeePercentDisplay - adminFeePercentDefault) > 1e-9
+                        const accountMaintenanceDisplay = isEsetiView ? 0 : (sourceRow.accountMaintenanceCostForYear ?? 0)
+                        const accountMaintenancePercentDisplay = isEsetiView
+                          ? 0
+                          : (accountMaintenancePercentByYear[row.year] ??
+                              inputs.accountMaintenanceMonthlyPercent ??
+                              (selectedProduct === "alfa_fortis" ? 0.165 : 0))
+                        const isAccountMaintenancePercentModified = Math.abs(
+                          accountMaintenancePercentDisplay - baselineAccountMaintenancePercent,
+                        ) > 1e-9
+                        const managementFeeDisplay = isEsetiView ? 0 : (sourceRow.managementFeeCostForYear ?? 0)
+                        const acquisitionCostDisplay = isEsetiView ? 0 : (sourceRow.upfrontCostForYear ?? 0)
+                        const acquisitionPercentDisplay = isEsetiView
+                          ? 0
+                          : (inputs.initialCostByYear?.[row.year] ?? inputs.initialCostDefaultPercent ?? 0)
+                        const acquisitionPercentDefault = baselineAcquisitionPercent
+                        const isAcquisitionPercentModified =
+                          Math.abs(acquisitionPercentDisplay - acquisitionPercentDefault) > 1e-9
+                        const bonusOnContributionPercentDisplay = isEsetiView
+                          ? 0
+                          : (bonusOnContributionPercentByYear[row.year] ?? baselineBonusOnContributionPercent)
+                        const bonusOnContributionPercentDefault = baselineBonusOnContributionPercent
+                        const isBonusOnContributionPercentModified =
+                          Math.abs(bonusOnContributionPercentDisplay - bonusOnContributionPercentDefault) > 1e-9
+                        const refundInitialCostBonusPercentDisplay = isEsetiView
+                          ? 0
+                          : (refundInitialCostBonusPercentByYear[row.year] ?? baselineRefundInitialCostBonusPercent)
+                        const refundInitialCostBonusPercentDefault = baselineRefundInitialCostBonusPercent
+                        const isRefundInitialCostBonusPercentModified =
+                          Math.abs(refundInitialCostBonusPercentDisplay - refundInitialCostBonusPercentDefault) > 1e-9
+                        const assetCostPercentDisplay = isEsetiView
+                          ? 0
+                          : (assetCostPercentByYear[row.year] ?? inputs.assetBasedFeePercent)
+                        const isAssetCostPercentModified = Math.abs(assetCostPercentDisplay - baselineAssetCostPercent) > 1e-9
                         const displayPaymentValue = sourceRow.yearlyPayment ?? currentPayment
 
                         let displayData = {
                           endBalance: sourceRow.endBalance,
                           interestForYear: sourceRow.interestForYear,
                           costForYear: sourceRow.costForYear,
+                          upfrontCostForYear: sourceRow.upfrontCostForYear ?? 0,
+                          adminCostForYear: sourceRow.adminCostForYear ?? 0,
+                          accountMaintenanceCostForYear: sourceRow.accountMaintenanceCostForYear ?? 0,
+                          managementFeeCostForYear: sourceRow.managementFeeCostForYear ?? 0,
                           assetBasedCostForYear: sourceRow.assetBasedCostForYear,
                           plusCostForYear: sourceRow.plusCostForYear,
                           bonusForYear: sourceRow.bonusForYear,
@@ -7148,6 +8082,10 @@ export function SavingsCalculator() {
                             endBalance: sourceRow.client.endBalance,
                             interestForYear: sourceRow.client.interestForYear,
                             costForYear: sourceRow.client.costForYear,
+                            upfrontCostForYear: 0,
+                            adminCostForYear: 0,
+                            accountMaintenanceCostForYear: 0,
+                            managementFeeCostForYear: 0,
                             assetBasedCostForYear: sourceRow.client.assetBasedCostForYear,
                             plusCostForYear: sourceRow.client.plusCostForYear,
                             bonusForYear: sourceRow.client.bonusForYear,
@@ -7158,6 +8096,10 @@ export function SavingsCalculator() {
                             endBalance: sourceRow.invested.endBalance,
                             interestForYear: sourceRow.invested.interestForYear,
                             costForYear: sourceRow.invested.costForYear,
+                            upfrontCostForYear: 0,
+                            adminCostForYear: 0,
+                            accountMaintenanceCostForYear: 0,
+                            managementFeeCostForYear: 0,
                             assetBasedCostForYear: sourceRow.invested.assetBasedCostForYear,
                             plusCostForYear: sourceRow.invested.plusCostForYear,
                             bonusForYear: sourceRow.invested.bonusForYear,
@@ -7169,6 +8111,10 @@ export function SavingsCalculator() {
                             endBalance: sourceRow.taxBonus.endBalance,
                             interestForYear: sourceRow.taxBonus.interestForYear,
                             costForYear: sourceRow.taxBonus.costForYear,
+                            upfrontCostForYear: 0,
+                            adminCostForYear: 0,
+                            accountMaintenanceCostForYear: 0,
+                            managementFeeCostForYear: 0,
                             assetBasedCostForYear: sourceRow.taxBonus.assetBasedCostForYear,
                             plusCostForYear: sourceRow.taxBonus.plusCostForYear,
                             bonusForYear: sourceRow.taxBonus.bonusForYear,
@@ -7181,12 +8127,22 @@ export function SavingsCalculator() {
                           displayData = {
                             ...displayData,
                             costForYear: 0,
+                            upfrontCostForYear: 0,
+                            adminCostForYear: 0,
+                            accountMaintenanceCostForYear: 0,
+                            managementFeeCostForYear: 0,
                             assetBasedCostForYear: 0,
                             plusCostForYear: 0,
                             bonusForYear: 0,
                             wealthBonusForYear: 0,
                           }
                         }
+
+                        const totalBonusForRow = (displayData.bonusForYear ?? 0) + (displayData.wealthBonusForYear ?? 0)
+                        const cumulativeSourceRow = sourceCumulativeByYear[row.year] ?? sourceRow
+                        const cumulativeBonusForRow = isEsetiView
+                          ? 0
+                          : (cumulativeSourceRow.bonusForYear ?? 0) + (cumulativeSourceRow.wealthBonusForYear ?? 0)
 
                         const cumulativeRow = sourceCumulativeByYear[row.year] ?? row
                         let displayBalance = enableNetting ? netData.netBalance : displayData.endBalance
@@ -7297,17 +8253,130 @@ export function SavingsCalculator() {
                                 {formatValue(applyRealValueForYear(displayData.costForYear), displayCurrency)}
                               </div>
                             </td>
-                            {showCostBreakdown && (
+                            {showCostBreakdown && showAdminCostColumn && (
+                              selectedProduct === "alfa_fortis" ? (
+                                <td className="py-2 px-3 text-right align-top">
+                                  <div className="flex flex-col items-end gap-1 min-h-[44px]">
+                                    <Input
+                                      type="text"
+                                      inputMode="decimal"
+                                      disabled={isPartialRow}
+                                      value={
+                                        editingFields[`adminFee-${row.year}`]
+                                          ? adminFeeInputByYear[row.year] ?? ""
+                                          : adminFeePercentDisplay
+                                              .toLocaleString("hu-HU", { maximumFractionDigits: 2 })
+                                              .replace(/\u00A0/g, " ")
+                                      }
+                                      onFocus={() => {
+                                        setFieldEditing(`adminFee-${row.year}`, true)
+                                        setAdminFeeInputByYear((prev) => ({
+                                          ...prev,
+                                          [row.year]: String(adminFeePercentDisplay),
+                                        }))
+                                      }}
+                                      onBlur={() => {
+                                        setFieldEditing(`adminFee-${row.year}`, false)
+                                        setAdminFeeInputByYear((prev) => {
+                                          const updated = { ...prev }
+                                          delete updated[row.year]
+                                          return updated
+                                        })
+                                      }}
+                                      onChange={(e) => {
+                                        const raw = e.target.value
+                                        setAdminFeeInputByYear((prev) => ({ ...prev, [row.year]: raw }))
+                                        const val = parseNumber(raw)
+                                        if (!isNaN(val) && val >= 0 && val <= 100) {
+                                          updateAdminFeePercent(row.year, val)
+                                        }
+                                      }}
+                                      min={0}
+                                      max={100}
+                                      step={0.1}
+                                      className={`w-20 h-8 text-right tabular-nums text-red-600 ${isAdminFeePercentModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+                                    />
+                                    <p className="text-xs text-muted-foreground tabular-nums">
+                                      {formatValue(
+                                        applyRealValueForYear(isEsetiView ? 0 : adminFeeDisplay),
+                                        displayCurrency,
+                                      )}
+                                    </p>
+                                  </div>
+                                </td>
+                              ) : (
+                                <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap align-top text-red-600">
+                                  <div className="flex items-center justify-end min-h-[44px]">
+                                    {formatValue(
+                                      applyRealValueForYear(isEsetiView ? 0 : adminFeeDisplay),
+                                      displayCurrency,
+                                    )}
+                                  </div>
+                                </td>
+                              )
+                            )}
+                            {showCostBreakdown && showAccountMaintenanceColumn && (
+                              <td className="py-2 px-3 text-right align-top">
+                                <div className="flex flex-col items-end gap-1 min-h-[44px]">
+                                  <Input
+                                    type="text"
+                                    inputMode="decimal"
+                                    disabled={isPartialRow}
+                                    value={
+                                      editingFields[`accountMaintenance-${row.year}`]
+                                        ? accountMaintenanceInputByYear[row.year] ?? ""
+                                        : accountMaintenancePercentDisplay
+                                            .toLocaleString("hu-HU", { maximumFractionDigits: 3 })
+                                            .replace(/\u00A0/g, " ")
+                                    }
+                                    onFocus={() => {
+                                      setFieldEditing(`accountMaintenance-${row.year}`, true)
+                                      setAccountMaintenanceInputByYear((prev) => ({
+                                        ...prev,
+                                        [row.year]: String(accountMaintenancePercentDisplay),
+                                      }))
+                                    }}
+                                    onBlur={() => {
+                                      setFieldEditing(`accountMaintenance-${row.year}`, false)
+                                      setAccountMaintenanceInputByYear((prev) => {
+                                        const updated = { ...prev }
+                                        delete updated[row.year]
+                                        return updated
+                                      })
+                                    }}
+                                    onChange={(e) => {
+                                      const raw = e.target.value
+                                      setAccountMaintenanceInputByYear((prev) => ({ ...prev, [row.year]: raw }))
+                                      const val = parseNumber(raw)
+                                      if (!isNaN(val) && val >= 0 && val <= 100) {
+                                        updateAccountMaintenancePercent(row.year, val)
+                                      }
+                                    }}
+                                    min={0}
+                                    max={100}
+                                    step={0.001}
+                                    className={`w-20 h-8 text-right tabular-nums text-red-600 ${isAccountMaintenancePercentModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+                                  />
+                                  <p className="text-xs text-muted-foreground tabular-nums">
+                                    {formatValue(
+                                      applyRealValueForYear(isEsetiView ? 0 : accountMaintenanceDisplay),
+                                      displayCurrency,
+                                    )}
+                                  </p>
+                                </div>
+                              </td>
+                            )}
+                            {showCostBreakdown && showManagementFeeColumn && (
                               <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap align-top text-red-600">
                                 <div className="flex items-center justify-end min-h-[44px]">
                                   {formatValue(
-                                    applyRealValueForYear(isEsetiView ? 0 : adminFeeDisplay),
+                                    applyRealValueForYear(isEsetiView ? 0 : managementFeeDisplay),
                                     displayCurrency,
                                   )}
                                 </div>
                               </td>
                             )}
-                            {showCostBreakdown && !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
+                            {showCostBreakdown && showAssetFeeColumn && !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
                               <td className="py-2 px-3 text-right align-top">
                                 <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                   <Input
@@ -7318,7 +8387,7 @@ export function SavingsCalculator() {
                                         ? "0"
                                         : editingFields[`assetCost-${row.year}`]
                                           ? assetCostInputByYear[row.year] ?? ""
-                                          : (assetCostPercentByYear[row.year] ?? inputs.assetBasedFeePercent)
+                                          : assetCostPercentDisplay
                                               .toLocaleString("hu-HU", { maximumFractionDigits: 2 })
                                               .replace(/\u00A0/g, " ")
                                     }
@@ -7326,9 +8395,7 @@ export function SavingsCalculator() {
                                       setFieldEditing(`assetCost-${row.year}`, true)
                                       setAssetCostInputByYear((prev) => ({
                                         ...prev,
-                                        [row.year]: String(
-                                          isEsetiView ? 0 : assetCostPercentByYear[row.year] ?? inputs.assetBasedFeePercent,
-                                        ),
+                                        [row.year]: String(assetCostPercentDisplay),
                                       }))
                                     }}
                                     onBlur={() => {
@@ -7350,7 +8417,7 @@ export function SavingsCalculator() {
                                     min={0}
                                     max={100}
                                     step={0.1}
-                                    className={`w-20 h-8 text-right tabular-nums text-red-600 ${assetCostPercentByYear[row.year] !== undefined ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+                                    className={`w-20 h-8 text-right tabular-nums text-red-600 ${isAssetCostPercentModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
                                   />
                                   <p className="text-xs text-muted-foreground tabular-nums">
                                     {formatValue(
@@ -7368,7 +8435,7 @@ export function SavingsCalculator() {
                               </td>
                             )}
 
-                            {showCostBreakdown && (
+                            {showCostBreakdown && showPlusCostColumn && (
                               <td className="py-2 px-3 text-right align-top">
                                 <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                   <Input
@@ -7418,13 +8485,54 @@ export function SavingsCalculator() {
                                 </div>
                               </td>
                             )}
-                            {showCostBreakdown && (
-                              <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap align-top text-red-600">
-                                <div className="flex items-center justify-end min-h-[44px]">
-                                  {formatValue(
-                                    applyRealValueForYear(isEsetiView ? 0 : acquisitionCostYear),
-                                    displayCurrency,
-                                  )}
+                            {showCostBreakdown && showAcquisitionColumn && (
+                              <td className="py-2 px-3 text-right align-top">
+                                <div className="flex flex-col items-end gap-1 min-h-[44px]">
+                                  <Input
+                                    type="text"
+                                    inputMode="decimal"
+                                    disabled={isPartialRow}
+                                    value={
+                                      editingFields[`acquisitionCost-${row.year}`]
+                                        ? acquisitionCostInputByYear[row.year] ?? ""
+                                        : acquisitionPercentDisplay
+                                            .toLocaleString("hu-HU", { maximumFractionDigits: 2 })
+                                            .replace(/\u00A0/g, " ")
+                                    }
+                                    onFocus={() => {
+                                      setFieldEditing(`acquisitionCost-${row.year}`, true)
+                                      setAcquisitionCostInputByYear((prev) => ({
+                                        ...prev,
+                                        [row.year]: String(acquisitionPercentDisplay),
+                                      }))
+                                    }}
+                                    onBlur={() => {
+                                      setFieldEditing(`acquisitionCost-${row.year}`, false)
+                                      setAcquisitionCostInputByYear((prev) => {
+                                        const updated = { ...prev }
+                                        delete updated[row.year]
+                                        return updated
+                                      })
+                                    }}
+                                    onChange={(e) => {
+                                      const raw = e.target.value
+                                      setAcquisitionCostInputByYear((prev) => ({ ...prev, [row.year]: raw }))
+                                      const val = parseNumber(raw)
+                                      if (!isNaN(val) && val >= 0 && val <= 100) {
+                                        updateInitialCostPercent(row.year, val)
+                                      }
+                                    }}
+                                    min={0}
+                                    max={100}
+                                    step={0.1}
+                                    className={`w-20 h-8 text-right tabular-nums text-red-600 ${isAcquisitionPercentModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+                                  />
+                                  <p className="text-xs text-muted-foreground tabular-nums">
+                                    {formatValue(
+                                      applyRealValueForYear(isEsetiView ? 0 : acquisitionCostDisplay),
+                                      displayCurrency,
+                                    )}
+                                  </p>
                                 </div>
                               </td>
                             )}
@@ -7433,14 +8541,17 @@ export function SavingsCalculator() {
                                 <div className="flex items-center justify-end min-h-[44px]">
                                   {formatValue(
                                     applyRealValueForYear(
-                                      (displayData.bonusForYear ?? 0) + (displayData.wealthBonusForYear ?? 0),
+                                      selectedProduct === "alfa_fortis" ? totalBonusForRow : cumulativeBonusForRow,
                                     ),
                                     displayCurrency,
                                   )}
                                 </div>
                               </td>
                             )}
-                            {showBonusColumns && showBonusBreakdown && (
+                            {showBonusColumns &&
+                              showBonusBreakdown &&
+                              selectedProduct !== "allianz_bonusz_eletprogram" &&
+                              selectedProduct !== "alfa_fortis" && (
                               <td className="py-2 px-3 text-right align-top">
                                 <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                   <Input
@@ -7463,11 +8574,112 @@ export function SavingsCalculator() {
                               </td>
                             )}
                             {showBonusColumns && showBonusBreakdown && (
-                              <td className="py-2 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 align-top whitespace-nowrap">
-                                <div className="flex items-center justify-end min-h-[44px]">
-                                  {formatValue(applyRealValueForYear(displayData.wealthBonusForYear), displayCurrency)}
-                                </div>
-                              </td>
+                              selectedProduct === "alfa_fortis" ? (
+                                <td className="py-2 px-3 text-right align-top">
+                                  <div className="flex flex-col items-end gap-1 min-h-[44px]">
+                                    <Input
+                                      type="text"
+                                      inputMode="decimal"
+                                      disabled={isPartialRow}
+                                      value={
+                                        editingFields[`bonusOnContribution-${row.year}`]
+                                          ? bonusOnContributionInputByYear[row.year] ?? ""
+                                          : bonusOnContributionPercentDisplay
+                                              .toLocaleString("hu-HU", { maximumFractionDigits: 2 })
+                                              .replace(/\u00A0/g, " ")
+                                      }
+                                      onFocus={() => {
+                                        setFieldEditing(`bonusOnContribution-${row.year}`, true)
+                                        setBonusOnContributionInputByYear((prev) => ({
+                                          ...prev,
+                                          [row.year]: String(bonusOnContributionPercentDisplay),
+                                        }))
+                                      }}
+                                      onBlur={() => {
+                                        setFieldEditing(`bonusOnContribution-${row.year}`, false)
+                                        setBonusOnContributionInputByYear((prev) => {
+                                          const updated = { ...prev }
+                                          delete updated[row.year]
+                                          return updated
+                                        })
+                                      }}
+                                      onChange={(e) => {
+                                        const raw = e.target.value
+                                        setBonusOnContributionInputByYear((prev) => ({ ...prev, [row.year]: raw }))
+                                        const val = parseNumber(raw)
+                                        if (!isNaN(val) && val >= 0 && val <= 100) {
+                                          updateBonusOnContributionPercent(row.year, val)
+                                        }
+                                      }}
+                                      min={0}
+                                      max={100}
+                                      step={0.1}
+                                      className={`w-20 h-8 text-right tabular-nums text-emerald-600 ${isBonusOnContributionPercentModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+                                    />
+                                    <p className="text-xs text-muted-foreground tabular-nums">
+                                      {formatValue(
+                                        applyRealValueForYear(
+                                          (displayData.bonusForYear ?? 0) + (displayData.wealthBonusForYear ?? 0),
+                                        ),
+                                        displayCurrency,
+                                      )}
+                                    </p>
+                                  </div>
+                                </td>
+                              ) : selectedProduct === "allianz_bonusz_eletprogram" ? (
+                                <td className="py-2 px-3 text-right align-top">
+                                  <div className="flex flex-col items-end gap-1 min-h-[44px]">
+                                    <Input
+                                      type="text"
+                                      inputMode="decimal"
+                                      disabled={isPartialRow}
+                                      value={
+                                        editingFields[`refundInitialCostBonus-${row.year}`]
+                                          ? refundInitialCostBonusInputByYear[row.year] ?? ""
+                                          : refundInitialCostBonusPercentDisplay
+                                              .toLocaleString("hu-HU", { maximumFractionDigits: 2 })
+                                              .replace(/\u00A0/g, " ")
+                                      }
+                                      onFocus={() => {
+                                        setFieldEditing(`refundInitialCostBonus-${row.year}`, true)
+                                        setRefundInitialCostBonusInputByYear((prev) => ({
+                                          ...prev,
+                                          [row.year]: String(refundInitialCostBonusPercentDisplay),
+                                        }))
+                                      }}
+                                      onBlur={() => {
+                                        setFieldEditing(`refundInitialCostBonus-${row.year}`, false)
+                                        setRefundInitialCostBonusInputByYear((prev) => {
+                                          const updated = { ...prev }
+                                          delete updated[row.year]
+                                          return updated
+                                        })
+                                      }}
+                                      onChange={(e) => {
+                                        const raw = e.target.value
+                                        setRefundInitialCostBonusInputByYear((prev) => ({ ...prev, [row.year]: raw }))
+                                        const val = parseNumber(raw)
+                                        if (!isNaN(val) && val >= 0 && val <= 100) {
+                                          updateRefundInitialCostBonusPercent(row.year, val)
+                                        }
+                                      }}
+                                      min={0}
+                                      max={100}
+                                      step={0.1}
+                                      className={`w-20 h-8 text-right tabular-nums text-emerald-600 ${isRefundInitialCostBonusPercentModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+                                    />
+                                    <p className="text-xs text-muted-foreground tabular-nums">
+                                      {formatValue(applyRealValueForYear(totalBonusForRow), displayCurrency)}
+                                    </p>
+                                  </div>
+                                </td>
+                              ) : (
+                                <td className="py-2 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 align-top whitespace-nowrap">
+                                  <div className="flex items-center justify-end min-h-[44px]">
+                                    {formatValue(applyRealValueForYear(totalBonusForRow), displayCurrency)}
+                                  </div>
+                                </td>
+                              )
                             )}
                             {/* </CHANGE> */}
                             {enableRiskInsurance && (
@@ -7701,6 +8913,9 @@ export function SavingsCalculator() {
                       })}
                     </tbody>
                   </table>
+                </div>
+                <div className="hidden md:block mt-3">
+                  <ColumnHoverInfoPanel activeKey={activeYearlyColumnInfoKey} productKey={yearlyPanelProductKey} />
                 </div>
               </CardContent>
             </Card>

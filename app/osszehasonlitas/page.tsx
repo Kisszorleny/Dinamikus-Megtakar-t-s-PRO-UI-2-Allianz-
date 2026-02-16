@@ -10,8 +10,9 @@ import { ArrowLeft } from "lucide-react"
 import { convertForDisplay, formatMoney } from "@/lib/currency-conversion"
 import { buildYearlyPlan } from "@/lib/plan"
 import { calculate, type InputsDaily, type ProductId } from "@/lib/engine"
-import { FORTIS_MIN_ANNUAL_PAYMENT } from "@/lib/engine/products/alfa-fortis-config"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { ColumnHoverInfoPanel } from "@/components/column-hover-info-panel"
+import { resolveProductContextKey } from "@/lib/column-explanations"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts"
 
 type Currency = "HUF" | "EUR" | "USD"
@@ -56,6 +57,14 @@ const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
             { label: "Alfa Fortis EUR", productType: "Életbiztosítás", mnbCode: "13471", productCode: "WL-12" },
             { label: "Alfa Fortis USD", productType: "Életbiztosítás", mnbCode: "13472", productCode: "WL-22" },
           ],
+        },
+        {
+          value: "alfa_jade",
+          label: "Alfa Jáde EUR",
+          productType: "Életbiztosítás",
+          mnbCode: "TR19",
+          productCode: "TR19",
+          variants: [{ label: "Alfa Jáde EUR", productType: "Életbiztosítás", mnbCode: "TR19", productCode: "TR19" }],
         },
       ]
     case "Allianz":
@@ -151,11 +160,27 @@ export default function OsszehasonlitasPage() {
   const [durationUnit, setDurationUnit] = useState<"year" | "month" | "day">("year")
   const [durationValue, setDurationValue] = useState<number>(10)
   const [displayCurrency, setDisplayCurrency] = useState<Currency>("HUF")
+  const [activeColumnInfoKey, setActiveColumnInfoKey] = useState<string | null>(null)
   const [indexByYear, setIndexByYear] = useState<Record<number, number>>({})
   const [paymentByYear, setPaymentByYear] = useState<Record<number, number>>({})
   const [withdrawalByYear, setWithdrawalByYear] = useState<Record<number, number>>({})
   const [taxCreditAmountByYear, setTaxCreditAmountByYear] = useState<Record<number, number>>({})
   const [taxCreditLimitByYear, setTaxCreditLimitByYear] = useState<Record<number, number>>({})
+  const getHeaderInfoHandlers = (key: string) => ({
+    onMouseEnter: () => setActiveColumnInfoKey(key),
+    onMouseLeave: () => setActiveColumnInfoKey(null),
+    onFocus: () => setActiveColumnInfoKey(key),
+    onBlur: () => setActiveColumnInfoKey(null),
+    tabIndex: 0,
+  })
+  const comparisonPanelProductKey = useMemo(
+    () =>
+      resolveProductContextKey(null, {
+        enableTaxCredit: inputs?.enableTaxCredit,
+        selectedProductsForComparison,
+      }),
+    [inputs?.enableTaxCredit, selectedProductsForComparison],
+  )
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -242,6 +267,7 @@ export default function OsszehasonlitasPage() {
       return "alfa-exclusive-plus"
     }
     if (productValue === "alfa_fortis") return "alfa-fortis"
+    if (productValue === "alfa_jade") return "alfa-jade"
     if (insurer === "Allianz" && productValue.includes("allianz")) {
       return "allianz-eletprogram"
     }
@@ -262,11 +288,14 @@ export default function OsszehasonlitasPage() {
         const productId = mapSelectedProductToProductId(insurer, productValue)
         const isAllianzProduct = productId === "allianz-eletprogram"
         const isBonusVariant = productValue === "allianz_bonusz_eletprogram"
+        const effectiveCurrency = productValue === "alfa_jade" ? "EUR" : inputs.currency
         const effectiveProductVariant =
           productValue === "alfa_exclusive_plus"
             ? inputs.enableTaxCredit
               ? "alfa_exclusive_plus_ny05"
               : "alfa_exclusive_plus_tr08"
+            : productValue === "alfa_jade"
+              ? "alfa_jade_tr19"
             : productValue
         const durationInYears = Math.max(
           1,
@@ -323,15 +352,11 @@ export default function OsszehasonlitasPage() {
 
         const baseInputs: InputsDaily = {
           ...inputs,
+          currency: effectiveCurrency,
           durationUnit,
           durationValue,
           yearsPlanned: totalYearsForPlan,
-          yearlyPaymentsPlan:
-            productValue === "alfa_fortis"
-              ? plan.yearlyPaymentsPlan.map((value, year) =>
-                  year <= 0 || value <= 0 ? value : Math.max(FORTIS_MIN_ANNUAL_PAYMENT, value),
-                )
-              : plan.yearlyPaymentsPlan,
+          yearlyPaymentsPlan: plan.yearlyPaymentsPlan,
           yearlyWithdrawalsPlan: plan.yearlyWithdrawalsPlan,
           taxCreditAmountByYear,
           taxCreditLimitByYear,
@@ -549,12 +574,12 @@ export default function OsszehasonlitasPage() {
                     <thead>
                       <tr className="border-b">
                         <th className="py-3 px-4 text-left font-medium">Termék</th>
-                        <th className="py-3 px-4 text-right font-medium">Futamidő</th>
-                        <th className="py-3 px-4 text-right font-medium">Összes befizetés</th>
-                        <th className="py-3 px-4 text-right font-medium">Adójóváírás</th>
-                        <th className="py-3 px-4 text-right font-medium">Nettó hozam</th>
-                        <th className="py-3 px-4 text-right font-medium">Egyenleg</th>
-                        <th className="py-3 px-4 text-right font-medium">Visszavásárlási érték</th>
+                        <th className="py-3 px-4 text-right font-medium" {...getHeaderInfoHandlers("duration")}>Futamidő</th>
+                        <th className="py-3 px-4 text-right font-medium" {...getHeaderInfoHandlers("totalContributions")}>Összes befizetés</th>
+                        <th className="py-3 px-4 text-right font-medium" {...getHeaderInfoHandlers("taxCredit")}>Adójóváírás</th>
+                        <th className="py-3 px-4 text-right font-medium" {...getHeaderInfoHandlers("netReturn")}>Nettó hozam</th>
+                        <th className="py-3 px-4 text-right font-medium" {...getHeaderInfoHandlers("balance")}>Egyenleg</th>
+                        <th className="py-3 px-4 text-right font-medium" {...getHeaderInfoHandlers("surrenderValue")}>Visszavásárlási érték</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -632,6 +657,9 @@ export default function OsszehasonlitasPage() {
                       })}
                     </tbody>
                   </table>
+                </div>
+                <div className="mt-3">
+                  <ColumnHoverInfoPanel activeKey={activeColumnInfoKey} productKey={comparisonPanelProductKey} />
                 </div>
 
                 {/* Line Charts - Comparison of all selected products */}
@@ -730,7 +758,7 @@ export default function OsszehasonlitasPage() {
                         <CardContent className="space-y-6">
                           {/* Egyenleg Chart */}
                           <div>
-                            <h3 className="text-sm font-medium mb-4">Egyenleg összehasonlítása</h3>
+                            <h3 className="text-sm font-medium mb-4" {...getHeaderInfoHandlers("compareBalanceChart")}>Egyenleg összehasonlítása</h3>
                             <ChartContainer config={chartConfig}>
                               <LineChart data={mergedChartData}>
                                 <CartesianGrid strokeDasharray="3 3" />
@@ -751,7 +779,7 @@ export default function OsszehasonlitasPage() {
                           </div>
 
                           <div>
-                            <h3 className="text-sm font-medium mb-4">Kumulált befizetés vs egyenleg</h3>
+                            <h3 className="text-sm font-medium mb-4" {...getHeaderInfoHandlers("compareContributionVsBalanceChart")}>Kumulált befizetés vs egyenleg</h3>
                             <ChartContainer config={chartConfig}>
                               <LineChart data={mergedChartData}>
                                 <CartesianGrid strokeDasharray="3 3" />
@@ -783,7 +811,7 @@ export default function OsszehasonlitasPage() {
 
                           {/* Visszavásárlási érték Chart */}
                           <div>
-                            <h3 className="text-sm font-medium mb-4">Visszavásárlási érték összehasonlítása</h3>
+                            <h3 className="text-sm font-medium mb-4" {...getHeaderInfoHandlers("compareSurrenderChart")}>Visszavásárlási érték összehasonlítása</h3>
                             <ChartContainer config={chartConfig}>
                               <LineChart data={mergedChartData}>
                                 <CartesianGrid strokeDasharray="3 3" />
@@ -805,7 +833,7 @@ export default function OsszehasonlitasPage() {
 
                           {/* Költségek Chart */}
                           <div>
-                            <h3 className="text-sm font-medium mb-4">Költségek összehasonlítása</h3>
+                            <h3 className="text-sm font-medium mb-4" {...getHeaderInfoHandlers("compareCostChart")}>Költségek összehasonlítása</h3>
                             <ChartContainer config={chartConfig}>
                               <LineChart data={mergedChartData}>
                                 <CartesianGrid strokeDasharray="3 3" />
@@ -827,7 +855,7 @@ export default function OsszehasonlitasPage() {
 
                           {/* Bónuszok Chart */}
                           <div>
-                            <h3 className="text-sm font-medium mb-4">Bónuszok összehasonlítása</h3>
+                            <h3 className="text-sm font-medium mb-4" {...getHeaderInfoHandlers("compareBonusChart")}>Bónuszok összehasonlítása</h3>
                             <ChartContainer config={chartConfig}>
                               <LineChart data={mergedChartData}>
                                 <CartesianGrid strokeDasharray="3 3" />

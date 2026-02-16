@@ -10,6 +10,8 @@ import { convertForDisplay } from "@/lib/currency-conversion"
 import { formatNumber } from "@/lib/format-number"
 import { buildYearlyPlan } from "@/lib/plan"
 import { calculate, type InputsDaily, type Currency, type ProductId } from "@/lib/engine"
+import { ColumnHoverInfoPanel } from "@/components/column-hover-info-panel"
+import { resolveProductContextKey } from "@/lib/column-explanations"
 
 type StoredInputs = InputsDaily & {
   regularPayment: number
@@ -52,8 +54,27 @@ type StoredState = {
 export default function ReszletesAdatokPage() {
   const router = useRouter()
   const { data: contextData, isHydrated } = useCalculatorData()
-
+  const [activeColumnInfoKey, setActiveColumnInfoKey] = useState<string | null>(null)
   const [storedState, setStoredState] = useState<StoredState | null>(null)
+  const detailsPanelProductKey = useMemo(
+    () =>
+      resolveProductContextKey(storedState?.selectedProduct ?? contextData?.selectedProduct, {
+        enableTaxCredit: storedState?.inputs?.enableTaxCredit ?? contextData?.enableTaxCredit,
+      }),
+    [
+      storedState?.selectedProduct,
+      contextData?.selectedProduct,
+      storedState?.inputs?.enableTaxCredit,
+      contextData?.enableTaxCredit,
+    ],
+  )
+  const getHeaderInfoHandlers = (key: string) => ({
+    onMouseEnter: () => setActiveColumnInfoKey(key),
+    onMouseLeave: () => setActiveColumnInfoKey(null),
+    onFocus: () => setActiveColumnInfoKey(key),
+    onBlur: () => setActiveColumnInfoKey(null),
+    tabIndex: 0,
+  })
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -163,6 +184,7 @@ export default function ReszletesAdatokPage() {
       return "alfa-exclusive-plus"
     }
     if (selectedProduct === "alfa_fortis") return "alfa-fortis"
+    if (selectedProduct === "alfa_jade") return "alfa-jade"
     if (
       selectedInsurer === "Allianz" ||
       (selectedProduct && selectedProduct.includes("allianz"))
@@ -202,13 +224,16 @@ export default function ReszletesAdatokPage() {
   const monthlyData = useMemo(() => {
     if (!storedState || !plan) return []
 
-    const calcCurrency = (storedState.inputs.currency ?? contextData?.currency ?? "HUF") as Currency
+    const calcCurrency =
+      (storedState.selectedProduct === "alfa_jade" ? "EUR" : (storedState.inputs.currency ?? contextData?.currency ?? "HUF")) as Currency
     const isAllianzProduct = productId === "allianz-eletprogram"
     const effectiveProductVariant =
       storedState.selectedProduct === "alfa_exclusive_plus"
         ? storedState.inputs.enableTaxCredit
           ? "alfa_exclusive_plus_ny05"
           : "alfa_exclusive_plus_tr08"
+        : storedState.selectedProduct === "alfa_jade"
+          ? "alfa_jade_tr19"
         : (storedState.selectedProduct ?? contextData?.selectedProduct ?? undefined)
     const adminFeeMonthlyAmount = isAllianzProduct ? (calcCurrency === "EUR" ? 3.3 : 990) : undefined
 
@@ -321,26 +346,26 @@ export default function ReszletesAdatokPage() {
               <table className="w-full border-separate border-spacing-0 text-sm whitespace-nowrap">
                 <thead>
                   <tr className="bg-blue-50 text-slate-900">
-                    <th className="border border-gray-200 py-2 px-3 text-left font-semibold bg-blue-50 sticky top-0 left-0 z-30 w-[60px] min-w-[60px]">
+                    <th className="border border-gray-200 py-2 px-3 text-left font-semibold bg-blue-50 sticky top-0 left-0 z-30 w-[60px] min-w-[60px]" {...getHeaderInfoHandlers("year")}>
                       Év
                     </th>
-                    <th className="border border-gray-200 py-2 px-3 text-left font-semibold bg-blue-50 sticky top-0 left-[60px] z-30 w-[80px] min-w-[80px]">
+                    <th className="border border-gray-200 py-2 px-3 text-left font-semibold bg-blue-50 sticky top-0 left-[60px] z-30 w-[80px] min-w-[80px]" {...getHeaderInfoHandlers("month")}>
                       Hónap
                     </th>
-                    <th className="border border-gray-200 py-2 px-3 text-left font-semibold bg-blue-50 sticky top-0 left-[140px] z-30 w-[100px] min-w-[100px]">
+                    <th className="border border-gray-200 py-2 px-3 text-left font-semibold bg-blue-50 sticky top-0 left-[140px] z-30 w-[100px] min-w-[100px]" {...getHeaderInfoHandlers("cumulativeMonth")}>
                       Hónapok
                     </th>
-                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20">Befizetés</th>
-                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-red-600">Admin díj</th>
-                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-red-600">Akkvizíciós költség</th>
-                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-purple-600">Kocka díj</th>
-                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-red-600">Vagyonarányos költség</th>
-                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-red-600">Plusz költség</th>
-                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-emerald-600">Bónusz</th>
-                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-emerald-600">Adójóv.</th>
-                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20">Hozam</th>
-                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20">Költség összesen</th>
-                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20">Egyenleg</th>
+                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20" {...getHeaderInfoHandlers("payment")}>Befizetés</th>
+                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-red-600" {...getHeaderInfoHandlers("adminFee")}>Admin díj</th>
+                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-red-600" {...getHeaderInfoHandlers("acquisitionFee")}>Akkvizíciós költség</th>
+                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-purple-600" {...getHeaderInfoHandlers("riskFee")}>Kocka díj</th>
+                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-red-600" {...getHeaderInfoHandlers("assetFee")}>Vagyonarányos költség</th>
+                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-red-600" {...getHeaderInfoHandlers("plusCost")}>Plusz költség</th>
+                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-emerald-600" {...getHeaderInfoHandlers("bonus")}>Bónusz</th>
+                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20 text-emerald-600" {...getHeaderInfoHandlers("taxCredit")}>Adójóv.</th>
+                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20" {...getHeaderInfoHandlers("interest")}>Hozam</th>
+                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20" {...getHeaderInfoHandlers("costTotalMonthly")}>Költség összesen</th>
+                    <th className="border border-gray-200 py-2 px-3 text-right font-semibold bg-blue-50 sticky top-0 z-20" {...getHeaderInfoHandlers("balance")}>Egyenleg</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -415,6 +440,9 @@ export default function ReszletesAdatokPage() {
                 })}
                 </tbody>
               </table>
+            </div>
+            <div className="mt-3">
+              <ColumnHoverInfoPanel activeKey={activeColumnInfoKey} productKey={detailsPanelProductKey} />
             </div>
           </CardContent>
         </Card>

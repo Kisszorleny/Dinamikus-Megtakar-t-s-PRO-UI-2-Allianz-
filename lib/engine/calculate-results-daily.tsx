@@ -1,3 +1,10 @@
+import {
+  getFortisVariantConfig,
+  isFortisEurMoneyMarketFund,
+  isFortisUsdMoneyMarketFund,
+  resolveFortisVariant,
+} from "./products/alfa-fortis-config"
+
 export type PaymentFrequency = "havi" | "negyedéves" | "féléves" | "éves"
 export type Currency = "HUF" | "EUR" | "USD"
 export type ManagementFeeFrequency = "napi" | "havi" | "negyedéves" | "féléves" | "éves"
@@ -40,6 +47,7 @@ export interface InputsDaily {
   fundCalculationMode?: "replay" | "averaged"
   fundPriceSeries?: Array<{ date: string; price: number }>
   fundReplayWrap?: boolean
+  selectedFundId?: string | null
 
   // Payment frequency
   frequency: PaymentFrequency
@@ -53,6 +61,7 @@ export interface InputsDaily {
   upfrontCostPercent?: number // Legacy field for backward compatibility
   initialCostByYear?: Record<number, number> // Per-year initial cost percentages
   initialCostDefaultPercent?: number // Default percentage for years not specified
+  initialCostBaseMode?: "payment" | "afterRisk"
   yearlyManagementFeePercent?: number
   yearlyFixedManagementFeeAmount?: number
   managementFeeFrequency?: ManagementFeeFrequency
@@ -69,6 +78,8 @@ export interface InputsDaily {
   // Bonus mode
   bonusMode?: "none" | "percentOnContribution" | "refundInitialCostIncreasing"
   bonusOnContributionPercent?: number
+  bonusOnContributionPercentByYear?: Record<number, number>
+  refundInitialCostBonusPercentByYear?: Record<number, number>
   bonusFromYear?: number
   bonusPercentByYear?: Record<number, number>
   bonusAmountByYear?: Record<number, number>
@@ -86,8 +97,14 @@ export interface InputsDaily {
   taxCreditCalendarPostingEnabled?: boolean
   adminFeeMonthlyAmount?: number
   adminFeePercentOfPayment?: number
+  adminFeePercentByYear?: Record<number, number>
+  adminFeeBaseMode?: "payment" | "afterRisk"
   accountMaintenanceMonthlyPercent?: number
+  accountMaintenancePercentByYear?: Record<number, number>
   accountMaintenanceStartMonth?: number
+  accountMaintenanceClientStartMonth?: number
+  accountMaintenanceInvestedStartMonth?: number
+  accountMaintenanceTaxBonusStartMonth?: number
   productVariant?: string
 
   // Account split
@@ -100,6 +117,9 @@ export interface InputsDaily {
   redemptionFeeByYear?: Record<number, number>
   redemptionFeeDefaultPercent?: number
   redemptionBaseMode?: "surplus-only" | "total" | "total-account"
+  partialSurrenderFeeAmount?: number
+  minimumBalanceAfterPartialSurrender?: number
+  minimumPaidUpValue?: number
 
   // Risk insurance (deducted from regular payment, not invested)
   riskInsuranceEnabled?: boolean
@@ -127,6 +147,10 @@ export interface YearRow {
   totalContributions: number
   interestForYear: number
   costForYear: number
+  upfrontCostForYear: number
+  adminCostForYear: number
+  accountMaintenanceCostForYear: number
+  managementFeeCostForYear: number
   assetBasedCostForYear: number
   plusCostForYear: number
   bonusForYear: number
@@ -278,6 +302,29 @@ function getAssetBasedFeePercent(inputs: InputsDaily, year: number): number {
   return inputs.assetBasedFeePercent ?? 0
 }
 
+function getAccountMaintenanceMonthlyPercent(inputs: InputsDaily, year: number): number {
+  if (inputs.accountMaintenancePercentByYear && inputs.accountMaintenancePercentByYear[year] !== undefined) {
+    return inputs.accountMaintenancePercentByYear[year] ?? 0
+  }
+  const fortisVariant = resolveFortisVariant(inputs.productVariant, inputs.currency)
+  if (fortisVariant === "wl12" && isFortisEurMoneyMarketFund(inputs.selectedFundId)) {
+    const variantConfig = getFortisVariantConfig(inputs.productVariant, inputs.currency)
+    return variantConfig.eurMoneyMarketReducedMaintenancePercent ?? 0.03
+  }
+  if (fortisVariant === "wl22" && isFortisUsdMoneyMarketFund(inputs.selectedFundId)) {
+    const variantConfig = getFortisVariantConfig(inputs.productVariant, inputs.currency)
+    return variantConfig.usdMoneyMarketReducedMaintenancePercent ?? 0.13
+  }
+  return inputs.accountMaintenanceMonthlyPercent ?? 0
+}
+
+function getAdminFeePercentOfPayment(inputs: InputsDaily, year: number): number {
+  if (inputs.adminFeePercentByYear && inputs.adminFeePercentByYear[year] !== undefined) {
+    return inputs.adminFeePercentByYear[year] ?? 0
+  }
+  return inputs.adminFeePercentOfPayment ?? 0
+}
+
 function buildFundDailyReturns(series?: Array<{ date: string; price: number }>): number[] {
   if (!series || series.length < 2) return []
 
@@ -398,7 +445,6 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   const daysBetweenManagementFees = DAYS_PER_YEAR / ppyManagementFee
 
   const bonusMode = inputs.bonusMode ?? "none"
-  const bonusRate = (inputs.bonusOnContributionPercent ?? 0) / 100
   const bonusFromYear = inputs.bonusFromYear ?? 1
 
   const enableTax = !!inputs.enableTaxCredit
@@ -440,6 +486,10 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   let interestThisYear = 0
   let costThisYear = 0
   let assetCostThisYear = 0
+  let upfrontCostThisYear = 0
+  let adminCostThisYear = 0
+  let accountMaintenanceCostThisYear = 0
+  let managementFeeCostThisYear = 0
   let bonusThisYear = 0
   let wealthBonusThisYear = 0
   let taxThisYear = 0
@@ -551,9 +601,22 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   const monthsPerPayment = 12 / ppy
   const paidUpMaintenanceFeeMonthlyAmount = Math.max(0, inputs.paidUpMaintenanceFeeMonthlyAmount ?? 0)
   const paidUpMaintenanceFeeStartMonth = Math.max(1, Math.round(inputs.paidUpMaintenanceFeeStartMonth ?? 10))
-  const adminFeePercentOfPayment = Math.max(0, inputs.adminFeePercentOfPayment ?? 0)
-  const accountMaintenanceMonthlyPercent = Math.max(0, inputs.accountMaintenanceMonthlyPercent ?? 0)
   const accountMaintenanceStartMonth = Math.max(1, Math.round(inputs.accountMaintenanceStartMonth ?? 1))
+  const accountMaintenanceClientStartMonth = Math.max(
+    1,
+    Math.round(inputs.accountMaintenanceClientStartMonth ?? accountMaintenanceStartMonth),
+  )
+  const accountMaintenanceInvestedStartMonth = Math.max(
+    1,
+    Math.round(inputs.accountMaintenanceInvestedStartMonth ?? accountMaintenanceStartMonth),
+  )
+  const accountMaintenanceTaxBonusStartMonth = Math.max(
+    1,
+    Math.round(inputs.accountMaintenanceTaxBonusStartMonth ?? accountMaintenanceStartMonth),
+  )
+  const minimumPaidUpValue = Math.max(0, inputs.minimumPaidUpValue ?? 0)
+  const partialSurrenderFeeAmount = Math.max(0, inputs.partialSurrenderFeeAmount ?? 0)
+  const minimumBalanceAfterPartialSurrender = Math.max(0, inputs.minimumBalanceAfterPartialSurrender ?? 0)
   const insuredEntryAge = Math.max(0, Math.round(inputs.insuredEntryAge ?? 38))
 
   for (let day = 0; day < totalDays; day++) {
@@ -595,7 +658,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         if (shouldApplyToday) {
           const prevYearInitialCostTotal = initialCostTotalByYear[1] ?? 0
           if (prevYearInitialCostTotal > 0) {
-            const bonusPercentForYear = currentYear - 1
+            const configuredRefundPercent = inputs.refundInitialCostBonusPercentByYear?.[currentYear]
+            const bonusPercentForYear = Math.max(0, configuredRefundPercent ?? (currentYear - 1))
             const bonusForYear = prevYearInitialCostTotal * (bonusPercentForYear / 100)
 
             if (bonusForYear > 0) {
@@ -673,16 +737,25 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
 
         const initialCostRate = getInitialCostRate(currentYear)
         if (initialCostRate > 0) {
-          upfrontCost = paymentPerEvent * initialCostRate
+          const initialCostBase =
+            inputs.initialCostBaseMode === "afterRisk" ? Math.max(0, paymentPerEvent - riskInsuranceCost) : paymentPerEvent
+          upfrontCost = initialCostBase * initialCostRate
           initialCostTotalByYear[currentYear] = (initialCostTotalByYear[currentYear] ?? 0) + upfrontCost
         }
 
+        const adminFeePercentOfPayment = Math.max(0, getAdminFeePercentOfPayment(inputs, currentYear))
         if (adminFeePercentOfPayment > 0) {
-          adminFeeCost = paymentPerEvent * (adminFeePercentOfPayment / 100)
+          const adminFeeBase =
+            inputs.adminFeeBaseMode === "afterRisk" ? Math.max(0, paymentPerEvent - riskInsuranceCost) : paymentPerEvent
+          adminFeeCost = adminFeeBase * (adminFeePercentOfPayment / 100)
         }
 
-        if (bonusMode === "percentOnContribution" && currentYear >= bonusFromYear && bonusRate > 0) {
-          bonusOnContribution = paymentPerEvent * bonusRate
+        const bonusRateForCurrentYear =
+          ((inputs.bonusOnContributionPercentByYear?.[currentYear] ??
+            (currentYear >= bonusFromYear ? inputs.bonusOnContributionPercent ?? 0 : 0)) /
+            100)
+        if (bonusMode === "percentOnContribution" && bonusRateForCurrentYear > 0) {
+          bonusOnContribution = paymentPerEvent * bonusRateForCurrentYear
           totalBonus += bonusOnContribution
           bonusThisYear += bonusOnContribution
           bonusThisMonth += bonusOnContribution
@@ -728,6 +801,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
 
       totalContributions += paymentPerEvent
       payThisYear += paymentPerEvent
+      upfrontCostThisYear += upfrontCost
+      adminCostThisYear += adminFeeCost
       paymentThisMonth += paymentPerEvent
       upfrontCostThisMonth += upfrontCost
       adminFeeCostThisMonth += adminFeeCost
@@ -757,6 +832,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         if (c > 0) {
           totalCosts += c
           costThisYear += c
+          managementFeeCostThisYear += c
           managementFeeCostThisMonth += c
           costThisMonth += c
           const clientRatio = clientValueBeforeFees / totalValue
@@ -778,6 +854,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         if (c > 0) {
           totalCosts += c
           costThisYear += c
+          managementFeeCostThisYear += c
           managementFeeCostThisMonth += c
           costThisMonth += c
           const clientRatio = clientValueBeforeFees / totalValue
@@ -837,6 +914,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         if (c > 0) {
           totalCosts += c
           costThisYear += c
+          managementFeeCostThisYear += c
           managementFeeCostThisMonth += c
           costThisMonth += c
           const clientRatio = clientValueBeforeFees / totalValue
@@ -892,6 +970,9 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         if (c > 0) {
           totalCosts += c
           costThisYear += c
+          managementFeeCostThisYear += c
+          managementFeeCostThisMonth += c
+          costThisMonth += c
           const clientRatio = clientValueBeforeFees / totalValue
           const investedRatio = investedValueBeforeFees / totalValue
           const taxBonusRatio = taxBonusValueBeforeFees / totalValue
@@ -912,25 +993,70 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
 
     if (isMonthEnd) {
       const currentMonthNumber = monthsElapsed + 1
+      const accountMaintenanceMonthlyPercent = Math.max(0, getAccountMaintenanceMonthlyPercent(inputs, currentYear))
       const isAccountMaintenanceActive = currentMonthNumber >= accountMaintenanceStartMonth
       if (accountMaintenanceMonthlyPercent > 0 && isAccountMaintenanceActive) {
-        const totalValue = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
-        const accountMaintenanceFee = totalValue * (accountMaintenanceMonthlyPercent / 100)
-        if (accountMaintenanceFee > 0 && totalValue > 0) {
-          totalCosts += accountMaintenanceFee
-          costThisYear += accountMaintenanceFee
-          adminFeeCostThisMonth += accountMaintenanceFee
-          costThisMonth += accountMaintenanceFee
-          const clientRatio = (clientUnits * clientPrice) / totalValue
-          const investedRatio = (investedUnits * investedPrice) / totalValue
-          const taxBonusRatio = (taxBonusUnits * taxBonusPrice) / totalValue
-          clientCostThisYear += accountMaintenanceFee * clientRatio
-          investedCostThisYear += accountMaintenanceFee * investedRatio
-          taxBonusCostThisYear += accountMaintenanceFee * taxBonusRatio
-          const reductionFactor = (totalValue - accountMaintenanceFee) / totalValue
-          investedUnits *= reductionFactor
-          clientUnits *= reductionFactor
-          taxBonusUnits *= reductionFactor
+        const hasAccountSpecificMaintenanceStart =
+          inputs.accountMaintenanceClientStartMonth !== undefined ||
+          inputs.accountMaintenanceInvestedStartMonth !== undefined ||
+          inputs.accountMaintenanceTaxBonusStartMonth !== undefined
+
+        if (hasAccountSpecificMaintenanceStart) {
+          const clientValue = clientUnits * clientPrice
+          const investedValue = investedUnits * investedPrice
+          const taxBonusValue = taxBonusUnits * taxBonusPrice
+          const clientFee =
+            currentMonthNumber >= accountMaintenanceClientStartMonth
+              ? clientValue * (accountMaintenanceMonthlyPercent / 100)
+              : 0
+          const investedFee =
+            currentMonthNumber >= accountMaintenanceInvestedStartMonth
+              ? investedValue * (accountMaintenanceMonthlyPercent / 100)
+              : 0
+          const taxBonusFee =
+            currentMonthNumber >= accountMaintenanceTaxBonusStartMonth
+              ? taxBonusValue * (accountMaintenanceMonthlyPercent / 100)
+              : 0
+          const accountMaintenanceFee = clientFee + investedFee + taxBonusFee
+          if (accountMaintenanceFee > 0) {
+            totalCosts += accountMaintenanceFee
+            costThisYear += accountMaintenanceFee
+            accountMaintenanceCostThisYear += accountMaintenanceFee
+            adminFeeCostThisMonth += accountMaintenanceFee
+            costThisMonth += accountMaintenanceFee
+            clientCostThisYear += clientFee
+            investedCostThisYear += investedFee
+            taxBonusCostThisYear += taxBonusFee
+            if (clientValue > 0 && clientFee > 0) {
+              clientUnits *= Math.max(0, (clientValue - clientFee) / clientValue)
+            }
+            if (investedValue > 0 && investedFee > 0) {
+              investedUnits *= Math.max(0, (investedValue - investedFee) / investedValue)
+            }
+            if (taxBonusValue > 0 && taxBonusFee > 0) {
+              taxBonusUnits *= Math.max(0, (taxBonusValue - taxBonusFee) / taxBonusValue)
+            }
+          }
+        } else {
+          const totalValue = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+          const accountMaintenanceFee = totalValue * (accountMaintenanceMonthlyPercent / 100)
+          if (accountMaintenanceFee > 0 && totalValue > 0) {
+            totalCosts += accountMaintenanceFee
+            costThisYear += accountMaintenanceFee
+            accountMaintenanceCostThisYear += accountMaintenanceFee
+            adminFeeCostThisMonth += accountMaintenanceFee
+            costThisMonth += accountMaintenanceFee
+            const clientRatio = (clientUnits * clientPrice) / totalValue
+            const investedRatio = (investedUnits * investedPrice) / totalValue
+            const taxBonusRatio = (taxBonusUnits * taxBonusPrice) / totalValue
+            clientCostThisYear += accountMaintenanceFee * clientRatio
+            investedCostThisYear += accountMaintenanceFee * investedRatio
+            taxBonusCostThisYear += accountMaintenanceFee * taxBonusRatio
+            const reductionFactor = (totalValue - accountMaintenanceFee) / totalValue
+            investedUnits *= reductionFactor
+            clientUnits *= reductionFactor
+            taxBonusUnits *= reductionFactor
+          }
         }
       }
 
@@ -942,6 +1068,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         if (adminFee > 0) {
           totalCosts += adminFee
           costThisYear += adminFee
+          adminCostThisYear += adminFee
           adminFeeCostThisMonth += adminFee
           costThisMonth += adminFee
 
@@ -961,7 +1088,10 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         }
       }
 
-      const isPaidUpYear = (inputs.yearlyPaymentsPlan[currentYear] ?? 0) <= 0
+      const totalValueBeforePaidUpCheck = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+      const isPaidUpYear =
+        (inputs.yearlyPaymentsPlan[currentYear] ?? 0) <= 0 &&
+        (minimumPaidUpValue <= 0 || totalValueBeforePaidUpCheck >= minimumPaidUpValue)
       const isPaidUpMaintenanceActive = isPaidUpYear && currentMonthNumber >= paidUpMaintenanceFeeStartMonth
       if (paidUpMaintenanceFeeMonthlyAmount > 0 && isPaidUpMaintenanceActive) {
         const totalValue = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
@@ -969,6 +1099,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         if (maintenanceFee > 0) {
           totalCosts += maintenanceFee
           costThisYear += maintenanceFee
+          adminCostThisYear += maintenanceFee
           adminFeeCostThisMonth += maintenanceFee
           costThisMonth += maintenanceFee
 
@@ -1029,7 +1160,11 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       const plannedW = !isPartialPeriod ? Math.max(0, inputs.yearlyWithdrawalsPlan[currentYear] ?? 0) : 0
       if (plannedW > 0) {
         const totalBalance = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
-        const w = Math.min(plannedW, totalBalance)
+        const maxWithdrawByMinimum = Math.max(
+          0,
+          totalBalance - minimumBalanceAfterPartialSurrender - partialSurrenderFeeAmount,
+        )
+        const w = Math.min(plannedW, totalBalance, maxWithdrawByMinimum)
         if (totalBalance > 0) {
           const withdrawalRatio = w / totalBalance
           investedUnits *= 1 - withdrawalRatio
@@ -1037,6 +1172,26 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           taxBonusUnits *= 1 - withdrawalRatio
         }
         totalWithdrawals += w
+        if (w > 0 && partialSurrenderFeeAmount > 0) {
+          const valueAfterWithdrawal = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+          const appliedPartialSurrenderFee = Math.min(
+            partialSurrenderFeeAmount,
+            Math.max(0, valueAfterWithdrawal - minimumBalanceAfterPartialSurrender),
+          )
+          if (appliedPartialSurrenderFee > 0 && valueAfterWithdrawal > 0) {
+            totalCosts += appliedPartialSurrenderFee
+            costThisYear += appliedPartialSurrenderFee
+            plusCostThisMonth += appliedPartialSurrenderFee
+            costThisMonth += appliedPartialSurrenderFee
+            clientCostThisYear += appliedPartialSurrenderFee * ((clientUnits * clientPrice) / valueAfterWithdrawal)
+            investedCostThisYear += appliedPartialSurrenderFee * ((investedUnits * investedPrice) / valueAfterWithdrawal)
+            taxBonusCostThisYear += appliedPartialSurrenderFee * ((taxBonusUnits * taxBonusPrice) / valueAfterWithdrawal)
+            const feeReductionFactor = (valueAfterWithdrawal - appliedPartialSurrenderFee) / valueAfterWithdrawal
+            investedUnits *= feeReductionFactor
+            clientUnits *= feeReductionFactor
+            taxBonusUnits *= feeReductionFactor
+          }
+        }
         withdrawalThisYear = w
       } else {
         withdrawalThisYear = 0
@@ -1126,6 +1281,10 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         totalContributions,
         interestForYear: interestThisYear,
         costForYear: costThisYear,
+        upfrontCostForYear: upfrontCostThisYear,
+        adminCostForYear: adminCostThisYear,
+        accountMaintenanceCostForYear: accountMaintenanceCostThisYear,
+        managementFeeCostForYear: managementFeeCostThisYear,
         assetBasedCostForYear: assetCostThisYear,
         plusCostForYear: plusCostForCurrentYear,
         bonusForYear: bonusThisYear,
@@ -1172,6 +1331,10 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       payThisYear = 0
       interestThisYear = 0
       costThisYear = 0
+      upfrontCostThisYear = 0
+      adminCostThisYear = 0
+      accountMaintenanceCostThisYear = 0
+      managementFeeCostThisYear = 0
       assetCostThisYear = 0
       bonusThisYear = 0
       wealthBonusThisYear = 0

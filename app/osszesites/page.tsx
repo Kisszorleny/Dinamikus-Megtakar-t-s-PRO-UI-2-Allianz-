@@ -11,6 +11,8 @@ import { formatNumber, parseNumber } from "@/lib/format-number"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { ColumnHoverInfoPanel } from "@/components/column-hover-info-panel"
+import { resolveProductContextKey } from "@/lib/column-explanations"
 // TODO: Replace with real calculation import when implementing business logic
 // import { calculateResultsDaily, type InputsDaily, type Currency } from "@/lib/engine/calculate-results-daily"
 type InputsDaily = any
@@ -46,6 +48,22 @@ type SummaryOverrides = {
   }
 }
 
+const SUMMARY_ROW_INFO_KEY_BY_ROW: Partial<Record<RowKey, string>> = {
+  monthlyPayment: "payment",
+  yearlyPayment: "payment",
+  years: "duration",
+  totalContributions: "totalContributions",
+  annualYield: "annualYield",
+  totalReturn: "netReturn",
+  endBalance: "balance",
+  totalTaxCredit: "taxCredit",
+  totalBonus: "bonus",
+  netEndBalance: "balance",
+  netEndBalanceWithTax: "balance",
+  finalEndBalance: "balance",
+  netFinalEndBalance: "balance",
+}
+
 const MOBILE_SUMMARY_LAYOUT = {
   toolbarGrid: "grid w-full items-end gap-3 rounded-lg border bg-card px-3 py-3 grid-cols-1 min-[560px]:grid-cols-2 lg:grid-cols-6",
   field: "grid gap-1 min-w-0",
@@ -57,6 +75,7 @@ const MOBILE_SUMMARY_LAYOUT = {
 export default function OsszesitesPage() {
   const router = useRouter()
   const { data: contextData, isHydrated, updateData } = useCalculatorData()
+  const [activeColumnInfoKey, setActiveColumnInfoKey] = useState<string | null>(null)
 
   const [computedData, setComputedData] = useState<typeof contextData>(null)
   const [isComputing, setIsComputing] = useState(false)
@@ -83,6 +102,29 @@ export default function OsszesitesPage() {
   })
   const [emailCopyStatus, setEmailCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
   const [emailTegezo, setEmailTegezo] = useState(false)
+  const summaryPanelProductKey = useMemo(
+    () =>
+      resolveProductContextKey(computedData?.selectedProduct ?? contextData?.selectedProduct, {
+        enableTaxCredit: computedData?.enableTaxCredit ?? contextData?.enableTaxCredit,
+      }),
+    [
+      computedData?.selectedProduct,
+      contextData?.selectedProduct,
+      computedData?.enableTaxCredit,
+      contextData?.enableTaxCredit,
+    ],
+  )
+  const getSummaryInfoHandlers = (rowKey: RowKey) => {
+    const mapped = SUMMARY_ROW_INFO_KEY_BY_ROW[rowKey]
+    if (!mapped) return {}
+    return {
+      onMouseEnter: () => setActiveColumnInfoKey(mapped),
+      onMouseLeave: () => setActiveColumnInfoKey(null),
+      onFocus: () => setActiveColumnInfoKey(mapped),
+      onBlur: () => setActiveColumnInfoKey(null),
+      tabIndex: 0,
+    }
+  }
 
   const emailOfferUntilWeekday = useMemo(() => {
     const raw = (emailOfferUntil || "").trim()
@@ -187,6 +229,7 @@ export default function OsszesitesPage() {
     const productMap: Record<string, string> = {
       alfa_exclusive_plus: "Alfa Exclusive Plus",
       alfa_fortis: "Alfa Fortis (WL-02)",
+      alfa_jade: "Alfa Jáde EUR (TR19)",
       allianz_eletprogram: "Allianz Életprogram",
       allianz_bonusz_eletprogram: "Allianz Bónusz Életprogram",
     }
@@ -198,6 +241,7 @@ export default function OsszesitesPage() {
       return "alfa-exclusive-plus"
     }
     if (productValue === "alfa_fortis") return "alfa-fortis"
+    if (productValue === "alfa_jade") return "alfa-jade"
     if (insurer === "Allianz") {
       if (productValue === "allianz_eletprogram" || productValue === "allianz_bonusz_eletprogram") {
         return "allianz-eletprogram"
@@ -379,6 +423,7 @@ export default function OsszesitesPage() {
       const monthlyPayment = inputs.regularPayment || 0
       const yearlyPayment = monthlyPayment * 12
 
+      const effectiveCurrency = selectedProduct === "alfa_jade" ? "EUR" : inputs.currency
       let results: any
       let totalBonus = 0
       try {
@@ -388,9 +433,12 @@ export default function OsszesitesPage() {
             ? inputs.enableTaxCredit
               ? "alfa_exclusive_plus_ny05"
               : "alfa_exclusive_plus_tr08"
+            : selectedProduct === "alfa_jade"
+              ? "alfa_jade_tr19"
             : (selectedProduct ?? undefined)
         const dailyInputs: InputsDaily = {
           ...inputs,
+          currency: effectiveCurrency,
           durationUnit,
           durationValue,
           yearsPlanned: totalYearsForPlan,
@@ -1418,6 +1466,7 @@ export default function OsszesitesPage() {
                           onClick={() => {
                             if (!isEditingLabel) handleCellClick(row.key, "label", label)
                           }}
+                          {...getSummaryInfoHandlers(row.key)}
                         >
                           {isEditingLabel ? (
                             <input
@@ -1541,6 +1590,7 @@ export default function OsszesitesPage() {
                                 row.textClass || ""
                               }`}
                               onClick={() => handleCellClick(row.key, "label", label)}
+                              {...getSummaryInfoHandlers(row.key)}
                             >
                               {label}:
                             </div>
@@ -1592,6 +1642,9 @@ export default function OsszesitesPage() {
             </CardContent>
           </Card>
         )}
+        <div className="mt-3">
+          <ColumnHoverInfoPanel activeKey={activeColumnInfoKey} productKey={summaryPanelProductKey} />
+        </div>
       </div>
     </div>
   )
