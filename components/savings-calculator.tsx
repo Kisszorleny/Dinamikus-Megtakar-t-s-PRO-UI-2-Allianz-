@@ -2679,9 +2679,7 @@ export function SavingsCalculator() {
     setInputs((prev) => {
       if (
         Math.abs((prev.assetBasedFeePercent ?? 0) - vakPercent) < 1e-9 &&
-        Math.abs((prev.accountMaintenanceMonthlyPercent ?? 0) - maintenancePercent) < 1e-9 &&
-        prev.managementFeeValueType === "amount" &&
-        Math.abs((prev.managementFeeValue ?? 0) - fortisVariantConfig.policyFeeAnnualAmount) < 1e-9
+        Math.abs((prev.accountMaintenanceMonthlyPercent ?? 0) - maintenancePercent) < 1e-9
       ) {
         return prev
       }
@@ -2689,9 +2687,6 @@ export function SavingsCalculator() {
         ...prev,
         assetBasedFeePercent: vakPercent,
         accountMaintenanceMonthlyPercent: maintenancePercent,
-        managementFeeFrequency: "éves",
-        managementFeeValueType: "amount",
-        managementFeeValue: fortisVariantConfig.policyFeeAnnualAmount,
       }
     })
   }, [isFortisProduct, fundOptions, selectedFundId, fortisVariantConfig, inputs.currency])
@@ -4407,7 +4402,8 @@ export function SavingsCalculator() {
       managementFeeValue: 0,
       assetBasedFeePercent: 0,
       assetCostPercentByYear: {},
-      accountMaintenancePercentByYear: {},
+      accountMaintenancePercentByYear:
+        selectedProduct === "alfa_exclusive_plus" ? accountMaintenancePercentByYear : {},
       plusCostByYear: {},
       bonusMode: "none",
       bonusOnContributionPercent: 0,
@@ -4458,6 +4454,7 @@ export function SavingsCalculator() {
       esetiPlan,
       esetiFrequency,
       esetiTaxCreditLimitsByYear,
+      accountMaintenancePercentByYear,
       selectedProduct,
       engineProductVariant,
       inputs.currency,
@@ -4777,7 +4774,7 @@ export function SavingsCalculator() {
   const activeSummaryTotals = summaryTotalsByAccount[yearlyAccountView]
   const activeSummaryTheme = summaryThemeByAccount[yearlyAccountView]
   const isAlfaExclusivePlus = selectedProduct === "alfa_exclusive_plus"
-  const showSurrenderFinalBand = isRedemptionOpen
+  const showSurrenderFinalBand = isRedemptionOpen && !(isAlfaExclusivePlus && yearlyAccountView === "eseti")
   const showBonusColumns = !isAlfaExclusivePlus && selectedProduct !== "allianz_eletprogram"
   const activeTaxCreditPenaltyAmount = shouldApplyTaxCreditPenalty ? activeSummaryTotals.totalTaxCredit * 1.2 : 0
   const summaryBaseBalance = enableNetting && finalNetData ? finalNetData.netBalance : activeSummaryTotals.endBalance
@@ -7616,7 +7613,7 @@ export function SavingsCalculator() {
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle className="text-lg md:text-xl">Éves bontás</CardTitle>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {isAccountSplitOpen && !isAllianzEletprogramView && (
+                  {isAccountSplitOpen && !isAllianzEletprogramView && yearlyAccountView !== "eseti" && (
                     <div className="flex items-center gap-1 border rounded-md p-1">
                       <Button
                         type="button"
@@ -7766,7 +7763,7 @@ export function SavingsCalculator() {
                       }
                       shouldApplyTaxCreditPenalty={shouldApplyTaxCreditPenalty}
                       isTaxBonusSeparateAccount={isTaxBonusSeparateAccount}
-                      showSurrenderAsPrimary={isAlfaExclusivePlus}
+                      showSurrenderAsPrimary={isAlfaExclusivePlus && !isEsetiView}
                       getRealValueForDays={getRealValueForDays}
                       realValueElapsedDays={realValueElapsedDaysByIndex[index] ?? 0}
                       // </CHANGE>
@@ -7841,7 +7838,7 @@ export function SavingsCalculator() {
                       {totalExtraServicesCost > 0 && <col style={{ width: "100px" }} />}
                       {inputs.enableTaxCredit && <col style={{ width: "110px" }} />}
                       <col style={{ width: "110px" }} />
-                      {isAlfaExclusivePlus && <col style={{ width: "120px" }} />}
+                      {isAlfaExclusivePlus && !isEsetiView && <col style={{ width: "120px" }} />}
                       <col style={{ width: "1%" }} />
                     </colgroup>
                     <thead>
@@ -7972,13 +7969,13 @@ export function SavingsCalculator() {
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28" {...getYearlyHeaderInfoHandlers("taxCredit")}>Adójóv.</th>
                         )}
                         <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28" {...getYearlyHeaderInfoHandlers("withdrawal")}>Kivonás</th>
-                        {isAlfaExclusivePlus && (
+                        {isAlfaExclusivePlus && !isEsetiView && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-32 min-w-32" {...getYearlyHeaderInfoHandlers("balance")}>
                             {enableNetting ? "Nettó egyenleg" : "Egyenleg"}
                           </th>
                         )}
-                        <th className="py-3 pl-1 pr-[2ch] text-right text-xs md:text-sm font-semibold sticky right-0 z-20 bg-background/95 w-[1%] whitespace-nowrap" {...getYearlyHeaderInfoHandlers(isAlfaExclusivePlus ? "surrenderValue" : "balance")}>
-                          {isAlfaExclusivePlus ? "Visszavásárlási érték" : enableNetting ? "Nettó egyenleg" : "Egyenleg"}
+                        <th className="py-3 pl-1 pr-[2ch] text-right text-xs md:text-sm font-semibold sticky right-0 z-20 bg-background/95 w-[1%] whitespace-nowrap" {...getYearlyHeaderInfoHandlers(isAlfaExclusivePlus && !isEsetiView ? "surrenderValue" : "balance")}>
+                          {isAlfaExclusivePlus && !isEsetiView ? "Visszavásárlási érték" : enableNetting ? "Nettó egyenleg" : "Egyenleg"}
                         </th>
                       </tr>
                     </thead>
@@ -8029,9 +8026,11 @@ export function SavingsCalculator() {
                         const sourceRow = yearlyAggregationMode === "sum" ? sourceCumulativeByYear[row.year] ?? row : row
                         const baselineAdminFeePercent =
                           productPresetBaseline.adminFeePercentByYear[row.year] ?? productPresetBaseline.adminFeePercentOfPayment
-                        const baselineAccountMaintenancePercent =
-                          productPresetBaseline.accountMaintenancePercentByYear[row.year] ??
-                          productPresetBaseline.accountMaintenanceMonthlyPercent
+                        const isAlfaExclusivePlusEsetiView = selectedProduct === "alfa_exclusive_plus" && isEsetiView
+                        const baselineAccountMaintenancePercent = isAlfaExclusivePlusEsetiView
+                          ? 0.145
+                          : (productPresetBaseline.accountMaintenancePercentByYear[row.year] ??
+                            productPresetBaseline.accountMaintenanceMonthlyPercent)
                         const baselineAcquisitionPercent =
                           productPresetBaseline.initialCostByYear[row.year] ?? productPresetBaseline.initialCostDefaultPercent
                         const baselineBonusOnContributionPercent =
@@ -8055,9 +8054,15 @@ export function SavingsCalculator() {
                               (selectedProduct === "alfa_fortis" ? 4 : 0))
                         const adminFeePercentDefault = baselineAdminFeePercent
                         const isAdminFeePercentModified = Math.abs(adminFeePercentDisplay - adminFeePercentDefault) > 1e-9
-                        const accountMaintenanceDisplay = isEsetiView ? 0 : (sourceRow.accountMaintenanceCostForYear ?? 0)
-                        const accountMaintenancePercentDisplay = isEsetiView
-                          ? 0
+                        const accountMaintenanceDisplay = isAlfaExclusivePlusEsetiView
+                          ? (sourceRow.accountMaintenanceCostForYear ?? 0)
+                          : isEsetiView
+                            ? 0
+                            : (sourceRow.accountMaintenanceCostForYear ?? 0)
+                        const accountMaintenancePercentDisplay = isAlfaExclusivePlusEsetiView
+                          ? 0.145
+                          : isEsetiView
+                            ? 0
                           : (accountMaintenancePercentByYear[row.year] ??
                               inputs.accountMaintenanceMonthlyPercent ??
                               (selectedProduct === "alfa_fortis" ? 0.165 : 0))
@@ -8155,12 +8160,15 @@ export function SavingsCalculator() {
                         }
 
                         if (isEsetiView) {
+                          const esetiAccountMaintenanceCost = isAlfaExclusivePlusEsetiView
+                            ? (sourceRow.accountMaintenanceCostForYear ?? 0)
+                            : 0
                           displayData = {
                             ...displayData,
-                            costForYear: 0,
+                            costForYear: esetiAccountMaintenanceCost,
                             upfrontCostForYear: 0,
                             adminCostForYear: 0,
-                            accountMaintenanceCostForYear: 0,
+                            accountMaintenanceCostForYear: esetiAccountMaintenanceCost,
                             managementFeeCostForYear: 0,
                             assetBasedCostForYear: 0,
                             plusCostForYear: 0,
@@ -8380,7 +8388,19 @@ export function SavingsCalculator() {
                                       setAccountMaintenanceInputByYear((prev) => ({ ...prev, [row.year]: raw }))
                                       const val = parseNumber(raw)
                                       if (!isNaN(val) && val >= 0 && val <= 100) {
-                                        updateAccountMaintenancePercent(row.year, val)
+                                        if (isAlfaExclusivePlusEsetiView) {
+                                          setAccountMaintenancePercentByYear((prev) => {
+                                            const updated = { ...prev }
+                                            if (Math.abs(val - 0.145) < 1e-9) {
+                                              delete updated[row.year]
+                                            } else {
+                                              updated[row.year] = val
+                                            }
+                                            return updated
+                                          })
+                                        } else {
+                                          updateAccountMaintenancePercent(row.year, val)
+                                        }
                                       }
                                     }}
                                     min={0}
@@ -8390,7 +8410,9 @@ export function SavingsCalculator() {
                                   />
                                   <p className="text-xs text-muted-foreground tabular-nums">
                                     {formatValue(
-                                      applyRealValueForYear(isEsetiView ? 0 : accountMaintenanceDisplay),
+                                      applyRealValueForYear(
+                                        isEsetiView && !isAlfaExclusivePlusEsetiView ? 0 : accountMaintenanceDisplay,
+                                      ),
                                       displayCurrency,
                                     )}
                                   </p>
@@ -8824,7 +8846,7 @@ export function SavingsCalculator() {
                                 <p className="text-xs text-muted-foreground tabular-nums opacity-0">0</p>
                               </div>
                             </td>
-                            {isAlfaExclusivePlus && (
+                            {isAlfaExclusivePlus && !isEsetiView && (
                               <td className="py-2 px-3 text-right text-xs md:text-sm font-semibold tabular-nums w-32 min-w-32 align-top">
                                 <div className="flex items-center justify-end min-h-[44px]">
                                   <span className="inline-flex w-fit whitespace-nowrap leading-tight text-right">
@@ -8930,6 +8952,7 @@ export function SavingsCalculator() {
                                     {formatValue(
                                       applyRealValueForYear(
                                         isAlfaExclusivePlus
+                                        && !isEsetiView
                                           ? (sourceRow.surrenderValue ?? row.surrenderValue ?? displayBalanceWithPenalty)
                                           : displayBalanceWithPenalty,
                                       ),
