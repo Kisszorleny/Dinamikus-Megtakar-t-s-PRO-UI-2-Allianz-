@@ -115,6 +115,7 @@ export interface InputsDaily {
   isAccountSplitOpen?: boolean
   investedShareByYear?: Record<number, number>
   investedShareDefaultPercent?: number
+  clientAccountEarnsYield?: boolean
 
   // Redemption
   redemptionEnabled?: boolean
@@ -486,8 +487,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   let investedPrice = 1
   let investedUnits = 0
 
-  // Client account (NEVER grows, price always 1)
-  const clientPrice = 1
+  // Client account price defaults to 1, and can optionally track the same fund yield.
+  let clientPrice = 1
   let clientUnits = 0
 
   let taxBonusPrice = 1
@@ -625,6 +626,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   const mgmtFeeIntervalDays = getFrequencyDays(managementFeeFrequency)
 
   const monthsPerPayment = 12 / ppy
+  const clientAccountEarnsYield = inputs.clientAccountEarnsYield === true
   const paidUpMaintenanceFeeMonthlyAmount = Math.max(0, inputs.paidUpMaintenanceFeeMonthlyAmount ?? 0)
   const paidUpMaintenanceFeeStartMonth = Math.max(1, Math.round(inputs.paidUpMaintenanceFeeStartMonth ?? 10))
   const accountMaintenanceStartMonth = Math.max(1, Math.round(inputs.accountMaintenanceStartMonth ?? 1))
@@ -943,21 +945,27 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
     const investedValueBefore = investedUnits * investedPrice
     const taxBonusValueBefore = taxBonusUnits * taxBonusPrice
 
-    investedPrice *= getInvestedDailyFactor(currentDateIso)
+    const investedDailyFactorForDay = getInvestedDailyFactor(currentDateIso)
+    if (clientAccountEarnsYield) {
+      clientPrice *= investedDailyFactorForDay
+    }
+    investedPrice *= investedDailyFactorForDay
     taxBonusPrice *= taxBonusDailyYieldFactor
 
+    const clientValueAfter = clientUnits * clientPrice
     const investedValueAfter = investedUnits * investedPrice
     const taxBonusValueAfter = taxBonusUnits * taxBonusPrice
 
+    const clientSurplus = clientValueAfter - clientValueBefore
     const investedSurplus = investedValueAfter - investedValueBefore
     const taxBonusSurplus = taxBonusValueAfter - taxBonusValueBefore
 
-    // Client account never grows (clientPrice stays at 1)
+    clientInterestThisYear += clientSurplus
     investedInterestThisYear += investedSurplus
     taxBonusInterestThisYear += taxBonusSurplus
 
-    interestThisYear += investedSurplus + taxBonusSurplus
-    interestThisMonth += investedSurplus + taxBonusSurplus
+    interestThisYear += clientSurplus + investedSurplus + taxBonusSurplus
+    interestThisMonth += clientSurplus + investedSurplus + taxBonusSurplus
 
     const isFeeActive = currentYear >= feeStartYear && (!feeStopYear || currentYear < feeStopYear)
 

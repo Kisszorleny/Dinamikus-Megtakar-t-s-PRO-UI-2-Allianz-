@@ -819,6 +819,8 @@ function MobileYearCard({
       : isAlfaExclusivePlusVariant && effectiveYearlyViewMode === "taxBonus"
         ? 0.145
         : (assetCostPercentByYear?.[row.year] ?? inputs?.assetBasedFeePercent ?? 0)
+  const shouldShowTaxCreditInCurrentView =
+    !!enableTaxCredit && !(isAlfaExclusivePlusVariant && effectiveYearlyViewMode !== "taxBonus")
   const effectiveCurrentIndex = isEsetiView ? indexByYear?.[row.year] ?? currentIndex ?? 0 : currentIndex
   const effectiveCurrentPayment = isEsetiView ? paymentByYear?.[row.year] ?? currentPayment ?? 0 : currentPayment
   const paymentInputValue = isPartialReadOnly ? row.yearlyPayment ?? 0 : effectiveCurrentPayment
@@ -1042,7 +1044,7 @@ function MobileYearCard({
             className={`${MOBILE_LAYOUT.inputHeight} text-base tabular-nums ${isWithdrawalModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
           />
         </div>
-        {enableTaxCredit && (
+        {shouldShowTaxCreditInCurrentView && (
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Adójóváírás limit</Label>
             <div className="flex items-center gap-1">
@@ -4289,6 +4291,7 @@ export function SavingsCalculator() {
     inputs.taxCreditCapPerYear,
     inputs.taxCreditStartYear,
     inputs.taxCreditEndYear,
+    inputs.taxCreditYieldPercent,
     inputs.taxCreditCalendarPostingEnabled,
     inputs.paidUpMaintenanceFeeMonthlyAmount,
     inputs.paidUpMaintenanceFeeStartMonth,
@@ -5400,6 +5403,8 @@ export function SavingsCalculator() {
           : 18250
   const effectiveYearlyViewMode =
     yearlyAccountView === "main" && isAccountSplitOpen ? yearlyViewMode : "total"
+  const shouldShowTaxCreditInYearlyTable =
+    inputs.enableTaxCredit && !(selectedProduct === "alfa_exclusive_plus" && effectiveYearlyViewMode !== "taxBonus")
   const shouldShowAcquisitionInYearlyTableView =
     !(selectedProduct === "alfa_exclusive_plus" && isAccountSplitOpen && effectiveYearlyViewMode !== "total")
   const yearlyPanelProductKey = useMemo(
@@ -6312,7 +6317,12 @@ export function SavingsCalculator() {
                         checked={inputs.enableTaxCredit}
                         onCheckedChange={(checked) => {
                           if (!isSettingsEseti && isTaxCreditSupportedForSelectedProduct) {
-                            setInputs({ ...inputs, enableTaxCredit: checked === true })
+                            const isEnabled = checked === true
+                            setInputs({
+                              ...inputs,
+                              enableTaxCredit: isEnabled,
+                              taxCreditYieldPercent: isEnabled ? 1 : inputs.taxCreditYieldPercent,
+                            })
                           }
                         }}
                         disabled={isSettingsEseti || !isTaxCreditSupportedForSelectedProduct}
@@ -7836,7 +7846,7 @@ export function SavingsCalculator() {
                       {showBonusColumns && showBonusBreakdown && <col style={{ width: "120px" }} />}
                       {enableRiskInsurance && <col style={{ width: "100px" }} />}
                       {totalExtraServicesCost > 0 && <col style={{ width: "100px" }} />}
-                      {inputs.enableTaxCredit && <col style={{ width: "110px" }} />}
+                      {shouldShowTaxCreditInYearlyTable && <col style={{ width: "110px" }} />}
                       <col style={{ width: "110px" }} />
                       {isAlfaExclusivePlus && !isEsetiView && <col style={{ width: "120px" }} />}
                       <col style={{ width: "1%" }} />
@@ -7965,7 +7975,7 @@ export function SavingsCalculator() {
                         {totalExtraServicesCost > 0 && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap">Extrák</th>
                         )}
-                        {inputs.enableTaxCredit && (
+                        {shouldShowTaxCreditInYearlyTable && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28" {...getYearlyHeaderInfoHandlers("taxCredit")}>Adójóv.</th>
                         )}
                         <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28" {...getYearlyHeaderInfoHandlers("withdrawal")}>Kivonás</th>
@@ -8757,7 +8767,7 @@ export function SavingsCalculator() {
                               </td>
                             )}
 
-                            {inputs.enableTaxCredit && (
+                            {shouldShowTaxCreditInYearlyTable && (
                               <td className="py-2 px-3 text-right align-top w-28 min-w-28">
                                 <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                   <Input

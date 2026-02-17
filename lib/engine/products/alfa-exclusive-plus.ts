@@ -102,6 +102,7 @@ export const alfaExclusivePlus: ProductDefinition = {
       initialCostDefaultPercent: shouldUseProductDefaults ? 0 : inputs.initialCostDefaultPercent,
       investedShareByYear: shouldUseProductDefaults ? investedShareByYearDefault : inputs.investedShareByYear,
       investedShareDefaultPercent: shouldUseProductDefaults ? 100 : inputs.investedShareDefaultPercent,
+      clientAccountEarnsYield: inputs.clientAccountEarnsYield ?? true,
       assetBasedFeePercent: shouldUseProductDefaults ? 0.145 : inputs.assetBasedFeePercent,
       assetFeeSettlementMode: shouldUseProductDefaults
         ? "monthEndDeductNextMonthStart"
