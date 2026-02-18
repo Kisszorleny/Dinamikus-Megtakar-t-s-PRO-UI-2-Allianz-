@@ -11,6 +11,13 @@ export type ProductContextKey =
   | "alfa_exclusive_plus_ny05"
   | "alfa_exclusive_plus_tr08"
   | "alfa_fortis"
+  | "alfa_premium_selection_tr09"
+  | "alfa_premium_selection_ny06"
+  | "alfa_premium_selection_tr18"
+  | "alfa_premium_selection_ny12"
+  | "alfa_premium_selection_tr28"
+  | "alfa_premium_selection_ny22"
+  | "alfa_relax_plusz_ny01"
   | "mixed"
 
 export interface ProductColumnTypeExplanation {
@@ -179,6 +186,10 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
     costTypeLabel: "Nincs külön admin díj",
     rationale: "A termékben ez külön soron nem terhelődik.",
   },
+  "alfa_relax_plusz_ny01:adminFee": {
+    costTypeLabel: "Díjarányos adminisztráció",
+    rationale: "A rendszeres díjból 4.8%, a rendkívüli díjakból 1% admin költség kerül levonásra.",
+  },
   "dm_pro:adminFee": {
     costTypeLabel: "Konfigurációfüggő",
     rationale: "A beállított konstrukciótól függően lehet fix vagy díjarányos.",
@@ -204,6 +215,10 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
     costTypeLabel: "Vagyonarányos költség",
     rationale: "A számlaértékhez kötött, százalékos levonás jellegű.",
   },
+  "alfa_relax_plusz_ny01:accountMaintenance": {
+    costTypeLabel: "Vagyonarányos havi költség",
+    rationale: "A számlák értékére vetített 0.145% havi költség, az ügyfélérték számlán 37. hónaptól.",
+  },
   "dm_pro:accountMaintenance": {
     costTypeLabel: "Konfigurációfüggő",
     rationale: "A választott beállításoktól függően jelenhet meg.",
@@ -228,6 +243,10 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
   "alfa_exclusive_plus_tr08:acquisitionFee": {
     costTypeLabel: "Díjarányos kezdeti költség",
     rationale: "Tartamfüggő százalékkal kerül levonásra az első években.",
+  },
+  "alfa_relax_plusz_ny01:acquisitionFee": {
+    costTypeLabel: "Tartamfüggő kezdeti költség",
+    rationale: "Az első 1-3 évben, a választott tartamtól függő százalékos szerződéskötési költség.",
   },
   "dm_pro:acquisitionFee": {
     costTypeLabel: "Konfigurációfüggő",
@@ -301,6 +320,38 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
     costTypeLabel: "Díjbefizetés-arányos százalékos bónusz",
     rationale: "A megadott években az éves díj százalékában kerül jóváírásra.",
   },
+  "alfa_premium_selection_tr09:bonus": {
+    costTypeLabel: "Tartam- és díjsávfüggő bónusz",
+    rationale: "A bónusz a konstrukciós szabályok szerint, a minimális havi díj bázisán kerül jóváírásra.",
+  },
+  "alfa_premium_selection_ny06:bonus": {
+    costTypeLabel: "Nyugdíj-specifikus sávos bónusz",
+    rationale: "10. évfordulós alap + extra, illetve lejárat előtti hűségbónusz a nyugdíjvariáns szabályai szerint.",
+  },
+  "alfa_premium_selection_tr18:bonus": {
+    costTypeLabel: "EUR variáns, tartam- és díjsávfüggő bónusz",
+    rationale:
+      "TR18 esetén 10-14 év tartamnál 20%, 15+ évnél díjsávos (70%/140%) bónusz jár a szabályok szerinti bázison.",
+  },
+  "alfa_premium_selection_tr28:bonus": {
+    costTypeLabel: "USD variáns, tartam- és díjsávfüggő bónusz",
+    rationale:
+      "TR28 esetén 10-14 év tartamnál 20%, 15+ évnél díjsávos (70%/140%) bónusz jár a szabályok szerinti bázison.",
+  },
+  "alfa_premium_selection_ny12:bonus": {
+    costTypeLabel: "EUR nyugdíj-specifikus sávos bónusz",
+    rationale:
+      "A nyugdíj (NY12) variánsban a lejárat előtti utolsó évfordulón díjsávos ügyfélbónusz jár, 15+ éves tartamnál 10. évfordulós extra bónusszal.",
+  },
+  "alfa_premium_selection_ny22:bonus": {
+    costTypeLabel: "USD nyugdíj-specifikus sávos bónusz",
+    rationale:
+      "A nyugdíj (NY22) variánsban a lejárat előtti utolsó évfordulón díjsávos ügyfélbónusz jár a legalacsonyabb évesített díj alapján.",
+  },
+  "alfa_relax_plusz_ny01:bonus": {
+    costTypeLabel: "Évfordulós nyugdíjbónusz",
+    rationale: "A 10. évfordulón 40%, 15+ éves tartamnál a lejárat előtti évfordulón további 100% bónusz jár.",
+  },
   "alfa_exclusive_plus_ny05:bonus": {
     costTypeLabel: "Nincs külön bónusz",
     rationale: "A konstrukcióban bónusz sor alapból nem aktív.",
@@ -319,6 +370,7 @@ export function resolveProductContextKey(
   selectedProduct?: string | null,
   options?: {
     enableTaxCredit?: boolean
+    currency?: "HUF" | "EUR" | "USD"
     selectedProductsForComparison?: string[]
   },
 ): ProductContextKey {
@@ -334,6 +386,15 @@ export function resolveProductContextKey(
   if (selectedProduct === "alfa_fortis") return "alfa_fortis"
   if (selectedProduct === "allianz_bonusz_eletprogram") return "allianz_bonusz_eletprogram"
   if (selectedProduct === "allianz_eletprogram") return "allianz_eletprogram"
+  if (selectedProduct === "alfa_premium_selection") {
+    if (options?.enableTaxCredit && options?.currency === "USD") return "alfa_premium_selection_ny22"
+    if (options?.currency === "USD") return "alfa_premium_selection_tr28"
+    if (options?.enableTaxCredit && options?.currency === "EUR") return "alfa_premium_selection_ny12"
+    if (options?.enableTaxCredit) return "alfa_premium_selection_ny06"
+    if (options?.currency === "EUR") return "alfa_premium_selection_tr18"
+    return "alfa_premium_selection_tr09"
+  }
+  if (selectedProduct === "alfa_relax_plusz") return "alfa_relax_plusz_ny01"
   if (selectedProduct === "alfa_exclusive_plus") {
     return options?.enableTaxCredit ? "alfa_exclusive_plus_ny05" : "alfa_exclusive_plus_tr08"
   }

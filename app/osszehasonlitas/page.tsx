@@ -60,11 +60,45 @@ const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
         },
         {
           value: "alfa_jade",
-          label: "Alfa Jáde EUR",
+          label: "Alfa Jáde",
           productType: "Életbiztosítás",
-          mnbCode: "TR19",
-          productCode: "TR19",
-          variants: [{ label: "Alfa Jáde EUR", productType: "Életbiztosítás", mnbCode: "TR19", productCode: "TR19" }],
+          mnbCode: "TR19 / TR29",
+          productCode: "TR19 / TR29",
+          variants: [
+            { label: "Alfa Jáde EUR", productType: "Életbiztosítás", mnbCode: "TR19", productCode: "TR19" },
+            { label: "Alfa Jáde USD", productType: "Életbiztosítás", mnbCode: "TR29", productCode: "TR29" },
+          ],
+        },
+        {
+          value: "alfa_jovokep",
+          label: "Alfa Jövőkép",
+          productType: "Életbiztosítás",
+          mnbCode: "13452",
+          productCode: "TR10",
+          variants: [{ label: "Alfa Jövőkép", productType: "Életbiztosítás", mnbCode: "13452", productCode: "TR10" }],
+        },
+        {
+          value: "alfa_jovotervezo",
+          label: "Alfa Jövőtervező",
+          productType: "Életbiztosítás",
+          mnbCode: "TR03",
+          productCode: "TR03",
+          variants: [{ label: "Alfa Jövőtervező", productType: "Életbiztosítás", mnbCode: "TR03", productCode: "TR03" }],
+        },
+        {
+          value: "alfa_premium_selection",
+          label: "Alfa Premium Selection",
+          productType: "Nyugdíjbiztosítás / Életbiztosítás",
+          mnbCode: "TR09 / NY06 / TR18 / NY12 / TR28 / NY22",
+          productCode: "TR09 / NY06 / TR18 / NY12 / TR28 / NY22",
+          variants: [
+            { label: "Alfa Premium Selection TR09", productType: "Életbiztosítás", mnbCode: "TR09", productCode: "TR09" },
+            { label: "Alfa Premium Selection NY06", productType: "Nyugdíjbiztosítás", mnbCode: "NY06", productCode: "NY06" },
+            { label: "Alfa Premium Selection TR18", productType: "Életbiztosítás", mnbCode: "TR18", productCode: "TR18" },
+            { label: "Alfa Premium Selection NY12", productType: "Nyugdíjbiztosítás", mnbCode: "NY12", productCode: "NY12" },
+            { label: "Alfa Premium Selection TR28", productType: "Életbiztosítás", mnbCode: "TR28", productCode: "TR28" },
+            { label: "Alfa Premium Selection NY22", productType: "Nyugdíjbiztosítás", mnbCode: "NY22", productCode: "NY22" },
+          ],
         },
       ]
     case "Allianz":
@@ -186,9 +220,10 @@ export default function OsszehasonlitasPage() {
     () =>
       resolveProductContextKey(null, {
         enableTaxCredit: inputs?.enableTaxCredit,
+        currency: inputs?.currency,
         selectedProductsForComparison,
       }),
-    [inputs?.enableTaxCredit, selectedProductsForComparison],
+    [inputs?.enableTaxCredit, inputs?.currency, selectedProductsForComparison],
   )
 
   useEffect(() => {
@@ -277,6 +312,10 @@ export default function OsszehasonlitasPage() {
     }
     if (productValue === "alfa_fortis") return "alfa-fortis"
     if (productValue === "alfa_jade") return "alfa-jade"
+    if (productValue === "alfa_jovokep") return "alfa-jovokep"
+    if (productValue === "alfa_jovotervezo") return "alfa-jovotervezo"
+    if (productValue === "alfa_premium_selection") return "alfa-premium-selection"
+    if (productValue === "alfa_relax_plusz") return "alfa-relax-plusz"
     if (insurer === "Allianz" && productValue.includes("allianz")) {
       return "allianz-eletprogram"
     }
@@ -300,14 +339,49 @@ export default function OsszehasonlitasPage() {
           const productId = mapSelectedProductToProductId(insurer, productValue)
           const isAllianzProduct = productId === "allianz-eletprogram"
           const isBonusVariant = productValue === "allianz_bonusz_eletprogram"
-          const effectiveCurrency = productValue === "alfa_jade" ? "EUR" : inputs.currency
+          const effectiveCurrency =
+            productValue === "alfa_jade"
+              ? (inputs.currency === "USD" ? "USD" : "EUR")
+              : productValue === "alfa_jovokep"
+                ? "HUF"
+                : productValue === "alfa_jovotervezo"
+                  ? "HUF"
+                : productValue === "alfa_relax_plusz"
+                  ? "HUF"
+                : productValue === "alfa_premium_selection"
+                  ? inputs.currency === "USD"
+                    ? "USD"
+                    : inputs.enableTaxCredit
+                      ? (inputs.currency === "EUR" ? "EUR" : "HUF")
+                      : inputs.currency === "EUR"
+                        ? "EUR"
+                        : "HUF"
+                : inputs.currency
           const effectiveProductVariant =
             productValue === "alfa_exclusive_plus"
               ? inputs.enableTaxCredit
                 ? "alfa_exclusive_plus_ny05"
                 : "alfa_exclusive_plus_tr08"
               : productValue === "alfa_jade"
-                ? "alfa_jade_tr19"
+                ? effectiveCurrency === "USD"
+                  ? "alfa_jade_tr29"
+                  : "alfa_jade_tr19"
+                : productValue === "alfa_jovokep"
+                  ? "alfa_jovokep_tr10"
+                : productValue === "alfa_jovotervezo"
+                  ? "alfa_jovotervezo_tr03"
+                : productValue === "alfa_relax_plusz"
+                  ? "alfa_relax_plusz_ny01"
+                : productValue === "alfa_premium_selection"
+                  ? effectiveCurrency === "USD"
+                    ? (inputs.enableTaxCredit ? "alfa_premium_selection_ny22" : "alfa_premium_selection_tr28")
+                    : inputs.enableTaxCredit
+                    ? effectiveCurrency === "EUR"
+                      ? "alfa_premium_selection_ny12"
+                      : "alfa_premium_selection_ny06"
+                    : effectiveCurrency === "EUR"
+                      ? "alfa_premium_selection_tr18"
+                      : "alfa_premium_selection_tr09"
                 : productValue
           const durationInYears = Math.max(
             1,

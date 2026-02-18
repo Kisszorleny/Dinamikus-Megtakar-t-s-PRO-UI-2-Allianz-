@@ -56,6 +56,9 @@ export interface InputsDaily {
   yearsPlanned: number
   yearlyPaymentsPlan: number[]
   yearlyWithdrawalsPlan: number[]
+  yearlyExtraTaxEligiblePaymentsPlan?: number[]
+  yearlyExtraImmediateAccessPaymentsPlan?: number[]
+  yearlyExtraImmediateAccessWithdrawalsPlan?: number[]
 
   // Costs
   upfrontCostPercent?: number // Legacy field for backward compatibility
@@ -103,6 +106,7 @@ export interface InputsDaily {
   adminFeePercentOfPayment?: number
   adminFeePercentByYear?: Record<number, number>
   adminFeeBaseMode?: "payment" | "afterRisk"
+  extraordinaryAdminFeePercentOfPayment?: number
   accountMaintenanceMonthlyPercent?: number
   accountMaintenancePercentByYear?: Record<number, number>
   accountMaintenanceStartMonth?: number
@@ -123,6 +127,11 @@ export interface InputsDaily {
   redemptionFeeDefaultPercent?: number
   redemptionBaseMode?: "surplus-only" | "total" | "total-account"
   partialSurrenderFeeAmount?: number
+  allowWithdrawals?: boolean
+  allowPartialSurrender?: boolean
+  extraordinaryAccountSubtype?: "standard" | "taxEligible" | "immediateAccess"
+  useSeparatedExtraAccounts?: boolean
+  taxCreditRepaymentOnSurrenderPercent?: number
   minimumBalanceAfterPartialSurrender?: number
   minimumPaidUpValue?: number
 
@@ -167,6 +176,8 @@ export interface YearRow {
   endingInvestedValue: number
   endingClientValue: number
   endingTaxBonusValue: number
+  endingTaxEligibleExtraValue?: number
+  endingImmediateExtraValue?: number
   surrenderValue: number
   surrenderCharge: number
   client: {
@@ -217,6 +228,8 @@ export interface MonthRow {
   endingInvestedValue: number
   endingClientValue: number
   endingTaxBonusValue: number
+  endingTaxEligibleExtraValue?: number
+  endingImmediateExtraValue?: number
 }
 
 export interface ResultsDaily {
@@ -493,6 +506,10 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
 
   let taxBonusPrice = 1
   let taxBonusUnits = 0
+  let taxEligibleExtraPrice = 1
+  let taxEligibleExtraUnits = 0
+  let immediateAccessExtraPrice = 1
+  let immediateAccessExtraUnits = 0
 
   let totalContributions = 0
   let totalCosts = 0
@@ -504,6 +521,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
 
   const yearlyBreakdown: YearRow[] = []
   const monthlyBreakdown: MonthRow[] = []
+  const useSeparatedExtraAccounts = inputs.useSeparatedExtraAccounts === true
 
   let currentYear = 1
   let payThisYear = 0
@@ -540,6 +558,13 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   let taxBonusBonusThisYear = 0
   let taxBonusWealthBonusThisYear = 0
   let taxBonusPlusCostThisYear = 0
+
+  const getTotalValue = () =>
+    investedUnits * investedPrice +
+    clientUnits * clientPrice +
+    taxBonusUnits * taxBonusPrice +
+    taxEligibleExtraUnits * taxEligibleExtraPrice +
+    immediateAccessExtraUnits * immediateAccessExtraPrice
 
   let cumulativeMonth = 0
   let paymentThisMonth = 0
@@ -767,6 +792,9 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       let adminFeeCost = 0
       let bonusOnContribution = 0
       let riskInsuranceCost = 0
+      let extraordinaryAdminFeeCost = 0
+      let extraTaxEligiblePaymentPerEvent = 0
+      let extraImmediateAccessPaymentPerEvent = 0
 
       if (paymentPerEvent > 0) {
         const riskEnabled = inputs.riskInsuranceEnabled === true
@@ -864,26 +892,56 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
             clientUnits += clientPart / clientPrice // clientPrice is always 1
           }
         }
+
+        if (useSeparatedExtraAccounts) {
+          const roundingFactor = inputs.currency === "HUF" ? 1 : 100
+          const extraTaxEligibleYearly = Math.max(0, inputs.yearlyExtraTaxEligiblePaymentsPlan?.[currentYear] ?? 0)
+          const extraImmediateYearly = Math.max(0, inputs.yearlyExtraImmediateAccessPaymentsPlan?.[currentYear] ?? 0)
+          extraTaxEligiblePaymentPerEvent =
+            inputs.frequency === "havi"
+              ? Math.round((extraTaxEligibleYearly / ppy) * roundingFactor) / roundingFactor
+              : extraTaxEligibleYearly / ppy
+          extraImmediateAccessPaymentPerEvent =
+            inputs.frequency === "havi"
+              ? Math.round((extraImmediateYearly / ppy) * roundingFactor) / roundingFactor
+              : extraImmediateYearly / ppy
+
+          const extraordinaryAdminRate = Math.max(0, inputs.extraordinaryAdminFeePercentOfPayment ?? 0) / 100
+          const extraTaxEligibleAdmin = extraTaxEligiblePaymentPerEvent * extraordinaryAdminRate
+          const extraImmediateAdmin = extraImmediateAccessPaymentPerEvent * extraordinaryAdminRate
+          extraordinaryAdminFeeCost = extraTaxEligibleAdmin + extraImmediateAdmin
+
+          const netExtraTaxEligible = Math.max(0, extraTaxEligiblePaymentPerEvent - extraTaxEligibleAdmin)
+          const netExtraImmediate = Math.max(0, extraImmediateAccessPaymentPerEvent - extraImmediateAdmin)
+
+          if (netExtraTaxEligible > 0) {
+            taxEligibleExtraUnits += netExtraTaxEligible / taxEligibleExtraPrice
+          }
+          if (netExtraImmediate > 0) {
+            immediateAccessExtraUnits += netExtraImmediate / immediateAccessExtraPrice
+          }
+        }
       }
 
-      totalContributions += paymentPerEvent
-      payThisYear += paymentPerEvent
+      const totalContributionForEvent = paymentPerEvent + extraTaxEligiblePaymentPerEvent + extraImmediateAccessPaymentPerEvent
+      totalContributions += totalContributionForEvent
+      payThisYear += totalContributionForEvent
       upfrontCostThisYear += upfrontCost
-      adminCostThisYear += adminFeeCost
-      paymentThisMonth += paymentPerEvent
+      adminCostThisYear += adminFeeCost + extraordinaryAdminFeeCost
+      paymentThisMonth += totalContributionForEvent
       upfrontCostThisMonth += upfrontCost
-      adminFeeCostThisMonth += adminFeeCost
+      adminFeeCostThisMonth += adminFeeCost + extraordinaryAdminFeeCost
       riskInsuranceCostThisMonth += riskInsuranceCost
-      costThisMonth += upfrontCost + adminFeeCost + riskInsuranceCost
-      totalCosts += upfrontCost + adminFeeCost + riskInsuranceCost
-      costThisYear += upfrontCost + adminFeeCost + riskInsuranceCost
-      clientCostThisYear += adminFeeCost
+      costThisMonth += upfrontCost + adminFeeCost + extraordinaryAdminFeeCost + riskInsuranceCost
+      totalCosts += upfrontCost + adminFeeCost + extraordinaryAdminFeeCost + riskInsuranceCost
+      costThisYear += upfrontCost + adminFeeCost + extraordinaryAdminFeeCost + riskInsuranceCost
+      clientCostThisYear += adminFeeCost + extraordinaryAdminFeeCost
       totalRiskInsuranceCost += riskInsuranceCost
       riskInsuranceCostThisYear += riskInsuranceCost
     }
 
     if (day >= Math.round(nextManagementFeeDay)) {
-      const totalValue = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+      const totalValue = getTotalValue()
 
       const clientValueBeforeFees = clientUnits * clientPrice
       const investedValueBeforeFees = investedUnits * investedPrice
@@ -912,6 +970,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           investedUnits *= dailyFeeFactor
           clientUnits *= dailyFeeFactor
           taxBonusUnits *= dailyFeeFactor
+          taxEligibleExtraUnits *= dailyFeeFactor
+          immediateAccessExtraUnits *= dailyFeeFactor
         }
       } else if (managementFeeValueType === "amount") {
         const dailyFixedFee = managementFeeValue / DAYS_PER_YEAR
@@ -935,6 +995,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           investedUnits *= reductionFactor
           clientUnits *= reductionFactor
           taxBonusUnits *= reductionFactor
+          taxEligibleExtraUnits *= reductionFactor
+          immediateAccessExtraUnits *= reductionFactor
         }
       }
 
@@ -944,6 +1006,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
     const clientValueBefore = clientUnits * clientPrice
     const investedValueBefore = investedUnits * investedPrice
     const taxBonusValueBefore = taxBonusUnits * taxBonusPrice
+    const taxEligibleExtraValueBefore = taxEligibleExtraUnits * taxEligibleExtraPrice
+    const immediateAccessExtraValueBefore = immediateAccessExtraUnits * immediateAccessExtraPrice
 
     const investedDailyFactorForDay = getInvestedDailyFactor(currentDateIso)
     if (clientAccountEarnsYield) {
@@ -951,26 +1015,34 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
     }
     investedPrice *= investedDailyFactorForDay
     taxBonusPrice *= taxBonusDailyYieldFactor
+    taxEligibleExtraPrice *= investedDailyFactorForDay
+    immediateAccessExtraPrice *= investedDailyFactorForDay
 
     const clientValueAfter = clientUnits * clientPrice
     const investedValueAfter = investedUnits * investedPrice
     const taxBonusValueAfter = taxBonusUnits * taxBonusPrice
+    const taxEligibleExtraValueAfter = taxEligibleExtraUnits * taxEligibleExtraPrice
+    const immediateAccessExtraValueAfter = immediateAccessExtraUnits * immediateAccessExtraPrice
 
     const clientSurplus = clientValueAfter - clientValueBefore
     const investedSurplus = investedValueAfter - investedValueBefore
     const taxBonusSurplus = taxBonusValueAfter - taxBonusValueBefore
+    const taxEligibleExtraSurplus = taxEligibleExtraValueAfter - taxEligibleExtraValueBefore
+    const immediateAccessExtraSurplus = immediateAccessExtraValueAfter - immediateAccessExtraValueBefore
 
     clientInterestThisYear += clientSurplus
     investedInterestThisYear += investedSurplus
     taxBonusInterestThisYear += taxBonusSurplus
 
-    interestThisYear += clientSurplus + investedSurplus + taxBonusSurplus
-    interestThisMonth += clientSurplus + investedSurplus + taxBonusSurplus
+    interestThisYear +=
+      clientSurplus + investedSurplus + taxBonusSurplus + taxEligibleExtraSurplus + immediateAccessExtraSurplus
+    interestThisMonth +=
+      clientSurplus + investedSurplus + taxBonusSurplus + taxEligibleExtraSurplus + immediateAccessExtraSurplus
 
     const isFeeActive = currentYear >= feeStartYear && (!feeStopYear || currentYear < feeStopYear)
 
     if (isFeeActive) {
-      const totalValue = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+      const totalValue = getTotalValue()
 
       const clientValueBeforeFees = clientUnits * clientPrice
       const investedValueBeforeFees = investedUnits * investedPrice
@@ -1000,6 +1072,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           investedUnits *= dailyMgmtFeeFactor
           clientUnits *= dailyMgmtFeeFactor
           taxBonusUnits *= dailyMgmtFeeFactor
+          taxEligibleExtraUnits *= dailyMgmtFeeFactor
+          immediateAccessExtraUnits *= dailyMgmtFeeFactor
         }
       }
 
@@ -1089,6 +1163,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
               investedUnits *= reductionFactor
               clientUnits *= reductionFactor
               taxBonusUnits *= reductionFactor
+              taxEligibleExtraUnits *= reductionFactor
+              immediateAccessExtraUnits *= reductionFactor
             }
           }
         }
@@ -1116,6 +1192,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           investedUnits *= reductionFactor
           clientUnits *= reductionFactor
           taxBonusUnits *= reductionFactor
+          taxEligibleExtraUnits *= reductionFactor
+          immediateAccessExtraUnits *= reductionFactor
         }
       }
     }
@@ -1143,7 +1221,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           pendingAssetFeeInvested += investedValue * investedRate
           pendingAssetFeeTaxBonus += taxBonusValue * taxBonusRate
         } else {
-          const totalValue = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+          const totalValue = getTotalValue()
           if (totalValue > 0) {
             const feePercentForYear = Math.max(0, getAssetBasedFeePercent(inputs, currentYear))
             const monthlyFee = totalValue * (feePercentForYear / 100)
@@ -1202,7 +1280,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
             }
           }
         } else {
-          const totalValue = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+      const totalValue = getTotalValue()
           const accountMaintenanceFee = totalValue * (accountMaintenanceMonthlyPercent / 100)
           if (accountMaintenanceFee > 0 && totalValue > 0) {
             totalCosts += accountMaintenanceFee
@@ -1220,6 +1298,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
             investedUnits *= reductionFactor
             clientUnits *= reductionFactor
             taxBonusUnits *= reductionFactor
+            taxEligibleExtraUnits *= reductionFactor
+            immediateAccessExtraUnits *= reductionFactor
           }
         }
       }
@@ -1227,7 +1307,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       const adminFeeMonthlyAmount = inputs.adminFeeMonthlyAmount ?? 0
       const isAdminFeeActive = currentYear > 1
       if (adminFeeMonthlyAmount > 0 && isAdminFeeActive) {
-        const totalValue = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+        const totalValue = getTotalValue()
         const adminFee = Math.min(adminFeeMonthlyAmount, totalValue)
         if (adminFee > 0) {
           totalCosts += adminFee
@@ -1248,17 +1328,19 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
             investedUnits *= reductionFactor
             clientUnits *= reductionFactor
             taxBonusUnits *= reductionFactor
+            taxEligibleExtraUnits *= reductionFactor
+            immediateAccessExtraUnits *= reductionFactor
           }
         }
       }
 
-      const totalValueBeforePaidUpCheck = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+      const totalValueBeforePaidUpCheck = getTotalValue()
       const isPaidUpYear =
         (inputs.yearlyPaymentsPlan[currentYear] ?? 0) <= 0 &&
         (minimumPaidUpValue <= 0 || totalValueBeforePaidUpCheck >= minimumPaidUpValue)
       const isPaidUpMaintenanceActive = isPaidUpYear && currentMonthNumber >= paidUpMaintenanceFeeStartMonth
       if (paidUpMaintenanceFeeMonthlyAmount > 0 && isPaidUpMaintenanceActive) {
-        const totalValue = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+        const totalValue = getTotalValue()
         const maintenanceFee = Math.min(paidUpMaintenanceFeeMonthlyAmount, totalValue)
         if (maintenanceFee > 0) {
           totalCosts += maintenanceFee
@@ -1279,6 +1361,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
             investedUnits *= reductionFactor
             clientUnits *= reductionFactor
             taxBonusUnits *= reductionFactor
+            taxEligibleExtraUnits *= reductionFactor
+            immediateAccessExtraUnits *= reductionFactor
           }
         }
       }
@@ -1320,24 +1404,26 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           pendingCalendarTaxCredits.push({ amount: plannedTotal, postingDateIso: toIsoDate(postingDate) })
         }
       }
-      // Handle withdrawals (proportional reduction from all accounts)
-      const plannedW = !isPartialPeriod ? Math.max(0, inputs.yearlyWithdrawalsPlan[currentYear] ?? 0) : 0
-      if (plannedW > 0) {
-        const totalBalance = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+      // Handle withdrawals
+      if (useSeparatedExtraAccounts) {
+        const partialSurrenderEnabled = inputs.allowPartialSurrender !== false
+        const plannedImmediateWithdrawal =
+          !isPartialPeriod && partialSurrenderEnabled
+            ? Math.max(0, inputs.yearlyExtraImmediateAccessWithdrawalsPlan?.[currentYear] ?? 0)
+            : 0
+        const immediateBalance = immediateAccessExtraUnits * immediateAccessExtraPrice
         const maxWithdrawByMinimum = Math.max(
           0,
-          totalBalance - minimumBalanceAfterPartialSurrender - partialSurrenderFeeAmount,
+          immediateBalance - minimumBalanceAfterPartialSurrender - partialSurrenderFeeAmount,
         )
-        const w = Math.min(plannedW, totalBalance, maxWithdrawByMinimum)
-        if (totalBalance > 0) {
-          const withdrawalRatio = w / totalBalance
-          investedUnits *= 1 - withdrawalRatio
-          clientUnits *= 1 - withdrawalRatio
-          taxBonusUnits *= 1 - withdrawalRatio
+        const w = Math.min(plannedImmediateWithdrawal, immediateBalance, maxWithdrawByMinimum)
+        if (w > 0 && immediateBalance > 0) {
+          immediateAccessExtraUnits *= Math.max(0, (immediateBalance - w) / immediateBalance)
+          totalWithdrawals += w
         }
-        totalWithdrawals += w
-        if (w > 0 && partialSurrenderFeeAmount > 0) {
-          const valueAfterWithdrawal = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+
+        if (w > 0 && partialSurrenderEnabled && partialSurrenderFeeAmount > 0) {
+          const valueAfterWithdrawal = immediateAccessExtraUnits * immediateAccessExtraPrice
           const appliedPartialSurrenderFee = Math.min(
             partialSurrenderFeeAmount,
             Math.max(0, valueAfterWithdrawal - minimumBalanceAfterPartialSurrender),
@@ -1347,18 +1433,58 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
             costThisYear += appliedPartialSurrenderFee
             plusCostThisMonth += appliedPartialSurrenderFee
             costThisMonth += appliedPartialSurrenderFee
-            clientCostThisYear += appliedPartialSurrenderFee * ((clientUnits * clientPrice) / valueAfterWithdrawal)
-            investedCostThisYear += appliedPartialSurrenderFee * ((investedUnits * investedPrice) / valueAfterWithdrawal)
-            taxBonusCostThisYear += appliedPartialSurrenderFee * ((taxBonusUnits * taxBonusPrice) / valueAfterWithdrawal)
             const feeReductionFactor = (valueAfterWithdrawal - appliedPartialSurrenderFee) / valueAfterWithdrawal
-            investedUnits *= feeReductionFactor
-            clientUnits *= feeReductionFactor
-            taxBonusUnits *= feeReductionFactor
+            immediateAccessExtraUnits *= feeReductionFactor
           }
         }
+
         withdrawalThisYear = w
       } else {
-        withdrawalThisYear = 0
+        const withdrawalsEnabled = inputs.allowWithdrawals !== false
+        const plannedW = !isPartialPeriod && withdrawalsEnabled ? Math.max(0, inputs.yearlyWithdrawalsPlan[currentYear] ?? 0) : 0
+        if (plannedW > 0) {
+          const totalBalance = getTotalValue()
+          const maxWithdrawByMinimum = Math.max(
+            0,
+            totalBalance - minimumBalanceAfterPartialSurrender - partialSurrenderFeeAmount,
+          )
+          const w = Math.min(plannedW, totalBalance, maxWithdrawByMinimum)
+          if (totalBalance > 0) {
+            const withdrawalRatio = w / totalBalance
+            investedUnits *= 1 - withdrawalRatio
+            clientUnits *= 1 - withdrawalRatio
+            taxBonusUnits *= 1 - withdrawalRatio
+            taxEligibleExtraUnits *= 1 - withdrawalRatio
+            immediateAccessExtraUnits *= 1 - withdrawalRatio
+          }
+          totalWithdrawals += w
+          const partialSurrenderEnabled = inputs.allowPartialSurrender !== false
+          if (w > 0 && partialSurrenderEnabled && partialSurrenderFeeAmount > 0) {
+            const valueAfterWithdrawal = getTotalValue()
+            const appliedPartialSurrenderFee = Math.min(
+              partialSurrenderFeeAmount,
+              Math.max(0, valueAfterWithdrawal - minimumBalanceAfterPartialSurrender),
+            )
+            if (appliedPartialSurrenderFee > 0 && valueAfterWithdrawal > 0) {
+              totalCosts += appliedPartialSurrenderFee
+              costThisYear += appliedPartialSurrenderFee
+              plusCostThisMonth += appliedPartialSurrenderFee
+              costThisMonth += appliedPartialSurrenderFee
+              clientCostThisYear += appliedPartialSurrenderFee * ((clientUnits * clientPrice) / valueAfterWithdrawal)
+              investedCostThisYear += appliedPartialSurrenderFee * ((investedUnits * investedPrice) / valueAfterWithdrawal)
+              taxBonusCostThisYear += appliedPartialSurrenderFee * ((taxBonusUnits * taxBonusPrice) / valueAfterWithdrawal)
+              const feeReductionFactor = (valueAfterWithdrawal - appliedPartialSurrenderFee) / valueAfterWithdrawal
+              investedUnits *= feeReductionFactor
+              clientUnits *= feeReductionFactor
+              taxBonusUnits *= feeReductionFactor
+              taxEligibleExtraUnits *= feeReductionFactor
+              immediateAccessExtraUnits *= feeReductionFactor
+            }
+          }
+          withdrawalThisYear = w
+        } else {
+          withdrawalThisYear = 0
+        }
       }
 
       // Handle plusCost for this year
@@ -1371,7 +1497,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         const clientValueBeforePlus = clientUnits * clientPrice
         const investedValueBeforePlus = investedUnits * investedPrice
         const taxBonusValueBeforePlus = taxBonusUnits * taxBonusPrice
-        const totalValueBeforePlus = clientValueBeforePlus + investedValueBeforePlus + taxBonusValueBeforePlus
+        const totalValueBeforePlus = getTotalValue()
         if (totalValueBeforePlus > 0) {
           const clientRatio = clientValueBeforePlus / totalValueBeforePlus
           const investedRatio = investedValueBeforePlus / totalValueBeforePlus
@@ -1389,7 +1515,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       if (bonusPercent > 0) {
         // Calculate current total wealth BEFORE bonus
         const totalWealthBeforeBonus =
-          investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+          getTotalValue()
         const wealthBonusAmount = totalWealthBeforeBonus * (bonusPercent / 100)
 
         if (wealthBonusAmount > 0) {
@@ -1414,7 +1540,14 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       const endingSurplusValue = investedUnits * investedPrice
       const endingClientValue = clientUnits * clientPrice
       const endingTaxBonusValue = taxBonusUnits * taxBonusPrice
-      const endingTotalValue = endingSurplusValue + endingClientValue + endingTaxBonusValue
+      const endingTaxEligibleExtraValue = taxEligibleExtraUnits * taxEligibleExtraPrice
+      const endingImmediateExtraValue = immediateAccessExtraUnits * immediateAccessExtraPrice
+      const endingTotalValue =
+        endingSurplusValue +
+        endingClientValue +
+        endingTaxBonusValue +
+        endingTaxEligibleExtraValue +
+        endingImmediateExtraValue
 
       const redemptionPercent = getRedemptionFeePercent(currentYear) / 100
       let surrenderCharge = 0
@@ -1433,6 +1566,13 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           surrenderCharge = redemptionBase * redemptionPercent
         }
         surrenderValue = endingTotalValue - surrenderCharge
+      }
+      const taxCreditRepaymentRate = Math.max(0, inputs.taxCreditRepaymentOnSurrenderPercent ?? 0) / 100
+      if (taxCreditRepaymentRate > 0) {
+        const repaymentRaw = totalTaxCredit * taxCreditRepaymentRate
+        const repaymentApplied = Math.min(Math.max(0, surrenderValue), Math.max(0, repaymentRaw))
+        surrenderCharge += repaymentApplied
+        surrenderValue -= repaymentApplied
       }
 
       yearlyBreakdown.push({
@@ -1460,6 +1600,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         endingInvestedValue: endingSurplusValue,
         endingClientValue: endingClientValue,
         endingTaxBonusValue: endingTaxBonusValue,
+        endingTaxEligibleExtraValue: endingTaxEligibleExtraValue,
+        endingImmediateExtraValue: endingImmediateExtraValue,
         surrenderValue: surrenderValue,
         surrenderCharge: surrenderCharge,
         client: {
@@ -1543,10 +1685,12 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         taxCredit: taxCreditThisMonth,
         interest: interestThisMonth,
         costTotal: costThisMonth,
-        endBalance: investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice,
+        endBalance: getTotalValue(),
         endingInvestedValue: investedUnits * investedPrice,
         endingClientValue: clientUnits * clientPrice,
         endingTaxBonusValue: taxBonusUnits * taxBonusPrice,
+        endingTaxEligibleExtraValue: taxEligibleExtraUnits * taxEligibleExtraPrice,
+        endingImmediateExtraValue: immediateAccessExtraUnits * immediateAccessExtraPrice,
       })
 
       paymentThisMonth = 0
@@ -1563,7 +1707,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
     }
   }
 
-  const endBalance = investedUnits * investedPrice + clientUnits * clientPrice + taxBonusUnits * taxBonusPrice
+  const endBalance = getTotalValue()
   const totalInterestNet = endBalance - totalContributions - totalBonus - totalTaxCredit + totalCosts + totalWithdrawals
   return {
     currency: inputs.currency,

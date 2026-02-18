@@ -60,12 +60,15 @@ export default function ReszletesAdatokPage() {
     () =>
       resolveProductContextKey(storedState?.selectedProduct ?? contextData?.selectedProduct, {
         enableTaxCredit: storedState?.inputs?.enableTaxCredit ?? contextData?.enableTaxCredit,
+        currency: storedState?.inputs?.currency ?? contextData?.currency,
       }),
     [
       storedState?.selectedProduct,
       contextData?.selectedProduct,
       storedState?.inputs?.enableTaxCredit,
       contextData?.enableTaxCredit,
+      storedState?.inputs?.currency,
+      contextData?.currency,
     ],
   )
   const getHeaderInfoHandlers = (key: string) => ({
@@ -185,6 +188,10 @@ export default function ReszletesAdatokPage() {
     }
     if (selectedProduct === "alfa_fortis") return "alfa-fortis"
     if (selectedProduct === "alfa_jade") return "alfa-jade"
+    if (selectedProduct === "alfa_jovokep") return "alfa-jovokep"
+    if (selectedProduct === "alfa_jovotervezo") return "alfa-jovotervezo"
+    if (selectedProduct === "alfa_premium_selection") return "alfa-premium-selection"
+    if (selectedProduct === "alfa_relax_plusz") return "alfa-relax-plusz"
     if (
       selectedInsurer === "Allianz" ||
       (selectedProduct && selectedProduct.includes("allianz"))
@@ -224,8 +231,27 @@ export default function ReszletesAdatokPage() {
   const monthlyData = useMemo(() => {
     if (!storedState || !plan) return []
 
-    const calcCurrency =
-      (storedState.selectedProduct === "alfa_jade" ? "EUR" : (storedState.inputs.currency ?? contextData?.currency ?? "HUF")) as Currency
+    const calcCurrency = (
+      storedState.selectedProduct === "alfa_jade"
+        ? storedState.inputs.currency === "USD"
+          ? "USD"
+          : "EUR"
+        : storedState.selectedProduct === "alfa_jovokep"
+          ? "HUF"
+          : storedState.selectedProduct === "alfa_jovotervezo"
+            ? "HUF"
+            : storedState.selectedProduct === "alfa_relax_plusz"
+              ? "HUF"
+            : storedState.selectedProduct === "alfa_premium_selection"
+              ? storedState.inputs.currency === "USD"
+                ? "USD"
+                : storedState.inputs.enableTaxCredit
+                  ? (storedState.inputs.currency === "EUR" ? "EUR" : "HUF")
+                  : storedState.inputs.currency === "EUR"
+                    ? "EUR"
+                    : "HUF"
+        : (storedState.inputs.currency ?? contextData?.currency ?? "HUF")
+    ) as Currency
     const isAllianzProduct = productId === "allianz-eletprogram"
     const effectiveProductVariant =
       storedState.selectedProduct === "alfa_exclusive_plus"
@@ -233,7 +259,25 @@ export default function ReszletesAdatokPage() {
           ? "alfa_exclusive_plus_ny05"
           : "alfa_exclusive_plus_tr08"
         : storedState.selectedProduct === "alfa_jade"
-          ? "alfa_jade_tr19"
+          ? calcCurrency === "USD"
+            ? "alfa_jade_tr29"
+            : "alfa_jade_tr19"
+          : storedState.selectedProduct === "alfa_jovokep"
+            ? "alfa_jovokep_tr10"
+          : storedState.selectedProduct === "alfa_jovotervezo"
+            ? "alfa_jovotervezo_tr03"
+          : storedState.selectedProduct === "alfa_relax_plusz"
+            ? "alfa_relax_plusz_ny01"
+          : storedState.selectedProduct === "alfa_premium_selection"
+            ? calcCurrency === "USD"
+              ? (storedState.inputs.enableTaxCredit ? "alfa_premium_selection_ny22" : "alfa_premium_selection_tr28")
+              : storedState.inputs.enableTaxCredit
+              ? calcCurrency === "EUR"
+                ? "alfa_premium_selection_ny12"
+                : "alfa_premium_selection_ny06"
+              : calcCurrency === "EUR"
+                ? "alfa_premium_selection_tr18"
+                : "alfa_premium_selection_tr09"
         : (storedState.selectedProduct ?? contextData?.selectedProduct ?? undefined)
     const adminFeeMonthlyAmount = isAllianzProduct ? (calcCurrency === "EUR" ? 3.3 : 990) : undefined
 

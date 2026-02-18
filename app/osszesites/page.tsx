@@ -106,12 +106,15 @@ export default function OsszesitesPage() {
     () =>
       resolveProductContextKey(computedData?.selectedProduct ?? contextData?.selectedProduct, {
         enableTaxCredit: computedData?.enableTaxCredit ?? contextData?.enableTaxCredit,
+        currency: computedData?.currency ?? contextData?.currency,
       }),
     [
       computedData?.selectedProduct,
       contextData?.selectedProduct,
       computedData?.enableTaxCredit,
       contextData?.enableTaxCredit,
+      computedData?.currency,
+      contextData?.currency,
     ],
   )
   const getSummaryInfoHandlers = (rowKey: RowKey) => {
@@ -229,7 +232,11 @@ export default function OsszesitesPage() {
     const productMap: Record<string, string> = {
       alfa_exclusive_plus: "Alfa Exclusive Plus",
       alfa_fortis: "Alfa Fortis (WL-02)",
-      alfa_jade: "Alfa Jáde EUR (TR19)",
+      alfa_jade: "Alfa Jáde (TR19/TR29)",
+      alfa_jovokep: "Alfa Jövőkép (TR10)",
+      alfa_jovotervezo: "Alfa Jövőtervező (TR03)",
+      alfa_premium_selection: "Alfa Premium Selection (TR09/NY06/TR18/NY12/TR28/NY22)",
+      alfa_relax_plusz: "Alfa Relax Plusz (NY01)",
       allianz_eletprogram: "Allianz Életprogram",
       allianz_bonusz_eletprogram: "Allianz Bónusz Életprogram",
     }
@@ -242,6 +249,10 @@ export default function OsszesitesPage() {
     }
     if (productValue === "alfa_fortis") return "alfa-fortis"
     if (productValue === "alfa_jade") return "alfa-jade"
+    if (productValue === "alfa_jovokep") return "alfa-jovokep"
+    if (productValue === "alfa_jovotervezo") return "alfa-jovotervezo"
+    if (productValue === "alfa_premium_selection") return "alfa-premium-selection"
+    if (productValue === "alfa_relax_plusz") return "alfa-relax-plusz"
     if (insurer === "Allianz") {
       if (productValue === "allianz_eletprogram" || productValue === "allianz_bonusz_eletprogram") {
         return "allianz-eletprogram"
@@ -423,7 +434,24 @@ export default function OsszesitesPage() {
       const monthlyPayment = inputs.regularPayment || 0
       const yearlyPayment = monthlyPayment * 12
 
-      const effectiveCurrency = selectedProduct === "alfa_jade" ? "EUR" : inputs.currency
+      const effectiveCurrency =
+        selectedProduct === "alfa_jade"
+          ? (inputs.currency === "USD" ? "USD" : "EUR")
+          : selectedProduct === "alfa_jovokep"
+            ? "HUF"
+            : selectedProduct === "alfa_jovotervezo"
+              ? "HUF"
+            : selectedProduct === "alfa_relax_plusz"
+              ? "HUF"
+            : selectedProduct === "alfa_premium_selection"
+              ? inputs.currency === "USD"
+                ? "USD"
+                : inputs.enableTaxCredit
+                  ? (inputs.currency === "EUR" ? "EUR" : "HUF")
+                  : inputs.currency === "EUR"
+                    ? "EUR"
+                    : "HUF"
+            : inputs.currency
       let results: any
       let totalBonus = 0
       try {
@@ -434,7 +462,25 @@ export default function OsszesitesPage() {
               ? "alfa_exclusive_plus_ny05"
               : "alfa_exclusive_plus_tr08"
             : selectedProduct === "alfa_jade"
-              ? "alfa_jade_tr19"
+              ? effectiveCurrency === "USD"
+                ? "alfa_jade_tr29"
+                : "alfa_jade_tr19"
+            : selectedProduct === "alfa_jovokep"
+              ? "alfa_jovokep_tr10"
+            : selectedProduct === "alfa_jovotervezo"
+              ? "alfa_jovotervezo_tr03"
+            : selectedProduct === "alfa_relax_plusz"
+              ? "alfa_relax_plusz_ny01"
+            : selectedProduct === "alfa_premium_selection"
+              ? effectiveCurrency === "USD"
+                ? (inputs.enableTaxCredit ? "alfa_premium_selection_ny22" : "alfa_premium_selection_tr28")
+                : inputs.enableTaxCredit
+                ? effectiveCurrency === "EUR"
+                  ? "alfa_premium_selection_ny12"
+                  : "alfa_premium_selection_ny06"
+                : effectiveCurrency === "EUR"
+                  ? "alfa_premium_selection_tr18"
+                  : "alfa_premium_selection_tr09"
             : (selectedProduct ?? undefined)
         const dailyInputs: InputsDaily = {
           ...inputs,

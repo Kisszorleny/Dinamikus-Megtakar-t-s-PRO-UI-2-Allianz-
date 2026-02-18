@@ -66,11 +66,78 @@ import {
   buildJadeInvestedShareByYear,
   buildJadeRedemptionSchedule,
   getJadeVariantConfig,
+  resolveJadeVariant,
   toJadeProductVariantId,
 } from "@/lib/engine/products/alfa-jade-config"
+import {
+  buildJovokepInitialCostByYear,
+  buildJovokepInvestedShareByYear,
+  buildJovokepRedemptionSchedule,
+  clampJovokepEntryAge,
+  JOVOKEP_MAX_DURATION_YEARS,
+  JOVOKEP_EXTRAORDINARY_ADMIN_FEE_PERCENT,
+  JOVOKEP_MAX_AGE_AT_MATURITY,
+  JOVOKEP_MAX_ENTRY_AGE,
+  JOVOKEP_MIN_ANNUAL_PAYMENT,
+  JOVOKEP_MIN_DURATION_YEARS,
+  JOVOKEP_MIN_ENTRY_AGE,
+  JOVOKEP_MIN_EXTRAORDINARY_PAYMENT,
+  JOVOKEP_PRODUCT_CODE,
+  JOVOKEP_REGULAR_ADMIN_FEE_PERCENT,
+} from "@/lib/engine/products/alfa-jovokep-config"
+import {
+  buildJovotervezoInitialCostByYear,
+  buildJovotervezoInvestedShareByYear,
+  buildJovotervezoRedemptionSchedule,
+  JOVOTERVEZO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT,
+  JOVOTERVEZO_EXTRAORDINARY_ADMIN_FEE_PERCENT,
+  JOVOTERVEZO_MIN_ANNUAL_PAYMENT,
+  JOVOTERVEZO_MAX_DURATION_YEARS,
+  JOVOTERVEZO_MIN_DURATION_YEARS,
+  JOVOTERVEZO_MIN_EXTRAORDINARY_PAYMENT,
+  JOVOTERVEZO_PRODUCT_CODE,
+  JOVOTERVEZO_REGULAR_ADMIN_FEE_PERCENT,
+} from "@/lib/engine/products/alfa-jovotervezo-config"
+import {
+  buildPremiumSelectionBonusAmountByYear,
+  buildPremiumSelectionInitialCostByYear,
+  buildPremiumSelectionInvestedShareByYear,
+  buildPremiumSelectionRedemptionSchedule,
+  estimatePremiumSelectionDurationYears,
+  getPremiumSelectionVariantConfig,
+  PREMIUM_SELECTION_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT,
+  PREMIUM_SELECTION_EUR_PRODUCT_CODE,
+  PREMIUM_SELECTION_NY22_PRODUCT_CODE,
+  PREMIUM_SELECTION_NY12_PRODUCT_CODE,
+  PREMIUM_SELECTION_EXTRAORDINARY_ADMIN_FEE_PERCENT,
+  PREMIUM_SELECTION_MIN_ANNUAL_PAYMENT,
+  PREMIUM_SELECTION_MIN_EXTRAORDINARY_PAYMENT,
+  PREMIUM_SELECTION_NY12_MIN_ANNUAL_PAYMENT,
+  PREMIUM_SELECTION_NY12_MIN_EXTRAORDINARY_PAYMENT,
+  PREMIUM_SELECTION_NY06_MIN_DURATION_YEARS,
+  PREMIUM_SELECTION_NYUGDIJ_PRODUCT_CODE,
+  PREMIUM_SELECTION_OTP_BUX_FUND_ID,
+  PREMIUM_SELECTION_PRODUCT_CODE,
+  PREMIUM_SELECTION_REGULAR_ADMIN_FEE_PERCENT,
+  PREMIUM_SELECTION_TR18_MAX_DURATION_YEARS,
+  PREMIUM_SELECTION_TR18_MIN_ANNUAL_PAYMENT,
+  PREMIUM_SELECTION_TR18_MIN_DURATION_YEARS,
+  PREMIUM_SELECTION_TR18_MIN_EXTRAORDINARY_PAYMENT,
+  PREMIUM_SELECTION_USD_PRODUCT_CODE,
+  resolvePremiumSelectionAccountMaintenanceMonthlyPercent,
+  resolvePremiumSelectionTaxCreditCapPerYear,
+  resolvePremiumSelectionVariant,
+} from "@/lib/engine/products/alfa-premium-selection-config"
+import {
+  buildRelaxPluszInitialCostByYear,
+  buildRelaxPluszInvestedShareByYear,
+  buildRelaxPluszRedemptionSchedule,
+  RELAX_PLUSZ_PRODUCT_CODE,
+} from "@/lib/engine/products/alfa-relax-plusz-config"
 import { resolveProductContextKey } from "@/lib/column-explanations"
 
 type DurationUnit = "year" | "month" | "day"
+type YearlyAccountView = "summary" | "main" | "eseti" | "eseti_immediate_access" | "eseti_tax_eligible"
 type FutureInflationMode = "fix" | "converging"
 type DurationSource = "dates" | "value"
 type ChartParseStatus = "idle" | "processing" | "success" | "error"
@@ -786,7 +853,7 @@ function MobileYearCard({
   bonusPercentByYear?: Record<number, number>
   updateBonusPercent?: (year: number, percent: number) => void
   yearlyViewMode?: "total" | "client" | "invested" | "taxBonus" // Added prop
-  yearlyAccountView?: "summary" | "main" | "eseti"
+  yearlyAccountView?: YearlyAccountView
   cumulativeByYear?: Record<number, any>
   shouldApplyTaxCreditPenalty?: boolean
   isTaxBonusSeparateAccount?: boolean // Added prop
@@ -806,13 +873,18 @@ function MobileYearCard({
   const isYearlyReadOnly = yearlyAccountView === "summary"
   const isPartialReadOnly = row.periodType === "partial"
   const isRowReadOnly = isYearlyReadOnly || isPartialReadOnly
-  const isEsetiView = yearlyAccountView === "eseti"
+  const isEsetiView =
+    yearlyAccountView === "eseti" ||
+    yearlyAccountView === "eseti_immediate_access" ||
+    yearlyAccountView === "eseti_tax_eligible"
   const effectiveYearlyViewMode =
     yearlyAccountView === "main" && isAccountSplitOpen ? yearlyViewMode : "total"
   const isAlfaExclusivePlusVariant =
     typeof inputs?.productVariant === "string" && inputs.productVariant.startsWith("alfa_exclusive_plus")
   const shouldShowAcquisitionInCurrentView =
     !(isAlfaExclusivePlusVariant && isAccountSplitOpen && effectiveYearlyViewMode !== "total")
+  const hideAssetFeeBreakdownInCurrentView =
+    !!isAccountSplitOpen && !isEsetiView && effectiveYearlyViewMode === "total"
   const defaultAssetPercentForView =
     isAlfaExclusivePlusVariant && effectiveYearlyViewMode === "invested"
       ? 0.145
@@ -1173,7 +1245,7 @@ function MobileYearCard({
             inputs &&
             assetCostPercentByYear &&
             updateAssetCostPercent &&
-            !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
+            !hideAssetFeeBreakdownInCurrentView && (
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">
                   {isAlfaExclusivePlusVariant ? "Számlavezetési költség" : "Vagyon%"}
@@ -1362,13 +1434,17 @@ export function SavingsCalculator() {
   const { isMobile } = useMobile()
 
   const isHydratingRef = useRef(true)
+  const lastAppliedPresetKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     isHydratingRef.current = false
   }, [])
 
   const [yearlyViewMode, setYearlyViewMode] = useState<"total" | "client" | "invested" | "taxBonus">("total")
-  const [yearlyAccountView, setYearlyAccountView] = useState<"summary" | "main" | "eseti">("main")
+  const [yearlyAccountView, setYearlyAccountView] = useState<YearlyAccountView>("main")
+  const [premiumSelectionEsetiMode, setPremiumSelectionEsetiMode] = useState<"taxEligible" | "immediateAccess">(
+    "immediateAccess",
+  )
   const [yearlyAggregationMode, setYearlyAggregationMode] = useState<"year" | "sum">("year")
   const [showCostBreakdown, setShowCostBreakdown] = useState(false)
   const [activeYearlyColumnInfoKey, setActiveYearlyColumnInfoKey] = useState<string | null>(null)
@@ -1534,6 +1610,7 @@ export function SavingsCalculator() {
   // Default fund data (non-Allianz or non-HUF)
   const baseFundOptions = [
     { id: "fund-1", name: "OTP Alapkezelő Részvényalap", historicalYield: 8.5 },
+    { id: PREMIUM_SELECTION_OTP_BUX_FUND_ID, name: "OTP BUX Indexkövető eszközalap", historicalYield: 8.5 },
     { id: "fund-2", name: "ERSTE Alapkezelő Magyar Tőkepiaci Alap", historicalYield: 10.2 },
     { id: "fund-3", name: "K&H Alapkezelő Kétszínű Alap", historicalYield: 7.8 },
     { id: "fund-4", name: "Concordia Alapkezelő Konzervatív Alap", historicalYield: 5.3 },
@@ -1863,6 +1940,19 @@ export function SavingsCalculator() {
     }
     return {}
   })
+  const [esetiPaymentByYearTaxEligible, setEsetiPaymentByYearTaxEligible] = useState<Record<number, number>>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-esetiPaymentByYearTaxEligible")
+      if (stored) {
+        try {
+          return JSON.parse(stored)
+        } catch (e) {
+          console.error("[v0] Failed to parse stored esetiPaymentByYearTaxEligible:", e)
+        }
+      }
+    }
+    return {}
+  })
 
   const [withdrawalByYear, setWithdrawalByYear] = useState<Record<number, number>>(() => {
     if (typeof window !== "undefined") {
@@ -1890,6 +1980,19 @@ export function SavingsCalculator() {
     }
     return {}
   })
+  const [esetiWithdrawalByYearTaxEligible, setEsetiWithdrawalByYearTaxEligible] = useState<Record<number, number>>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-esetiWithdrawalByYearTaxEligible")
+      if (stored) {
+        try {
+          return JSON.parse(stored)
+        } catch (e) {
+          console.error("[v0] Failed to parse stored esetiWithdrawalByYearTaxEligible:", e)
+        }
+      }
+    }
+    return {}
+  })
 
   const [taxCreditLimitByYear, setTaxCreditLimitByYear] = useState<Record<number, number>>(() => {
     if (typeof window !== "undefined") {
@@ -1912,6 +2015,19 @@ export function SavingsCalculator() {
           return JSON.parse(stored)
         } catch (e) {
           console.error("[v0] Failed to parse stored esetiIndexByYear:", e)
+        }
+      }
+    }
+    return {}
+  })
+  const [esetiIndexByYearTaxEligible, setEsetiIndexByYearTaxEligible] = useState<Record<number, number>>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-esetiIndexByYearTaxEligible")
+      if (stored) {
+        try {
+          return JSON.parse(stored)
+        } catch (e) {
+          console.error("[v0] Failed to parse stored esetiIndexByYearTaxEligible:", e)
         }
       }
     }
@@ -2507,6 +2623,14 @@ export function SavingsCalculator() {
     () => getFortisVariantConfig(toFortisProductVariantId(effectiveFortisVariant), inputs.currency),
     [effectiveFortisVariant, inputs.currency],
   )
+  const jadeVariantConfig = useMemo(
+    () => getJadeVariantConfig(undefined, inputs.currency),
+    [inputs.currency],
+  )
+  const premiumSelectionVariantConfig = useMemo(
+    () => getPremiumSelectionVariantConfig(undefined, inputs.enableTaxCredit, inputs.currency),
+    [inputs.enableTaxCredit, inputs.currency],
+  )
   const isAllianzEletprogramView =
     selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram"
   const canUseFundYield = Boolean(selectedProduct)
@@ -2515,7 +2639,11 @@ export function SavingsCalculator() {
     if (selectedProduct === "alfa_fortis") {
       return ["HUF", "EUR", "USD"]
     }
-    if (selectedProduct === "alfa_jade") return ["EUR"]
+    if (selectedProduct === "alfa_jade") return ["EUR", "USD"]
+    if (selectedProduct === "alfa_jovokep") return ["HUF"]
+    if (selectedProduct === "alfa_jovotervezo") return ["HUF"]
+    if (selectedProduct === "alfa_relax_plusz") return ["HUF"]
+    if (selectedProduct === "alfa_premium_selection") return ["HUF", "EUR", "USD"]
     if (selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram") {
       return ["HUF", "EUR"]
     }
@@ -2693,10 +2821,45 @@ export function SavingsCalculator() {
     })
   }, [isFortisProduct, fundOptions, selectedFundId, fortisVariantConfig, inputs.currency])
 
+  useEffect(() => {
+    if (selectedProduct !== "alfa_premium_selection") return
+    if (fundOptions.length === 0) return
+    const activeFund = fundOptions.find((fund) => fund.id === selectedFundId) ?? fundOptions[0]
+    if (!activeFund) return
+
+    const maintenancePercent = resolvePremiumSelectionAccountMaintenanceMonthlyPercent(
+      activeFund.id,
+      premiumSelectionVariantConfig,
+    )
+
+    setInputs((prev) => {
+      if (Math.abs((prev.accountMaintenanceMonthlyPercent ?? 0) - maintenancePercent) < 1e-9) {
+        return prev
+      }
+      return {
+        ...prev,
+        accountMaintenanceMonthlyPercent: maintenancePercent,
+      }
+    })
+    setProductPresetBaseline((prev) => {
+      if (!prev) return prev
+      if (Math.abs((prev.accountMaintenanceMonthlyPercent ?? 0) - maintenancePercent) < 1e-9) {
+        return prev
+      }
+      return {
+        ...prev,
+        accountMaintenanceMonthlyPercent: maintenancePercent,
+      }
+    })
+  }, [selectedProduct, fundOptions, selectedFundId, premiumSelectionVariantConfig])
+
   const getAcquisitionCostTitle = () => {
     if (
       selectedProduct === "alfa_fortis" ||
       selectedProduct === "alfa_jade" ||
+      selectedProduct === "alfa_jovokep" ||
+      selectedProduct === "alfa_jovotervezo" ||
+      selectedProduct === "alfa_premium_selection" ||
       selectedProduct === "alfa_exclusive_plus"
     ) {
       return "Szerződéskötési költség (év szerint)"
@@ -2735,12 +2898,25 @@ export function SavingsCalculator() {
       hasMapDiff(accountMaintenancePercentByYear, productPresetBaseline.accountMaintenancePercentByYear),
     [accountMaintenancePercentByYear, hasMapDiff, inputs.accountMaintenanceMonthlyPercent, productPresetBaseline],
   )
-  const hasAdminFeeOverrides = useMemo(
-    () =>
-      Math.abs((inputs.adminFeePercentOfPayment ?? 0) - productPresetBaseline.adminFeePercentOfPayment) > 1e-9 ||
-      hasMapDiff(adminFeePercentByYear, productPresetBaseline.adminFeePercentByYear),
-    [adminFeePercentByYear, hasMapDiff, inputs.adminFeePercentOfPayment, productPresetBaseline],
-  )
+  const hasAdminFeeOverrides = useMemo(() => {
+    if (Math.abs((inputs.adminFeePercentOfPayment ?? 0) - productPresetBaseline.adminFeePercentOfPayment) > 1e-9) {
+      return true
+    }
+    const years = new Set<number>([
+      ...Object.keys(adminFeePercentByYear).map((key) => Number(key)),
+      ...Object.keys(productPresetBaseline.adminFeePercentByYear).map((key) => Number(key)),
+    ])
+    for (const year of years) {
+      const currentValue = adminFeePercentByYear[year]
+      const baselineValue =
+        productPresetBaseline.adminFeePercentByYear[year] ?? productPresetBaseline.adminFeePercentOfPayment
+      // Explicit per-year entry can override fallback even with 0, so key presence matters.
+      if (currentValue !== undefined && Math.abs(currentValue - baselineValue) > 1e-9) {
+        return true
+      }
+    }
+    return false
+  }, [adminFeePercentByYear, inputs.adminFeePercentOfPayment, productPresetBaseline])
   const hasBonusOnContributionOverrides = useMemo(
     () => hasMapDiff(bonusOnContributionPercentByYear, productPresetBaseline.bonusOnContributionPercentByYear),
     [bonusOnContributionPercentByYear, hasMapDiff, productPresetBaseline],
@@ -2823,10 +2999,10 @@ export function SavingsCalculator() {
           },
           {
             value: "alfa_jade",
-            label: "Alfa Jáde EUR",
+            label: "Alfa Jáde",
             productType: "Életbiztosítás",
-            mnbCode: "TR19",
-            productCode: "TR19",
+            mnbCode: "TR19 / TR29",
+            productCode: "TR19 / TR29",
             variants: [
               {
                 value: "alfa_jade_tr19",
@@ -2834,6 +3010,112 @@ export function SavingsCalculator() {
                 productType: "Életbiztosítás",
                 mnbCode: "TR19",
                 productCode: "TR19",
+              },
+              {
+                value: "alfa_jade_tr29",
+                label: "TR29 (USD)",
+                productType: "Életbiztosítás",
+                mnbCode: "TR29",
+                productCode: "TR29",
+              },
+            ],
+          },
+          {
+            value: "alfa_jovokep",
+            label: "Alfa Jövőkép",
+            productType: "Életbiztosítás",
+            mnbCode: "13452",
+            productCode: JOVOKEP_PRODUCT_CODE,
+            variants: [
+              {
+                value: "alfa_jovokep_tr10",
+                label: "TR10 (HUF)",
+                productType: "Életbiztosítás",
+                mnbCode: "13452",
+                productCode: JOVOKEP_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "alfa_jovotervezo",
+            label: "Alfa Jövőtervező",
+            productType: "Életbiztosítás",
+            mnbCode: "TR03",
+            productCode: JOVOTERVEZO_PRODUCT_CODE,
+            variants: [
+              {
+                value: "alfa_jovotervezo_tr03",
+                label: "TR03 (HUF)",
+                productType: "Életbiztosítás",
+                mnbCode: "TR03",
+                productCode: JOVOTERVEZO_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "alfa_premium_selection",
+            label: "Alfa Premium Selection",
+            productType: "Nyugdíjbiztosítás / Életbiztosítás",
+            mnbCode: "TR09 / NY06 / TR18 / NY12 / TR28 / NY22",
+            productCode: `${PREMIUM_SELECTION_PRODUCT_CODE} / ${PREMIUM_SELECTION_NYUGDIJ_PRODUCT_CODE} / ${PREMIUM_SELECTION_EUR_PRODUCT_CODE} / ${PREMIUM_SELECTION_NY12_PRODUCT_CODE} / ${PREMIUM_SELECTION_USD_PRODUCT_CODE} / ${PREMIUM_SELECTION_NY22_PRODUCT_CODE}`,
+            variants: [
+              {
+                value: "alfa_premium_selection_tr09",
+                label: "TR09 (HUF)",
+                productType: "Életbiztosítás",
+                mnbCode: "TR09",
+                productCode: PREMIUM_SELECTION_PRODUCT_CODE,
+              },
+              {
+                value: "alfa_premium_selection_ny06",
+                label: "NY06 (Nyugdíjbiztosítás)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: "NY06",
+                productCode: PREMIUM_SELECTION_NYUGDIJ_PRODUCT_CODE,
+              },
+              {
+                value: "alfa_premium_selection_tr18",
+                label: "TR18 (EUR)",
+                productType: "Életbiztosítás",
+                mnbCode: "TR18",
+                productCode: PREMIUM_SELECTION_EUR_PRODUCT_CODE,
+              },
+              {
+                value: "alfa_premium_selection_ny12",
+                label: "NY12 (EUR Nyugdíjbiztosítás)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: "NY12",
+                productCode: PREMIUM_SELECTION_NY12_PRODUCT_CODE,
+              },
+              {
+                value: "alfa_premium_selection_tr28",
+                label: "TR28 (USD)",
+                productType: "Életbiztosítás",
+                mnbCode: "TR28",
+                productCode: PREMIUM_SELECTION_USD_PRODUCT_CODE,
+              },
+              {
+                value: "alfa_premium_selection_ny22",
+                label: "NY22 (USD Nyugdíjbiztosítás)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: "NY22",
+                productCode: PREMIUM_SELECTION_NY22_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "alfa_relax_plusz",
+            label: "Alfa Relax Plusz",
+            productType: "Nyugdíjbiztosítás",
+            mnbCode: "NY01",
+            productCode: RELAX_PLUSZ_PRODUCT_CODE,
+            variants: [
+              {
+                value: "alfa_relax_plusz_ny01",
+                label: "NY01 (Nyugdíjbiztosítás)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: "NY01",
+                productCode: RELAX_PLUSZ_PRODUCT_CODE,
               },
             ],
           },
@@ -2907,10 +3189,19 @@ export function SavingsCalculator() {
       return fortisVariantConfig.code
     }
     if (selectedProduct === "alfa_jade") {
-      return "TR19"
+      return getJadeVariantConfig(undefined, inputs.currency).code
+    }
+    if (selectedProduct === "alfa_jovokep") {
+      return JOVOKEP_PRODUCT_CODE
+    }
+    if (selectedProduct === "alfa_jovotervezo") {
+      return JOVOTERVEZO_PRODUCT_CODE
+    }
+    if (selectedProduct === "alfa_premium_selection") {
+      return getPremiumSelectionVariantConfig(undefined, inputs.enableTaxCredit, inputs.currency).code
     }
     return undefined
-  }, [selectedProduct, inputs.enableTaxCredit, fortisVariantConfig.code])
+  }, [selectedProduct, inputs.enableTaxCredit, fortisVariantConfig.code, inputs.currency])
 
   const activeProductVariantMetadata = useMemo(() => {
     if (!selectedProductMetadata?.variants || selectedProductMetadata.variants.length === 0) return null
@@ -2930,14 +3221,44 @@ export function SavingsCalculator() {
       )
     }
     if (selectedProduct === "alfa_jade") {
+      const wantedCode = getJadeVariantConfig(undefined, inputs.currency).code
       return (
-        selectedProductMetadata.variants.find((variant) => variant.productCode === "TR19") ??
+        selectedProductMetadata.variants.find((variant) => variant.productCode === wantedCode) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "alfa_jovokep") {
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.productCode === JOVOKEP_PRODUCT_CODE) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "alfa_jovotervezo") {
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.productCode === JOVOTERVEZO_PRODUCT_CODE) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "alfa_premium_selection") {
+      const wantedCode = getPremiumSelectionVariantConfig(undefined, inputs.enableTaxCredit, inputs.currency).code
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.productCode === wantedCode) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "alfa_relax_plusz") {
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.productCode === RELAX_PLUSZ_PRODUCT_CODE) ??
         selectedProductMetadata.variants[0] ??
         null
       )
     }
     return selectedProductMetadata.variants[0] ?? null
-  }, [selectedProductMetadata, selectedProduct, inputs.enableTaxCredit, fortisVariantConfig.code])
+  }, [selectedProductMetadata, selectedProduct, inputs.enableTaxCredit, fortisVariantConfig.code, inputs.currency])
 
   useEffect(() => {
     if (!selectedInsurer) {
@@ -2970,6 +3291,18 @@ export function SavingsCalculator() {
     }
     if (productValue === "alfa_jade") {
       return "alfa-jade"
+    }
+    if (productValue === "alfa_jovokep") {
+      return "alfa-jovokep"
+    }
+    if (productValue === "alfa_jovotervezo") {
+      return "alfa-jovotervezo"
+    }
+    if (productValue === "alfa_premium_selection") {
+      return "alfa-premium-selection"
+    }
+    if (productValue === "alfa_relax_plusz") {
+      return "alfa-relax-plusz"
     }
     if (insurer === "Allianz") {
       if (productValue === "allianz_eletprogram" || productValue === "allianz_bonusz_eletprogram") {
@@ -3010,6 +3343,7 @@ export function SavingsCalculator() {
         const durationInYears = Math.ceil(
           durationValue / (durationUnit === "year" ? 1 : durationUnit === "month" ? 12 / 12 : 365 / 12),
         )
+        const aepAssetFeePercent = 0.145
 
         const investedShareConfig: Record<number, number> = {}
         for (let year = 1; year <= durationInYears; year++) {
@@ -3069,7 +3403,7 @@ export function SavingsCalculator() {
         // (Engine applies account-specific logic for client/invested/taxBonus internally.)
         const assetCostConfig: Record<number, number> = {}
         for (let year = 1; year <= durationInYears; year++) {
-          assetCostConfig[year] = year <= 3 ? 0 : 0.145
+          assetCostConfig[year] = year <= 3 ? 0 : aepAssetFeePercent
         }
         // </CHANGE>
 
@@ -3080,7 +3414,7 @@ export function SavingsCalculator() {
           initialCostDefaultPercent: 0,
           yearlyManagementFeePercent: 0, // This field is now replaced by managementFeeValue
           yearlyFixedManagementFeeAmount: 0, // This field is now replaced by managementFeeValue
-          assetBasedFeePercent: 0.145, // Set default asset fee to 0.145%
+          assetBasedFeePercent: aepAssetFeePercent, // Set default asset fee
           bonusMode: "none",
           bonusPercent: 0,
           bonusStartYear: 1,
@@ -3103,7 +3437,7 @@ export function SavingsCalculator() {
         setProductPresetBaseline({
           initialCostByYear: initialCostConfig,
           initialCostDefaultPercent: 0,
-          assetBasedFeePercent: 0.145,
+          assetBasedFeePercent: aepAssetFeePercent,
           assetCostPercentByYear: assetCostConfig,
           accountMaintenanceMonthlyPercent: 0,
           accountMaintenancePercentByYear: {},
@@ -3255,6 +3589,7 @@ export function SavingsCalculator() {
           managementFeeFrequency: "éves", // Reset to default
           managementFeeValueType: "amount",
           managementFeeValue: fortisVariantConfig.policyFeeAnnualAmount,
+          adminFeePercentOfPayment: 4,
           assetBasedFeePercent: fortisVariantConfig.vakPercentByFundClass.equityOrMixed,
           bonusMode: "percentOnContribution",
           bonusOnContributionPercent: 0,
@@ -3293,7 +3628,9 @@ export function SavingsCalculator() {
         setIsRedemptionOpen(true)
         // </CHANGE>
       } else if (selectedProduct === "alfa_jade") {
-        const jadeConfig = getJadeVariantConfig(toJadeProductVariantId("tr19"), "EUR")
+        const effectiveJadeCurrency: Currency = inputs.currency === "USD" ? "USD" : "EUR"
+        const jadeConfig = getJadeVariantConfig(undefined, effectiveJadeCurrency)
+        const jadeBonusPercentConfig = { ...jadeConfig.bonusPercentByYear }
         const durationInYears = Math.ceil(
           durationValue / (durationUnit === "year" ? 1 : durationUnit === "month" ? 12 / 12 : 365 / 12),
         )
@@ -3305,7 +3642,7 @@ export function SavingsCalculator() {
         setDurationValue(15)
         setInputs((prev) => ({
           ...prev,
-          currency: "EUR",
+          currency: effectiveJadeCurrency,
           initialCostByYear: initialCostConfig,
           initialCostDefaultPercent: 0,
           initialCostBaseMode: "afterRisk",
@@ -3338,7 +3675,7 @@ export function SavingsCalculator() {
         setAssetCostPercentByYear({})
         setAccountMaintenancePercentByYear({})
         setAdminFeePercentByYear({})
-        setBonusOnContributionPercentByYear({})
+        setBonusOnContributionPercentByYear(jadeBonusPercentConfig)
         setRefundInitialCostBonusPercentByYear({})
         setProductPresetBaseline({
           initialCostByYear: initialCostConfig,
@@ -3348,6 +3685,339 @@ export function SavingsCalculator() {
           accountMaintenanceMonthlyPercent: jadeConfig.accountMaintenanceMonthlyPercent,
           accountMaintenancePercentByYear: {},
           adminFeePercentOfPayment: jadeConfig.regularAdminFeePercent,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: jadeBonusPercentConfig,
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: {},
+        })
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+        setRedemptionBaseMode("surplus-only")
+        setIsTaxBonusSeparateAccount(false)
+        setIsAccountSplitOpen(true)
+        setIsRedemptionOpen(true)
+      } else if (selectedProduct === "alfa_jovokep") {
+        const rawDurationYears = Math.ceil(
+          durationValue / (durationUnit === "year" ? 1 : durationUnit === "month" ? 12 / 12 : 365 / 12),
+        )
+        const durationInYears = Math.max(JOVOKEP_MIN_DURATION_YEARS, Math.min(JOVOKEP_MAX_DURATION_YEARS, rawDurationYears))
+        const initialCostConfig = buildJovokepInitialCostByYear(durationInYears)
+        const investedShareConfig = buildJovokepInvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildJovokepRedemptionSchedule(durationInYears)
+        const jovokepBonusPercentConfig = { 10: 120, 15: 50, 20: 25 }
+        const clampedEntryAge = clampJovokepEntryAge(inputs.insuredEntryAge, durationInYears)
+
+        setInputs((prev) => ({
+          ...prev,
+          currency: "HUF",
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          initialCostBaseMode: "afterRisk",
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          assetBasedFeePercent: 0,
+          bonusMode: "none",
+          bonusOnContributionPercent: 0,
+          bonusPercent: 0,
+          bonusStartYear: 1,
+          bonusStopYear: 0,
+          adminFeePercentOfPayment: JOVOKEP_REGULAR_ADMIN_FEE_PERCENT,
+          adminFeeBaseMode: "afterRisk",
+          accountMaintenanceMonthlyPercent: 0.165,
+          accountMaintenanceStartMonth: 1,
+          accountMaintenanceClientStartMonth: 37,
+          accountMaintenanceInvestedStartMonth: 1,
+          accountMaintenanceTaxBonusStartMonth: 1,
+          riskInsuranceEnabled: true,
+          riskInsuranceMonthlyFeeAmount: 0,
+          riskInsuranceDeathBenefitAmount: 1_000_000,
+          riskInsuranceStartYear: 1,
+          riskInsuranceEndYear: 3,
+          partialSurrenderFeeAmount: 2_500,
+          paidUpMaintenanceFeeMonthlyAmount: 1_000,
+          paidUpMaintenanceFeeStartMonth: 10,
+          insuredEntryAge: clampedEntryAge,
+          minimumPaidUpValue: 0,
+        }))
+        setInvestedShareByYear(investedShareConfig)
+        setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear(jovokepBonusPercentConfig)
+        setRefundInitialCostBonusPercentByYear({})
+        setProductPresetBaseline({
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: 0.165,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: JOVOKEP_REGULAR_ADMIN_FEE_PERCENT,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: jovokepBonusPercentConfig,
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: {},
+        })
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+        setRedemptionBaseMode("surplus-only")
+        setIsTaxBonusSeparateAccount(false)
+        setIsAccountSplitOpen(true)
+        setIsRedemptionOpen(true)
+      } else if (selectedProduct === "alfa_jovotervezo") {
+        const rawDurationYears = Math.ceil(
+          durationValue / (durationUnit === "year" ? 1 : durationUnit === "month" ? 12 / 12 : 365 / 12),
+        )
+        const durationInYears = Math.max(JOVOTERVEZO_MIN_DURATION_YEARS, Math.min(JOVOTERVEZO_MAX_DURATION_YEARS, rawDurationYears))
+        const initialCostConfig = buildJovotervezoInitialCostByYear(durationInYears)
+        const investedShareConfig = buildJovotervezoInvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildJovotervezoRedemptionSchedule(durationInYears)
+        const jovotervezoBonusPercentConfig = { 10: 60, 15: 0, 20: 0 }
+
+        setInputs((prev) => ({
+          ...prev,
+          currency: "HUF",
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          initialCostBaseMode: "afterRisk",
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          assetBasedFeePercent: 0,
+          bonusMode: "none",
+          bonusOnContributionPercent: 0,
+          bonusPercent: 0,
+          bonusStartYear: 1,
+          bonusStopYear: 0,
+          adminFeePercentOfPayment: JOVOTERVEZO_REGULAR_ADMIN_FEE_PERCENT,
+          adminFeeBaseMode: "afterRisk",
+          accountMaintenanceMonthlyPercent: JOVOTERVEZO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT,
+          accountMaintenanceStartMonth: 1,
+          accountMaintenanceClientStartMonth: 85,
+          accountMaintenanceInvestedStartMonth: 1,
+          accountMaintenanceTaxBonusStartMonth: 1,
+          riskInsuranceEnabled: true,
+          riskInsuranceMonthlyFeeAmount: 0,
+          riskInsuranceDeathBenefitAmount: 1_000_000,
+          riskInsuranceStartYear: 1,
+          riskInsuranceEndYear: 1,
+          partialSurrenderFeeAmount: 2_500,
+          paidUpMaintenanceFeeMonthlyAmount: 1_000,
+          paidUpMaintenanceFeeStartMonth: 10,
+          minimumPaidUpValue: 0,
+        }))
+        setInvestedShareByYear(investedShareConfig)
+        setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear(jovotervezoBonusPercentConfig)
+        setRefundInitialCostBonusPercentByYear({})
+        setProductPresetBaseline({
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: JOVOTERVEZO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: JOVOTERVEZO_REGULAR_ADMIN_FEE_PERCENT,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: jovotervezoBonusPercentConfig,
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: {},
+        })
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+        setRedemptionBaseMode("surplus-only")
+        setIsTaxBonusSeparateAccount(false)
+        setIsAccountSplitOpen(true)
+        setIsRedemptionOpen(true)
+      } else if (selectedProduct === "alfa_relax_plusz") {
+        const durationInYears = Math.ceil(
+          durationValue / (durationUnit === "year" ? 1 : durationUnit === "month" ? 12 / 12 : 365 / 12),
+        )
+        const initialCostConfig = buildRelaxPluszInitialCostByYear(durationInYears)
+        const investedShareConfig = buildRelaxPluszInvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildRelaxPluszRedemptionSchedule(durationInYears)
+
+        setInputs((prev) => ({
+          ...prev,
+          currency: "HUF",
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          initialCostBaseMode: "afterRisk",
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          assetBasedFeePercent: 0,
+          bonusMode: "none",
+          bonusOnContributionPercent: 0,
+          bonusPercent: 0,
+          bonusStartYear: 1,
+          bonusStopYear: 0,
+          enableTaxCredit: true,
+          taxCreditRatePercent: 20,
+          taxCreditCapPerYear: 130000,
+          taxCreditYieldPercent: 1,
+          taxCreditStartYear: 1,
+          taxCreditEndYear: 0,
+          taxCreditAmountByYear: {},
+          taxCreditLimitByYear: {},
+          adminFeePercentOfPayment: 4.8,
+          accountMaintenanceMonthlyPercent: 0.145,
+          accountMaintenanceStartMonth: 1,
+          accountMaintenanceClientStartMonth: 37,
+          accountMaintenanceInvestedStartMonth: 1,
+          accountMaintenanceTaxBonusStartMonth: 1,
+          plusCostByYear: {},
+        }))
+        setInvestedShareByYear(investedShareConfig)
+        setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear({})
+        setRefundInitialCostBonusPercentByYear({})
+        setPlusCostByYear({})
+        setProductPresetBaseline({
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: 0.145,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: 4.8,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: {},
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: {},
+        })
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+        setRedemptionBaseMode("surplus-only")
+        setIsTaxBonusSeparateAccount(true)
+        setIsAccountSplitOpen(true)
+        setIsRedemptionOpen(true)
+      } else if (selectedProduct === "alfa_premium_selection") {
+        const variant = resolvePremiumSelectionVariant(undefined, inputs.enableTaxCredit, inputs.currency)
+        const variantConfig = getPremiumSelectionVariantConfig(undefined, inputs.enableTaxCredit, inputs.currency)
+        const variantProductId =
+          variant === "ny06"
+            ? "alfa_premium_selection_ny06"
+            : variant === "ny12"
+              ? "alfa_premium_selection_ny12"
+            : variant === "ny22"
+              ? "alfa_premium_selection_ny22"
+            : variant === "tr18"
+              ? "alfa_premium_selection_tr18"
+              : variant === "tr28"
+                ? "alfa_premium_selection_tr28"
+              : "alfa_premium_selection_tr09"
+        const normalizedDurationValue =
+          variantConfig.fixedDurationYears ??
+          Math.min(variantConfig.maximumDurationYears, Math.max(variantConfig.minimumDurationYears, durationValue))
+        const durationInYears = estimatePremiumSelectionDurationYears(
+          {
+            ...inputs,
+            durationUnit,
+            durationValue: normalizedDurationValue,
+            productVariant: variantProductId,
+            currency: variantConfig.currency,
+          },
+          variantConfig,
+        )
+        const initialCostConfig = buildPremiumSelectionInitialCostByYear(durationInYears, variantConfig)
+        const investedShareConfig = buildPremiumSelectionInvestedShareByYear(durationInYears, variantConfig)
+        const redemptionFeeConfig = buildPremiumSelectionRedemptionSchedule(durationInYears, variantConfig)
+        const bonusAmountConfig = buildPremiumSelectionBonusAmountByYear(
+          {
+            ...inputs,
+            durationUnit: "year",
+            durationValue: durationInYears,
+            productVariant: variantProductId,
+            currency: variantConfig.currency,
+          },
+          durationInYears,
+        )
+        const accountMaintenanceForFund = resolvePremiumSelectionAccountMaintenanceMonthlyPercent(
+          selectedFundId,
+          variantConfig,
+        )
+
+        setDurationUnit("year")
+        setDurationValue(durationInYears)
+        setInputs((prev) => ({
+          ...prev,
+          currency: variantConfig.currency,
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          initialCostBaseMode: "afterRisk",
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          assetBasedFeePercent: 0,
+          bonusMode: "none",
+          bonusOnContributionPercent: 0,
+          bonusPercent: 0,
+          bonusStartYear: 1,
+          bonusStopYear: 0,
+          adminFeePercentOfPayment: PREMIUM_SELECTION_REGULAR_ADMIN_FEE_PERCENT,
+          adminFeeBaseMode: "afterRisk",
+          accountMaintenanceMonthlyPercent: accountMaintenanceForFund,
+          accountMaintenanceStartMonth: 1,
+          accountMaintenanceClientStartMonth: 37,
+          accountMaintenanceInvestedStartMonth: 1,
+          accountMaintenanceTaxBonusStartMonth: 1,
+          frequency: variant === "tr18" || variant === "tr28" || variant === "ny22" ? "éves" : prev.frequency,
+          riskInsuranceEnabled: true,
+          riskInsuranceMonthlyFeeAmount: variantConfig.riskAnnualFeeAmount > 0 ? variantConfig.riskAnnualFeeAmount / 12 : 0,
+          riskInsuranceDeathBenefitAmount: variantConfig.riskAccidentalDeathBenefitAmount,
+          riskInsuranceStartYear: 1,
+          riskInsuranceEndYear: variant === "tr18" || variant === "tr28" || variant === "ny22" ? undefined : 1,
+          partialSurrenderFeeAmount: variantConfig.partialSurrenderFeeAmount,
+          paidUpMaintenanceFeeMonthlyAmount: variantConfig.paidUpMaintenanceFeeMonthlyAmount,
+          paidUpMaintenanceFeeStartMonth: 10,
+          minimumPaidUpValue: 0,
+          enableTaxCredit: variant === "ny06" || variant === "ny12" || variant === "ny22",
+          taxCreditRatePercent: variant === "ny06" || variant === "ny12" || variant === "ny22" ? 20 : 0,
+          taxCreditCapPerYear:
+            variant === "ny06"
+              ? 130_000
+              : variant === "ny12" || variant === "ny22"
+                ? resolvePremiumSelectionTaxCreditCapPerYear(variantConfig, prev.eurToHufRate, prev.usdToHufRate)
+                : 0,
+          taxCreditYieldPercent: variant === "ny06" || variant === "ny12" || variant === "ny22" ? 1 : 0,
+          taxCreditCalendarPostingEnabled:
+            variant === "ny12" ? true : variant === "ny22" ? false : prev.taxCreditCalendarPostingEnabled,
+          bonusAmountByYear: bonusAmountConfig,
+          plusCostByYear: variant === "tr18" || variant === "tr28" ? { 1: variantConfig.policyIssuanceFeeAmount } : {},
+          insuredEntryAge:
+            variant === "tr18" || variant === "tr28"
+              ? Math.min(variantConfig.maxEntryAge, Math.max(variantConfig.minEntryAge, prev.insuredEntryAge ?? 38))
+              : prev.insuredEntryAge,
+        }))
+        setInvestedShareByYear(investedShareConfig)
+        setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear({})
+        setRefundInitialCostBonusPercentByYear({})
+        setPlusCostByYear(variant === "tr18" || variant === "tr28" ? { 1: variantConfig.policyIssuanceFeeAmount } : {})
+        setProductPresetBaseline({
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: accountMaintenanceForFund,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: PREMIUM_SELECTION_REGULAR_ADMIN_FEE_PERCENT,
           adminFeePercentByYear: {},
           bonusOnContributionPercentByYear: {},
           refundInitialCostBonusPercentByYear: {},
@@ -3410,6 +4080,8 @@ export function SavingsCalculator() {
     effectiveSelectedProductVariantCode,
     fortisVariantConfig,
     inputs.currency,
+    inputs.eurToHufRate,
+    selectedFundId,
     selectedInsurer,
     selectedProduct,
   ])
@@ -3417,8 +4089,30 @@ export function SavingsCalculator() {
   useEffect(() => {
     if (isHydratingRef.current) return
     if (!selectedInsurer || !selectedProduct) return
+
+    const presetRunKey = [
+      selectedInsurer,
+      selectedProduct,
+      effectiveSelectedProductVariantCode ?? "",
+      String(inputs.currency ?? ""),
+      String(inputs.enableTaxCredit ?? false),
+      String(inputs.eurToHufRate ?? ""),
+      selectedFundId ?? "",
+    ].join("|")
+
+    if (lastAppliedPresetKeyRef.current === presetRunKey) return
+    lastAppliedPresetKeyRef.current = presetRunKey
     applyPreset()
-  }, [applyPreset, selectedInsurer, selectedProduct, inputs.enableTaxCredit])
+  }, [
+    applyPreset,
+    selectedInsurer,
+    selectedProduct,
+    effectiveSelectedProductVariantCode,
+    inputs.currency,
+    inputs.enableTaxCredit,
+    inputs.eurToHufRate,
+    selectedFundId,
+  ])
 
   useEffect(() => {
     // Only auto-update if product preset controls duration-dependent schedules.
@@ -3426,7 +4120,11 @@ export function SavingsCalculator() {
       appliedPresetLabel &&
       (appliedPresetLabel.includes("Alfa Exclusive Plus") ||
         appliedPresetLabel.includes("Alfa Fortis") ||
-        appliedPresetLabel.includes("Alfa Jáde"))
+        appliedPresetLabel.includes("Alfa Jáde") ||
+        appliedPresetLabel.includes("Alfa Jövőkép") ||
+        appliedPresetLabel.includes("Alfa Jövőtervező") ||
+        appliedPresetLabel.includes("Alfa Premium Selection") ||
+        appliedPresetLabel.includes("Alfa Relax Plusz"))
     ) {
       const durationInYears = Math.ceil(
         durationValue / (durationUnit === "year" ? 1 : durationUnit === "month" ? 12 / 12 : 365 / 12),
@@ -3469,6 +4167,15 @@ export function SavingsCalculator() {
         initialCostConfig[1] = 75
         initialCostConfig[2] = 45
         initialCostConfig[3] = 15
+      } else if (appliedPresetLabel.includes("Alfa Jövőkép")) {
+        Object.assign(initialCostConfig, buildJovokepInitialCostByYear(durationInYears))
+      } else if (appliedPresetLabel.includes("Alfa Jövőtervező")) {
+        Object.assign(initialCostConfig, buildJovotervezoInitialCostByYear(durationInYears))
+      } else if (appliedPresetLabel.includes("Alfa Premium Selection")) {
+        const variantConfig = getPremiumSelectionVariantConfig(undefined, inputs.enableTaxCredit, inputs.currency)
+        Object.assign(initialCostConfig, buildPremiumSelectionInitialCostByYear(durationInYears, variantConfig))
+      } else if (appliedPresetLabel.includes("Alfa Relax Plusz")) {
+        Object.assign(initialCostConfig, buildRelaxPluszInitialCostByYear(durationInYears))
       }
 
       // Update initial costs without clearing the preset label
@@ -3523,9 +4230,34 @@ export function SavingsCalculator() {
         setInvestedShareByYear(investedShareConfig)
         setRedemptionFeeByYear(redemptionFeeConfig)
         setRedemptionFeeDefaultPercent(0)
+      } else if (appliedPresetLabel.includes("Alfa Jövőkép")) {
+        const investedShareConfig = buildJovokepInvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildJovokepRedemptionSchedule(durationInYears)
+        setInvestedShareByYear(investedShareConfig)
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+      } else if (appliedPresetLabel.includes("Alfa Jövőtervező")) {
+        const investedShareConfig = buildJovotervezoInvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildJovotervezoRedemptionSchedule(durationInYears)
+        setInvestedShareByYear(investedShareConfig)
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+      } else if (appliedPresetLabel.includes("Alfa Premium Selection")) {
+        const variantConfig = getPremiumSelectionVariantConfig(undefined, inputs.enableTaxCredit, inputs.currency)
+        const investedShareConfig = buildPremiumSelectionInvestedShareByYear(durationInYears, variantConfig)
+        const redemptionFeeConfig = buildPremiumSelectionRedemptionSchedule(durationInYears, variantConfig)
+        setInvestedShareByYear(investedShareConfig)
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+      } else if (appliedPresetLabel.includes("Alfa Relax Plusz")) {
+        const investedShareConfig = buildRelaxPluszInvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildRelaxPluszRedemptionSchedule(durationInYears)
+        setInvestedShareByYear(investedShareConfig)
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
       }
     }
-  }, [durationValue, durationUnit, appliedPresetLabel])
+  }, [durationValue, durationUnit, appliedPresetLabel, inputs.enableTaxCredit, inputs.currency])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -3598,6 +4330,11 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-esetiWithdrawalByYear", JSON.stringify(esetiWithdrawalByYear))
     }
   }, [esetiWithdrawalByYear])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-esetiWithdrawalByYearTaxEligible", JSON.stringify(esetiWithdrawalByYearTaxEligible))
+    }
+  }, [esetiWithdrawalByYearTaxEligible])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -3617,9 +4354,19 @@ export function SavingsCalculator() {
   }, [esetiIndexByYear])
   useEffect(() => {
     if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-esetiIndexByYearTaxEligible", JSON.stringify(esetiIndexByYearTaxEligible))
+    }
+  }, [esetiIndexByYearTaxEligible])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
       sessionStorage.setItem("calculator-esetiPaymentByYear", JSON.stringify(esetiPaymentByYear))
     }
   }, [esetiPaymentByYear])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-esetiPaymentByYearTaxEligible", JSON.stringify(esetiPaymentByYearTaxEligible))
+    }
+  }, [esetiPaymentByYearTaxEligible])
   useEffect(() => {
     if (typeof window !== "undefined") {
       sessionStorage.setItem("calculator-esetiFrequency", esetiFrequency)
@@ -4071,6 +4818,35 @@ export function SavingsCalculator() {
   ])
 
   const esetiPlan = useMemo(() => {
+    const buildEsetiPlan = (
+      indexMap: Record<number, number>,
+      paymentMap: Record<number, number>,
+      withdrawalMap: Record<number, number>,
+    ) => {
+      const periodsPerYear =
+        esetiBaseInputs.frequency === "havi"
+          ? 12
+          : esetiBaseInputs.frequency === "negyedéves"
+            ? 4
+            : esetiBaseInputs.frequency === "féléves"
+              ? 2
+              : 1
+      const baseYear1Payment = esetiBaseInputs.keepYearlyPayment
+        ? esetiBaseInputs.regularPayment * 12
+        : esetiBaseInputs.regularPayment * periodsPerYear
+      return buildYearlyPlan({
+        years: esetiTotalYearsForPlan,
+        baseYear1Payment,
+        baseAnnualIndexPercent: esetiBaseInputs.annualIndexPercent,
+        indexByYear: indexMap,
+        paymentByYear: paymentMap,
+        withdrawalByYear: withdrawalMap,
+      })
+    }
+
+    return buildEsetiPlan(esetiIndexByYear, esetiPaymentByYear, esetiWithdrawalByYear)
+  }, [esetiBaseInputs, esetiTotalYearsForPlan, esetiIndexByYear, esetiPaymentByYear, esetiWithdrawalByYear])
+  const esetiPlanTaxEligible = useMemo(() => {
     const periodsPerYear =
       esetiBaseInputs.frequency === "havi"
         ? 12
@@ -4086,11 +4862,17 @@ export function SavingsCalculator() {
       years: esetiTotalYearsForPlan,
       baseYear1Payment,
       baseAnnualIndexPercent: esetiBaseInputs.annualIndexPercent,
-      indexByYear: esetiIndexByYear,
-      paymentByYear: esetiPaymentByYear,
-      withdrawalByYear: esetiWithdrawalByYear,
+      indexByYear: esetiIndexByYearTaxEligible,
+      paymentByYear: esetiPaymentByYearTaxEligible,
+      withdrawalByYear: esetiWithdrawalByYearTaxEligible,
     })
-  }, [esetiBaseInputs, esetiTotalYearsForPlan, esetiIndexByYear, esetiPaymentByYear, esetiWithdrawalByYear])
+  }, [
+    esetiBaseInputs,
+    esetiTotalYearsForPlan,
+    esetiIndexByYearTaxEligible,
+    esetiPaymentByYearTaxEligible,
+    esetiWithdrawalByYearTaxEligible,
+  ])
   const esetiPlanIndex = useMemo(() => {
     const map: Record<number, number> = {}
     for (let y = 1; y <= esetiTotalYearsForPlan; y++) {
@@ -4105,6 +4887,20 @@ export function SavingsCalculator() {
     }
     return map
   }, [esetiPlan, esetiTotalYearsForPlan])
+  const esetiPlanIndexTaxEligible = useMemo(() => {
+    const map: Record<number, number> = {}
+    for (let y = 1; y <= esetiTotalYearsForPlan; y++) {
+      map[y] = esetiPlanTaxEligible.indexEffective[y] ?? 0
+    }
+    return map
+  }, [esetiPlanTaxEligible, esetiTotalYearsForPlan])
+  const esetiPlanPaymentTaxEligible = useMemo(() => {
+    const map: Record<number, number> = {}
+    for (let y = 1; y <= esetiTotalYearsForPlan; y++) {
+      map[y] = esetiPlanTaxEligible.yearlyPaymentsPlan[y] ?? 0
+    }
+    return map
+  }, [esetiPlanTaxEligible, esetiTotalYearsForPlan])
 
   // Risk Insurance Cost Calculation
   const [enableRiskInsurance, setEnableRiskInsurance] = useState(false)
@@ -4153,7 +4949,27 @@ export function SavingsCalculator() {
       return toFortisProductVariantId(resolveFortisVariant(undefined, inputs.currency))
     }
     if (selectedProduct === "alfa_jade") {
-      return toJadeProductVariantId("tr19")
+      return toJadeProductVariantId(resolveJadeVariant(undefined, inputs.currency))
+    }
+    if (selectedProduct === "alfa_jovokep") {
+      return "alfa_jovokep_tr10"
+    }
+    if (selectedProduct === "alfa_jovotervezo") {
+      return "alfa_jovotervezo_tr03"
+    }
+    if (selectedProduct === "alfa_premium_selection") {
+      const variant = resolvePremiumSelectionVariant(undefined, inputs.enableTaxCredit, inputs.currency)
+      return variant === "ny06"
+        ? "alfa_premium_selection_ny06"
+        : variant === "ny12"
+          ? "alfa_premium_selection_ny12"
+        : variant === "ny22"
+          ? "alfa_premium_selection_ny22"
+        : variant === "tr18"
+          ? "alfa_premium_selection_tr18"
+          : variant === "tr28"
+            ? "alfa_premium_selection_tr28"
+          : "alfa_premium_selection_tr09"
     }
     return selectedProduct ?? undefined
   }, [selectedProduct, inputs.currency, inputs.enableTaxCredit])
@@ -4173,10 +4989,14 @@ export function SavingsCalculator() {
     const useParsedChartSeries = effectiveYieldSourceMode === "ocr" && (parsedChartSeries?.points.length ?? 0) > 1
     const effectiveAnnualYieldPercent = effectiveYieldSourceMode === "manual" ? manualYieldPercent : inputs.annualYieldPercent
     const isFortisProduct = selectedProduct === "alfa_fortis"
+    const isJovokepProduct = selectedProduct === "alfa_jovokep"
     const fortisConfig = isFortisProduct ? getFortisVariantConfig(engineProductVariant, inputs.currency) : null
-    const fortisClampedEntryAge = isFortisProduct
+    const resolvedDurationYears = toYearsFromDuration(durationUnit, durationValue)
+    const clampedEntryAge = isFortisProduct
       ? Math.min(FORTIS_MAX_ENTRY_AGE, Math.max(FORTIS_MIN_ENTRY_AGE, Math.round(inputs.insuredEntryAge ?? 38)))
-      : (inputs.insuredEntryAge ?? 38)
+      : isJovokepProduct
+        ? clampJovokepEntryAge(inputs.insuredEntryAge, resolvedDurationYears)
+        : (inputs.insuredEntryAge ?? 38)
 
     return {
       currency: inputs.currency,
@@ -4251,7 +5071,7 @@ export function SavingsCalculator() {
       riskInsuranceAnnualIndexPercent: riskInsuranceAnnualIndexPercent,
       riskInsuranceStartYear: riskInsuranceStartYear,
       riskInsuranceEndYear: riskInsuranceEndYear,
-      insuredEntryAge: fortisClampedEntryAge,
+      insuredEntryAge: clampedEntryAge,
       paidUpMaintenanceFeeMonthlyAmount: inputs.paidUpMaintenanceFeeMonthlyAmount,
       paidUpMaintenanceFeeStartMonth: inputs.paidUpMaintenanceFeeStartMonth,
       partialSurrenderFeeAmount: isFortisProduct
@@ -4383,11 +5203,36 @@ export function SavingsCalculator() {
     }
     return map
   }, [inputs.taxCreditCapPerYear, totalYearsForPlan, taxCreditLimitByYear, mainTaxCreditByYear])
-  const dailyInputsEseti = useMemo<InputsDaily>(
-    () => {
-      const fortisConfig = selectedProduct === "alfa_fortis" ? getFortisVariantConfig(engineProductVariant, inputs.currency) : null
-      const jadeConfig = selectedProduct === "alfa_jade" ? getJadeVariantConfig(engineProductVariant, inputs.currency) : null
-      return {
+  const isPremiumSelectionNy06 =
+    selectedProduct === "alfa_premium_selection" &&
+    (premiumSelectionVariantConfig.variant === "ny06" || premiumSelectionVariantConfig.variant === "ny22")
+  const isPremiumSelectionTr18 =
+    selectedProduct === "alfa_premium_selection" &&
+    (premiumSelectionVariantConfig.variant === "tr18" ||
+      premiumSelectionVariantConfig.variant === "tr28" ||
+      premiumSelectionVariantConfig.variant === "ny22")
+
+  useEffect(() => {
+    if (!isPremiumSelectionTr18) return
+    if (inputs.frequency === "éves") return
+    setInputs((prev) => ({ ...prev, frequency: "éves" }))
+  }, [isPremiumSelectionTr18, inputs.frequency])
+
+  useEffect(() => {
+    if (!isPremiumSelectionTr18) return
+    if (esetiFrequency === "éves" && esetiBaseInputs.frequency === "éves") return
+    setEsetiFrequency("éves")
+    setEsetiBaseInputs((prev) => ({ ...prev, frequency: "éves" }))
+  }, [isPremiumSelectionTr18, esetiFrequency, esetiBaseInputs.frequency])
+
+  const dailyInputsEseti = useMemo<InputsDaily>(() => {
+    const fortisConfig = selectedProduct === "alfa_fortis" ? getFortisVariantConfig(engineProductVariant, inputs.currency) : null
+    const jadeConfig = selectedProduct === "alfa_jade" ? getJadeVariantConfig(engineProductVariant, inputs.currency) : null
+    const isAllianzProductForEseti =
+      selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram"
+    const allianzEsetiAssetOverrides = isAllianzProductForEseti ? { ...assetCostPercentByYear } : {}
+
+    return {
       ...dailyInputs,
       disableProductDefaults: true,
       durationUnit: esetiDurationUnit,
@@ -4403,10 +5248,9 @@ export function SavingsCalculator() {
       yearlyManagementFeePercent: 0,
       yearlyFixedManagementFeeAmount: 0,
       managementFeeValue: 0,
-      assetBasedFeePercent: 0,
-      assetCostPercentByYear: {},
-      accountMaintenancePercentByYear:
-        selectedProduct === "alfa_exclusive_plus" ? accountMaintenancePercentByYear : {},
+      assetBasedFeePercent: isAllianzProductForEseti ? 1.19 : 0,
+      assetCostPercentByYear: isAllianzProductForEseti ? allianzEsetiAssetOverrides : {},
+      accountMaintenancePercentByYear: selectedProduct === "alfa_exclusive_plus" ? accountMaintenancePercentByYear : {},
       plusCostByYear: {},
       bonusMode: "none",
       bonusOnContributionPercent: 0,
@@ -4423,50 +5267,95 @@ export function SavingsCalculator() {
           ? 2
           : selectedProduct === "alfa_jade"
             ? (jadeConfig?.extraordinaryAdminFeePercent ?? 2)
-            : 0,
+            : selectedProduct === "alfa_jovokep"
+              ? JOVOKEP_EXTRAORDINARY_ADMIN_FEE_PERCENT
+              : selectedProduct === "alfa_jovotervezo"
+                ? JOVOTERVEZO_EXTRAORDINARY_ADMIN_FEE_PERCENT
+                : selectedProduct === "alfa_premium_selection"
+                  ? PREMIUM_SELECTION_EXTRAORDINARY_ADMIN_FEE_PERCENT
+                  : 0,
       adminFeePercentByYear: {},
       accountMaintenanceMonthlyPercent:
         selectedProduct === "alfa_fortis"
           ? (fortisConfig?.accountMaintenanceMonthlyPercent ?? dailyInputs.accountMaintenanceMonthlyPercent ?? 0)
           : selectedProduct === "alfa_jade"
             ? (jadeConfig?.accountMaintenanceMonthlyPercent ?? dailyInputs.accountMaintenanceMonthlyPercent ?? 0)
-            : selectedProduct === "alfa_exclusive_plus"
-              ? 0.145
-              : 0,
+            : selectedProduct === "alfa_jovokep"
+              ? 0.165
+              : selectedProduct === "alfa_jovotervezo"
+                ? JOVOTERVEZO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT
+                : selectedProduct === "alfa_relax_plusz"
+                  ? 0.145
+                : selectedProduct === "alfa_premium_selection"
+                ? resolvePremiumSelectionAccountMaintenanceMonthlyPercent(
+                    selectedFundId,
+                    premiumSelectionVariantConfig,
+                  )
+                  : selectedProduct === "alfa_exclusive_plus"
+                    ? 0.145
+                    : 0,
       accountMaintenanceStartMonth:
         selectedProduct === "alfa_fortis"
           ? (fortisConfig?.accountMaintenanceStartMonthExtra ?? 1)
           : selectedProduct === "alfa_jade"
             ? (jadeConfig?.accountMaintenanceExtraStartMonth ?? 1)
-            : selectedProduct === "alfa_exclusive_plus"
-              ? 1
-              : 1,
+            : 1,
       riskInsuranceEnabled: false,
       riskInsuranceMonthlyFeeAmount: 0,
       riskInsuranceFeePercentOfMonthlyPayment: 0,
       riskInsuranceAnnualIndexPercent: 0,
       selectedFundId,
+      allowWithdrawals: true,
+      allowPartialSurrender: true,
+      redemptionEnabled: selectedProduct === "alfa_premium_selection" ? false : dailyInputs.redemptionEnabled,
+      redemptionFeeByYear: selectedProduct === "alfa_premium_selection" ? {} : dailyInputs.redemptionFeeByYear,
+      redemptionFeeDefaultPercent:
+        selectedProduct === "alfa_premium_selection" ? 0 : (dailyInputs.redemptionFeeDefaultPercent ?? 0),
+      extraordinaryAccountSubtype: "immediateAccess",
+      enableTaxCredit: isPremiumSelectionNy06 ? false : dailyInputs.enableTaxCredit,
+      taxCreditRatePercent: isPremiumSelectionNy06 ? 0 : dailyInputs.taxCreditRatePercent,
+      taxCreditCapPerYear: isPremiumSelectionNy06 ? 0 : dailyInputs.taxCreditCapPerYear,
+      taxCreditAmountByYear: isPremiumSelectionNy06 ? {} : dailyInputs.taxCreditAmountByYear,
+      taxCreditYieldPercent: isPremiumSelectionNy06 ? 0 : dailyInputs.taxCreditYieldPercent,
     }
-    },
-    [
-      dailyInputs,
-      esetiDurationUnit,
-      esetiDurationValue,
-      esetiDurationMaxByUnit,
-      esetiBaseInputs,
-      esetiPlan,
-      esetiFrequency,
-      esetiTaxCreditLimitsByYear,
-      accountMaintenancePercentByYear,
-      selectedProduct,
-      engineProductVariant,
-      inputs.currency,
-      selectedFundId,
-    ],
+  }, [
+    dailyInputs,
+    esetiDurationUnit,
+    esetiDurationValue,
+    esetiDurationMaxByUnit,
+    esetiBaseInputs,
+    esetiPlan,
+    esetiFrequency,
+    esetiTaxCreditLimitsByYear,
+    accountMaintenancePercentByYear,
+    assetCostPercentByYear,
+    selectedProduct,
+    engineProductVariant,
+    inputs.currency,
+    selectedFundId,
+    premiumSelectionVariantConfig,
+    isPremiumSelectionNy06,
+  ])
+  const dailyInputsEsetiTaxEligible = useMemo<InputsDaily>(
+    () => ({
+      ...dailyInputsEseti,
+      yearlyPaymentsPlan: esetiPlanTaxEligible.yearlyPaymentsPlan,
+      yearlyWithdrawalsPlan: esetiPlanTaxEligible.yearlyWithdrawalsPlan,
+      taxCreditLimitByYear: esetiTaxCreditLimitsByYear,
+      allowWithdrawals: false,
+      allowPartialSurrender: false,
+      extraordinaryAccountSubtype: "taxEligible",
+      enableTaxCredit: true,
+      taxCreditRatePercent: inputs.taxCreditRatePercent ?? 20,
+      taxCreditCapPerYear: inputs.taxCreditCapPerYear ?? 130_000,
+      taxCreditYieldPercent: inputs.taxCreditYieldPercent ?? 1,
+    }),
+    [dailyInputsEseti, esetiPlanTaxEligible, esetiTaxCreditLimitsByYear, inputs.taxCreditRatePercent, inputs.taxCreditCapPerYear, inputs.taxCreditYieldPercent],
   )
-  const resultsEseti = useMemo(
-    () => calculate(productId, dailyInputsEseti),
-    [productId, dailyInputsEseti],
+  const resultsEseti = useMemo(() => calculate(productId, dailyInputsEseti), [productId, dailyInputsEseti])
+  const resultsEsetiTaxEligible = useMemo(
+    () => calculate(productId, dailyInputsEsetiTaxEligible),
+    [productId, dailyInputsEsetiTaxEligible],
   )
   const dailyInputsWithoutTaxCredit = useMemo(
     () => ({
@@ -4498,18 +5387,24 @@ export function SavingsCalculator() {
     () => buildCumulativeByYear(resultsEseti?.yearlyBreakdown ?? []),
     [resultsEseti?.yearlyBreakdown],
   )
+  const cumulativeByYearEsetiTaxEligible = useMemo(
+    () => buildCumulativeByYear(resultsEsetiTaxEligible?.yearlyBreakdown ?? []),
+    [resultsEsetiTaxEligible?.yearlyBreakdown],
+  )
   const summaryYearlyBreakdown = useMemo(() => {
     const mainRows = results?.yearlyBreakdown ?? []
     const esetiRows = resultsEseti?.yearlyBreakdown ?? []
-    const maxLength = Math.max(mainRows.length, esetiRows.length)
+    const esetiTaxEligibleRows = isPremiumSelectionNy06 ? (resultsEsetiTaxEligible?.yearlyBreakdown ?? []) : []
+    const maxLength = Math.max(mainRows.length, esetiRows.length, esetiTaxEligibleRows.length)
     const merged: any[] = []
 
     for (let index = 0; index < maxLength; index++) {
-      merged.push(mergeYearRows(mainRows[index], esetiRows[index]))
+      const mainAndImmediate = mergeYearRows(mainRows[index], esetiRows[index])
+      merged.push(mergeYearRows(mainAndImmediate, esetiTaxEligibleRows[index]))
     }
 
     return merged
-  }, [results?.yearlyBreakdown, resultsEseti?.yearlyBreakdown])
+  }, [results?.yearlyBreakdown, resultsEseti?.yearlyBreakdown, resultsEsetiTaxEligible?.yearlyBreakdown, isPremiumSelectionNy06])
   const cumulativeByYearSummary = useMemo(
     () => buildCumulativeByYear(summaryYearlyBreakdown),
     [summaryYearlyBreakdown],
@@ -4520,14 +5415,19 @@ export function SavingsCalculator() {
   const netCalculationsEseti = useMemo(() => {
     return calculateNetValuesEseti(resultsEseti.yearlyBreakdown, isCorporateBond)
   }, [resultsEseti.yearlyBreakdown, isCorporateBond])
+  const netCalculationsEsetiTaxEligible = useMemo(() => {
+    return calculateNetValuesEseti(resultsEsetiTaxEligible.yearlyBreakdown, isCorporateBond)
+  }, [resultsEsetiTaxEligible.yearlyBreakdown, isCorporateBond])
   const netCalculationsSummary = useMemo(() => {
-    return combineNetRows(netCalculationsMain, netCalculationsEseti)
-  }, [netCalculationsMain, netCalculationsEseti])
+    const mainAndImmediate = combineNetRows(netCalculationsMain, netCalculationsEseti)
+    return isPremiumSelectionNy06 ? combineNetRows(mainAndImmediate, netCalculationsEsetiTaxEligible) : mainAndImmediate
+  }, [netCalculationsMain, netCalculationsEseti, netCalculationsEsetiTaxEligible, isPremiumSelectionNy06])
   const yearlyNetCalculations = useMemo(() => {
-    if (yearlyAccountView === "eseti") return netCalculationsEseti
+    if (yearlyAccountView === "eseti_tax_eligible") return netCalculationsEsetiTaxEligible
+    if (yearlyAccountView === "eseti" || yearlyAccountView === "eseti_immediate_access") return netCalculationsEseti
     if (yearlyAccountView === "summary") return netCalculationsSummary
     return netCalculationsMain
-  }, [yearlyAccountView, netCalculationsEseti, netCalculationsSummary, netCalculationsMain])
+  }, [yearlyAccountView, netCalculationsEseti, netCalculationsEsetiTaxEligible, netCalculationsSummary, netCalculationsMain])
 
   const finalNetData = useMemo(() => {
     if (yearlyNetCalculations.length === 0) return null
@@ -4549,8 +5449,11 @@ export function SavingsCalculator() {
 
   const realValueRowsForActiveView = useMemo(() => {
     if (yearlyAccountView === "summary") return summaryYearlyBreakdown
-    return yearlyAccountView === "eseti" ? resultsEseti.yearlyBreakdown : results.yearlyBreakdown
-  }, [yearlyAccountView, summaryYearlyBreakdown, resultsEseti.yearlyBreakdown, results.yearlyBreakdown])
+    if (yearlyAccountView === "eseti_tax_eligible") return resultsEsetiTaxEligible.yearlyBreakdown
+    return yearlyAccountView === "eseti" || yearlyAccountView === "eseti_immediate_access"
+      ? resultsEseti.yearlyBreakdown
+      : results.yearlyBreakdown
+  }, [yearlyAccountView, summaryYearlyBreakdown, resultsEseti.yearlyBreakdown, resultsEsetiTaxEligible.yearlyBreakdown, results.yearlyBreakdown])
   const realValueElapsedDaysByIndex = useMemo(() => {
     const rows = realValueRowsForActiveView ?? []
     const elapsed: number[] = []
@@ -4711,8 +5614,8 @@ export function SavingsCalculator() {
   const endBalanceWithTaxCreditPenalty = Math.max(0, results.endBalance - taxCreditPenaltyAmount)
   const endBalanceWithoutTaxCredit = resultsWithoutTaxCredit.endBalance
   const summaryTotalsByAccount = useMemo(
-    () => ({
-      main: {
+    () => {
+      const mainTotals = {
         totalContributions: results.totalContributions,
         totalCosts: results.totalCosts,
         totalBonus: results.totalBonus,
@@ -4721,8 +5624,8 @@ export function SavingsCalculator() {
         endBalance: results.endBalance,
         surrenderValue: results.yearlyBreakdown[results.yearlyBreakdown.length - 1]?.surrenderValue ?? results.endBalance,
         totalRiskInsuranceCost: results.totalRiskInsuranceCost ?? 0,
-      },
-      eseti: {
+      }
+      const esetiImmediateTotals = {
         totalContributions: resultsEseti.totalContributions,
         totalCosts: resultsEseti.totalCosts,
         totalBonus: resultsEseti.totalBonus,
@@ -4732,31 +5635,65 @@ export function SavingsCalculator() {
         surrenderValue:
           resultsEseti.yearlyBreakdown[resultsEseti.yearlyBreakdown.length - 1]?.surrenderValue ?? resultsEseti.endBalance,
         totalRiskInsuranceCost: resultsEseti.totalRiskInsuranceCost ?? 0,
-      },
-      summary: {
-        totalContributions: results.totalContributions + resultsEseti.totalContributions,
-        totalCosts: results.totalCosts + resultsEseti.totalCosts,
-        totalBonus: results.totalBonus + resultsEseti.totalBonus,
-        totalTaxCredit: results.totalTaxCredit + resultsEseti.totalTaxCredit,
-        totalInterestNet: results.totalInterestNet + resultsEseti.totalInterestNet,
-        endBalance: results.endBalance + resultsEseti.endBalance,
+      }
+      const esetiTaxEligibleTotals = {
+        totalContributions: resultsEsetiTaxEligible.totalContributions,
+        totalCosts: resultsEsetiTaxEligible.totalCosts,
+        totalBonus: resultsEsetiTaxEligible.totalBonus,
+        totalTaxCredit: resultsEsetiTaxEligible.totalTaxCredit,
+        totalInterestNet: resultsEsetiTaxEligible.totalInterestNet,
+        endBalance: resultsEsetiTaxEligible.endBalance,
+        surrenderValue:
+          resultsEsetiTaxEligible.yearlyBreakdown[resultsEsetiTaxEligible.yearlyBreakdown.length - 1]?.surrenderValue ??
+          resultsEsetiTaxEligible.endBalance,
+        totalRiskInsuranceCost: resultsEsetiTaxEligible.totalRiskInsuranceCost ?? 0,
+      }
+      const summaryTotals = {
+        totalContributions:
+          results.totalContributions +
+          resultsEseti.totalContributions +
+          (isPremiumSelectionNy06 ? resultsEsetiTaxEligible.totalContributions : 0),
+        totalCosts:
+          results.totalCosts + resultsEseti.totalCosts + (isPremiumSelectionNy06 ? resultsEsetiTaxEligible.totalCosts : 0),
+        totalBonus:
+          results.totalBonus + resultsEseti.totalBonus + (isPremiumSelectionNy06 ? resultsEsetiTaxEligible.totalBonus : 0),
+        totalTaxCredit:
+          results.totalTaxCredit +
+          resultsEseti.totalTaxCredit +
+          (isPremiumSelectionNy06 ? resultsEsetiTaxEligible.totalTaxCredit : 0),
+        totalInterestNet:
+          results.totalInterestNet +
+          resultsEseti.totalInterestNet +
+          (isPremiumSelectionNy06 ? resultsEsetiTaxEligible.totalInterestNet : 0),
+        endBalance:
+          results.endBalance + resultsEseti.endBalance + (isPremiumSelectionNy06 ? resultsEsetiTaxEligible.endBalance : 0),
         surrenderValue:
           (results.yearlyBreakdown[results.yearlyBreakdown.length - 1]?.surrenderValue ?? results.endBalance) +
-          (resultsEseti.yearlyBreakdown[resultsEseti.yearlyBreakdown.length - 1]?.surrenderValue ?? resultsEseti.endBalance),
-        totalRiskInsuranceCost: (results.totalRiskInsuranceCost ?? 0) + (resultsEseti.totalRiskInsuranceCost ?? 0),
-      },
-    }),
-    [results, resultsEseti],
+          (resultsEseti.yearlyBreakdown[resultsEseti.yearlyBreakdown.length - 1]?.surrenderValue ?? resultsEseti.endBalance) +
+          (isPremiumSelectionNy06
+            ? (resultsEsetiTaxEligible.yearlyBreakdown[resultsEsetiTaxEligible.yearlyBreakdown.length - 1]?.surrenderValue ??
+              resultsEsetiTaxEligible.endBalance)
+            : 0),
+        totalRiskInsuranceCost:
+          (results.totalRiskInsuranceCost ?? 0) +
+          (resultsEseti.totalRiskInsuranceCost ?? 0) +
+          (isPremiumSelectionNy06 ? (resultsEsetiTaxEligible.totalRiskInsuranceCost ?? 0) : 0),
+      }
+      return {
+        summary: summaryTotals,
+        main: mainTotals,
+        eseti: esetiImmediateTotals,
+        eseti_tax_eligible: esetiTaxEligibleTotals,
+      }
+    },
+    [results, resultsEseti, resultsEsetiTaxEligible, isPremiumSelectionNy06],
   )
   const summaryAccountLabels: Record<"summary" | "main" | "eseti", string> = {
     summary: "Összesített",
     main: "Fő",
     eseti: "Eseti",
   }
-  const summaryThemeByAccount: Record<
-    "summary" | "main" | "eseti",
-    { card: string; metric: string; final: string }
-  > = {
+  const summaryThemeByAccount: Record<"summary" | "main" | "eseti", { card: string; metric: string; final: string }> = {
     summary: {
       card: "border-sky-300 bg-sky-50/70 dark:border-sky-700 dark:bg-sky-950/25",
       metric: "bg-sky-50/65 dark:bg-sky-900/20",
@@ -4774,10 +5711,18 @@ export function SavingsCalculator() {
     },
   }
   const summaryAccountsOrder: Array<"summary" | "main" | "eseti"> = ["summary", "main", "eseti"]
-  const activeSummaryTotals = summaryTotalsByAccount[yearlyAccountView]
-  const activeSummaryTheme = summaryThemeByAccount[yearlyAccountView]
+  const summaryAccountViewKey: "summary" | "main" | "eseti" =
+    yearlyAccountView === "main" ? "main" : yearlyAccountView === "summary" ? "summary" : "eseti"
+  const activeSummaryTotals =
+    isPremiumSelectionNy06 && yearlyAccountView === "eseti_tax_eligible"
+      ? summaryTotalsByAccount.eseti_tax_eligible
+      : summaryTotalsByAccount[summaryAccountViewKey]
+  const activeSummaryTheme = summaryThemeByAccount[summaryAccountViewKey]
   const isAlfaExclusivePlus = selectedProduct === "alfa_exclusive_plus"
-  const showSurrenderFinalBand = isRedemptionOpen && !(isAlfaExclusivePlus && yearlyAccountView === "eseti")
+  const showSurrenderFinalBand =
+    isRedemptionOpen &&
+    !(isAlfaExclusivePlus && summaryAccountViewKey === "eseti") &&
+    !(selectedProduct === "alfa_premium_selection" && summaryAccountViewKey === "eseti")
   const showBonusColumns = !isAlfaExclusivePlus && selectedProduct !== "allianz_eletprogram"
   const activeTaxCreditPenaltyAmount = shouldApplyTaxCreditPenalty ? activeSummaryTotals.totalTaxCredit * 1.2 : 0
   const summaryBaseBalance = enableNetting && finalNetData ? finalNetData.netBalance : activeSummaryTotals.endBalance
@@ -4814,8 +5759,15 @@ export function SavingsCalculator() {
         convertBetweenCurrencies(amount as number, previousCurrency, value),
       ]),
     )
-
-    setInputs({ ...inputs, currency: value, regularPayment: convertedRegularPayment })
+    setInputs({
+      ...inputs,
+      currency: value,
+      regularPayment: convertedRegularPayment,
+      enableTaxCredit: inputs.enableTaxCredit,
+      taxCreditRatePercent: inputs.taxCreditRatePercent,
+      taxCreditCapPerYear: inputs.taxCreditCapPerYear,
+      taxCreditYieldPercent: inputs.taxCreditYieldPercent,
+    })
     setPaymentByYear(convertedPaymentByYear)
     setDisplayCurrency(value)
     setIsDisplayCurrencyUserOverridden(false)
@@ -4958,7 +5910,8 @@ export function SavingsCalculator() {
   }
 
   const updateEsetiIndex = (year: number, value: number) => {
-    setEsetiIndexByYear((prev) => {
+    const setTarget = yearlyAccountView === "eseti_tax_eligible" ? setEsetiIndexByYearTaxEligible : setEsetiIndexByYear
+    setTarget((prev) => {
       const updated = { ...prev }
       for (let y = year; y <= totalYearsForPlan; y++) {
         if (value === 0) {
@@ -4974,7 +5927,8 @@ export function SavingsCalculator() {
   const updateEsetiPayment = (year: number, displayValue: number) => {
     const rate = inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate
     const calcValue = convertFromDisplayToCalc(displayValue, results.currency, displayCurrency, rate)
-    setEsetiPaymentByYear((prev) => {
+    const setTarget = yearlyAccountView === "eseti_tax_eligible" ? setEsetiPaymentByYearTaxEligible : setEsetiPaymentByYear
+    setTarget((prev) => {
       const updated = { ...prev }
       for (let y = year; y <= esetiTotalYearsForPlan; y++) {
         updated[y] = calcValue
@@ -4986,6 +5940,10 @@ export function SavingsCalculator() {
   const updateEsetiWithdrawal = (year: number, displayValue: number) => {
     const rate = inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate
     const calcValue = convertFromDisplayToCalc(displayValue, results.currency, displayCurrency, rate)
+    if (yearlyAccountView === "eseti_tax_eligible") {
+      // Tax-eligible extraordinary account does not allow withdrawals.
+      return
+    }
     if (calcValue === 0) {
       const newMap = { ...esetiWithdrawalByYear }
       delete newMap[year]
@@ -4996,10 +5954,20 @@ export function SavingsCalculator() {
   }
 
   const clearAllModifications = () => {
-    if (yearlyAccountView === "eseti") {
-      setEsetiIndexByYear({})
-      setEsetiPaymentByYear({})
-      setEsetiWithdrawalByYear({})
+    if (isEsetiView) {
+      if (yearlyAccountView === "eseti_tax_eligible") {
+        setEsetiIndexByYearTaxEligible({})
+        setEsetiPaymentByYearTaxEligible({})
+        setEsetiWithdrawalByYearTaxEligible({})
+      } else {
+        setEsetiIndexByYear({})
+        setEsetiPaymentByYear({})
+        setEsetiWithdrawalByYear({})
+      }
+      if (selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram") {
+        // Eseti Allianz default asset fee is 1.19%; clearing should restore it.
+        setAssetCostPercentByYear({})
+      }
       return
     }
 
@@ -5155,32 +6123,80 @@ export function SavingsCalculator() {
         yearlyBreakdown: summaryYearlyBreakdown,
       }
     }
-    return yearlyAccountView === "eseti" ? resultsEseti : results
-  }, [yearlyAccountView, results, resultsEseti, summaryYearlyBreakdown])
+    if (yearlyAccountView === "eseti_tax_eligible") return resultsEsetiTaxEligible
+    return yearlyAccountView === "eseti" || yearlyAccountView === "eseti_immediate_access" ? resultsEseti : results
+  }, [yearlyAccountView, results, resultsEseti, resultsEsetiTaxEligible, summaryYearlyBreakdown])
+  const effectiveYearlyViewModeForColumns =
+    yearlyAccountView === "main" && isAccountSplitOpen ? yearlyViewMode : "total"
+  const getViewMetric = useCallback(
+    (row: any, metric: "admin" | "accountMaintenance" | "management" | "asset" | "plus" | "acquisition" | "bonus") => {
+      if (!row) return 0
+      const isSplitAccountView =
+        yearlyAccountView === "main" && isAccountSplitOpen && effectiveYearlyViewModeForColumns !== "total"
+      if (!isSplitAccountView) {
+        if (metric === "admin") return row.adminCostForYear ?? 0
+        if (metric === "accountMaintenance") return row.accountMaintenanceCostForYear ?? 0
+        if (metric === "management") return row.managementFeeCostForYear ?? 0
+        if (metric === "asset") return row.assetBasedCostForYear ?? 0
+        if (metric === "plus") return row.plusCostForYear ?? 0
+        if (metric === "acquisition") return row.upfrontCostForYear ?? 0
+        return (row.bonusForYear ?? 0) + (row.wealthBonusForYear ?? 0)
+      }
+      const accountKey =
+        effectiveYearlyViewModeForColumns === "client"
+          ? "client"
+          : effectiveYearlyViewModeForColumns === "invested"
+            ? "invested"
+            : "taxBonus"
+      const accountRow = row[accountKey] ?? {}
+      const accountAssetCost = accountRow.assetBasedCostForYear ?? 0
+      const accountPlusCost = accountRow.plusCostForYear ?? 0
+      const accountMaintenanceCost = Math.max(0, (accountRow.costForYear ?? 0) - accountAssetCost - accountPlusCost)
+      const accountBonusAmount = (accountRow.bonusForYear ?? 0) + (accountRow.wealthBonusForYear ?? 0)
+      if (metric === "accountMaintenance") return accountMaintenanceCost
+      if (metric === "asset") return accountRow.assetBasedCostForYear ?? 0
+      if (metric === "plus") return accountRow.plusCostForYear ?? 0
+      if (metric === "bonus" && accountKey === "taxBonus") return 0
+      if (metric === "bonus") return accountBonusAmount
+      return 0
+    },
+    [yearlyAccountView, isAccountSplitOpen, effectiveYearlyViewModeForColumns],
+  )
   const showAdminCostColumn = useMemo(
-    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => (row?.adminCostForYear ?? 0) > 0),
-    [adjustedResults?.yearlyBreakdown],
+    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "admin") > 0),
+    [adjustedResults?.yearlyBreakdown, getViewMetric],
   )
   const showAccountMaintenanceColumn = useMemo(
-    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => (row?.accountMaintenanceCostForYear ?? 0) > 0),
-    [adjustedResults?.yearlyBreakdown],
+    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "accountMaintenance") > 0),
+    [adjustedResults?.yearlyBreakdown, getViewMetric],
   )
   const showManagementFeeColumn = useMemo(
-    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => (row?.managementFeeCostForYear ?? 0) > 0),
-    [adjustedResults?.yearlyBreakdown],
+    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "management") > 0),
+    [adjustedResults?.yearlyBreakdown, getViewMetric],
   )
   const showAssetFeeColumn = useMemo(
-    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => (row?.assetBasedCostForYear ?? 0) > 0),
-    [adjustedResults?.yearlyBreakdown],
+    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "asset") > 0),
+    [adjustedResults?.yearlyBreakdown, getViewMetric],
   )
+  const effectiveShowAssetFeeColumn = showAssetFeeColumn || (isAllianzEletprogramView && isEsetiView)
   const showPlusCostColumn = useMemo(
-    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => (row?.plusCostForYear ?? 0) > 0),
-    [adjustedResults?.yearlyBreakdown],
+    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "plus") > 0),
+    [adjustedResults?.yearlyBreakdown, getViewMetric],
   )
   const showAcquisitionColumn = useMemo(
-    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => (row?.upfrontCostForYear ?? 0) > 0),
-    [adjustedResults?.yearlyBreakdown],
+    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "acquisition") > 0),
+    [adjustedResults?.yearlyBreakdown, getViewMetric],
   )
+  const hasBonusInCurrentView = useMemo(
+    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "bonus") > 0),
+    [adjustedResults?.yearlyBreakdown, getViewMetric],
+  )
+  const effectiveShowBonusColumns = showBonusColumns
+  const shouldShowWealthBonusPercentColumn =
+    selectedProduct !== "allianz_bonusz_eletprogram" &&
+    selectedProduct !== "alfa_fortis" &&
+    selectedProduct !== "alfa_jade" &&
+    selectedProduct !== "alfa_jovotervezo"
 
   const addExtraService = () => {
     const newService: ExtraService = {
@@ -5387,10 +6403,19 @@ export function SavingsCalculator() {
 
   const isYearlyReadOnly = yearlyAccountView === "summary"
   const isYearlyMuted = yearlyAccountView === "summary"
-  const isEsetiView = yearlyAccountView === "eseti"
-  const settingsAccountView: "main" | "eseti" = yearlyAccountView === "eseti" ? "eseti" : "main"
+  const isEsetiTaxEligibleView = yearlyAccountView === "eseti_tax_eligible"
+  const isEsetiImmediateView = yearlyAccountView === "eseti_immediate_access"
+  const isEsetiView = yearlyAccountView === "eseti" || isEsetiTaxEligibleView || isEsetiImmediateView
+  const yearlyAccountSelectValue: YearlyAccountView =
+    isPremiumSelectionNy06 && (isEsetiImmediateView || isEsetiTaxEligibleView) ? "eseti" : yearlyAccountView
+  const settingsAccountView: "main" | "eseti" = isEsetiView ? "eseti" : "main"
   const isSettingsEseti = settingsAccountView === "eseti"
-  const isTaxCreditSupportedForSelectedProduct = selectedProduct !== "alfa_fortis" && selectedProduct !== "alfa_jade"
+  const isTaxCreditSupportedForSelectedProduct =
+    selectedProduct !== "alfa_fortis" &&
+    selectedProduct !== "alfa_jade" &&
+    selectedProduct !== "alfa_jovokep" &&
+    selectedProduct !== "alfa_jovotervezo"
+  const isTaxCreditMandatoryForSelectedProduct = selectedProduct === "alfa_relax_plusz"
   const settingsDurationUnit = isSettingsEseti ? esetiDurationUnit : durationUnit
   const settingsDurationValue = isSettingsEseti ? esetiDurationValue : durationValue
   const settingsDurationMax =
@@ -5403,13 +6428,17 @@ export function SavingsCalculator() {
           : 18250
   const effectiveYearlyViewMode =
     yearlyAccountView === "main" && isAccountSplitOpen ? yearlyViewMode : "total"
+  const hideAssetFeeBreakdownInYearlyTable =
+    isAccountSplitOpen && yearlyAccountView === "main" && effectiveYearlyViewMode === "total"
   const shouldShowTaxCreditInYearlyTable =
-    inputs.enableTaxCredit && !(selectedProduct === "alfa_exclusive_plus" && effectiveYearlyViewMode !== "taxBonus")
+    inputs.enableTaxCredit &&
+    !(selectedProduct === "alfa_exclusive_plus" && effectiveYearlyViewMode !== "taxBonus") &&
+    !(isPremiumSelectionNy06 && isEsetiImmediateView)
   const shouldShowAcquisitionInYearlyTableView =
     !(selectedProduct === "alfa_exclusive_plus" && isAccountSplitOpen && effectiveYearlyViewMode !== "total")
   const yearlyPanelProductKey = useMemo(
-    () => resolveProductContextKey(selectedProduct, { enableTaxCredit: inputs.enableTaxCredit }),
-    [selectedProduct, inputs.enableTaxCredit],
+    () => resolveProductContextKey(selectedProduct, { enableTaxCredit: inputs.enableTaxCredit, currency: inputs.currency }),
+    [selectedProduct, inputs.enableTaxCredit, inputs.currency],
   )
   const getYearlyHeaderInfoHandlers = (key: string) => ({
     onMouseEnter: () => setActiveYearlyColumnInfoKey(key),
@@ -5421,8 +6450,12 @@ export function SavingsCalculator() {
   useEffect(() => {
     if (!isTaxCreditSupportedForSelectedProduct && inputs.enableTaxCredit) {
       setInputs((prev) => ({ ...prev, enableTaxCredit: false }))
+      return
     }
-  }, [isTaxCreditSupportedForSelectedProduct, inputs.enableTaxCredit])
+    if (isTaxCreditMandatoryForSelectedProduct && !inputs.enableTaxCredit) {
+      setInputs((prev) => ({ ...prev, enableTaxCredit: true }))
+    }
+  }, [isTaxCreditSupportedForSelectedProduct, isTaxCreditMandatoryForSelectedProduct, inputs.enableTaxCredit])
   const minimumAnnualFeeLabel =
     selectedProduct === "alfa_exclusive_plus"
       ? `${formatNumber(360000)} Ft`
@@ -5433,7 +6466,19 @@ export function SavingsCalculator() {
             ? `${formatNumber(fortisVariantConfig.minAnnualPayment)} USD`
             : `${formatNumber(fortisVariantConfig.minAnnualPayment)} Ft`
         : selectedProduct === "alfa_jade"
-          ? `${formatNumber(getJadeVariantConfig(toJadeProductVariantId("tr19"), "EUR").minAnnualPayment)} Euro`
+          ? inputs.currency === "USD"
+            ? `${formatNumber(jadeVariantConfig.minAnnualPayment)} USD`
+            : `${formatNumber(jadeVariantConfig.minAnnualPayment)} Euro`
+        : selectedProduct === "alfa_jovokep"
+          ? `${formatNumber(JOVOKEP_MIN_ANNUAL_PAYMENT)} Ft`
+        : selectedProduct === "alfa_jovotervezo"
+          ? `${formatNumber(JOVOTERVEZO_MIN_ANNUAL_PAYMENT)} Ft`
+        : selectedProduct === "alfa_premium_selection"
+          ? premiumSelectionVariantConfig.currency === "EUR"
+            ? `${formatNumber(premiumSelectionVariantConfig.minAnnualPayment)} Euro`
+            : premiumSelectionVariantConfig.currency === "USD"
+              ? `${formatNumber(premiumSelectionVariantConfig.minAnnualPayment)} USD`
+            : `${formatNumber(premiumSelectionVariantConfig.minAnnualPayment)} Ft`
         : isAllianzEletprogramView
           ? inputs.currency === "EUR"
             ? "840 Euro"
@@ -5442,6 +6487,14 @@ export function SavingsCalculator() {
   const shouldWarnFortisAgeClamp =
     selectedProduct === "alfa_fortis" &&
     ((inputs.insuredEntryAge ?? 38) < FORTIS_MIN_ENTRY_AGE || (inputs.insuredEntryAge ?? 38) > FORTIS_MAX_ENTRY_AGE)
+  const jovokepDurationYears = toYearsFromDuration(durationUnit, durationValue)
+  const jovokepMaxAllowedEntryAge = Math.max(
+    JOVOKEP_MIN_ENTRY_AGE,
+    Math.min(JOVOKEP_MAX_ENTRY_AGE, JOVOKEP_MAX_AGE_AT_MATURITY - jovokepDurationYears),
+  )
+  const shouldWarnJovokepAgeClamp =
+    selectedProduct === "alfa_jovokep" &&
+    ((inputs.insuredEntryAge ?? 38) < JOVOKEP_MIN_ENTRY_AGE || (inputs.insuredEntryAge ?? 38) > jovokepMaxAllowedEntryAge)
 
   useEffect(() => {
     // If account split controls are hidden, force the table back to total mode
@@ -5450,6 +6503,38 @@ export function SavingsCalculator() {
       setYearlyViewMode("total")
     }
   }, [isAccountSplitOpen, yearlyViewMode])
+
+  useEffect(() => {
+    if (isPremiumSelectionNy06) return
+    if (yearlyAccountView === "eseti_tax_eligible" || yearlyAccountView === "eseti_immediate_access") {
+      setYearlyAccountView("eseti")
+    }
+  }, [isPremiumSelectionNy06, yearlyAccountView])
+  const activeEsetiIndexByYear = isEsetiTaxEligibleView ? esetiIndexByYearTaxEligible : esetiIndexByYear
+  const activeEsetiPaymentByYear = isEsetiTaxEligibleView ? esetiPaymentByYearTaxEligible : esetiPaymentByYear
+  const activeEsetiWithdrawalByYear = isEsetiTaxEligibleView ? esetiWithdrawalByYearTaxEligible : esetiWithdrawalByYear
+  const hasMainYearlyOverrides =
+    Object.keys(indexByYear).length > 0 ||
+    Object.keys(paymentByYear).length > 0 ||
+    Object.keys(withdrawalByYear).length > 0 ||
+    Object.keys(taxCreditLimitByYear).length > 0 ||
+    Object.keys(taxCreditAmountByYear).length > 0 ||
+    hasAssetCostOverrides ||
+    hasAccountMaintenanceOverrides ||
+    hasAdminFeeOverrides ||
+    Object.keys(plusCostByYear).length > 0 ||
+    hasWealthBonusOverrides ||
+    hasBonusOnContributionOverrides ||
+    hasRefundInitialCostBonusOverrides ||
+    Object.keys(investedShareByYear).length > 0 ||
+    Object.keys(redemptionFeeByYear).length > 0 ||
+    hasInitialCostOverrides
+  const hasActiveEsetiOverrides =
+    Object.keys(activeEsetiIndexByYear).length > 0 ||
+    Object.keys(activeEsetiPaymentByYear).length > 0 ||
+    Object.keys(activeEsetiWithdrawalByYear).length > 0 ||
+    ((selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram") &&
+      hasAssetCostOverrides)
 
   useEffect(() => {
     if (!canUseFundYield && yieldSourceMode === "fund") {
@@ -5651,6 +6736,7 @@ export function SavingsCalculator() {
                               setEsetiBaseInputs((prev) => ({ ...prev, frequency: value }))
                               setEsetiFrequency(value)
                             } else {
+                              if (isPremiumSelectionTr18 && value !== "éves") return
                               setInputs({ ...inputs, frequency: value })
                             }
                           }}
@@ -5659,9 +6745,15 @@ export function SavingsCalculator() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="havi">Havi</SelectItem>
-                            <SelectItem value="negyedéves">Negyedéves</SelectItem>
-                            <SelectItem value="féléves">Féléves</SelectItem>
+                            <SelectItem value="havi" disabled={isPremiumSelectionTr18}>
+                              Havi
+                            </SelectItem>
+                            <SelectItem value="negyedéves" disabled={isPremiumSelectionTr18}>
+                              Negyedéves
+                            </SelectItem>
+                            <SelectItem value="féléves" disabled={isPremiumSelectionTr18}>
+                              Féléves
+                            </SelectItem>
                             <SelectItem value="éves">Éves</SelectItem>
                           </SelectContent>
                         </Select>
@@ -6185,8 +7277,10 @@ export function SavingsCalculator() {
 
                   {(
                     minimumAnnualFeeLabel ||
-                    ((selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade") && isSettingsEseti) ||
+                    ((selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade" || selectedProduct === "alfa_jovokep" || selectedProduct === "alfa_jovotervezo" || selectedProduct === "alfa_premium_selection") && isSettingsEseti) ||
+                    (selectedProduct === "alfa_premium_selection" && inputs.enableTaxCredit && !isSettingsEseti) ||
                     shouldWarnFortisAgeClamp ||
+                    shouldWarnJovokepAgeClamp ||
                     isSettingsEseti
                   ) && (
                     <div className={`flex flex-wrap items-center gap-3 text-xs ${isSettingsEseti ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
@@ -6204,10 +7298,36 @@ export function SavingsCalculator() {
                       {selectedProduct === "alfa_jade" && isSettingsEseti && (
                         <p>
                           Eseti minimum díj:{" "}
-                          {`${formatNumber(getJadeVariantConfig(toJadeProductVariantId("tr19"), "EUR").minExtraordinaryPayment)} Euro`}
+                          {inputs.currency === "USD"
+                            ? `${formatNumber(jadeVariantConfig.minExtraordinaryPayment)} USD`
+                            : `${formatNumber(jadeVariantConfig.minExtraordinaryPayment)} Euro`}
                         </p>
                       )}
+                      {selectedProduct === "alfa_jovokep" && isSettingsEseti && (
+                        <p>Eseti minimum díj: {`${formatNumber(JOVOKEP_MIN_EXTRAORDINARY_PAYMENT)} Ft`}</p>
+                      )}
+                      {selectedProduct === "alfa_jovotervezo" && isSettingsEseti && (
+                        <p>Eseti minimum díj: {`${formatNumber(JOVOTERVEZO_MIN_EXTRAORDINARY_PAYMENT)} Ft`}</p>
+                      )}
+                      {selectedProduct === "alfa_premium_selection" && isSettingsEseti && (
+                        <p>
+                          Eseti minimum díj:{" "}
+                          {premiumSelectionVariantConfig.currency === "EUR"
+                            ? `${formatNumber(premiumSelectionVariantConfig.minExtraordinaryPayment)} Euro`
+                            : premiumSelectionVariantConfig.currency === "USD"
+                              ? `${formatNumber(premiumSelectionVariantConfig.minExtraordinaryPayment)} USD`
+                            : `${formatNumber(premiumSelectionVariantConfig.minExtraordinaryPayment)} Ft`}
+                        </p>
+                      )}
+                      {selectedProduct === "alfa_premium_selection" && inputs.enableTaxCredit && !isSettingsEseti && (
+                        <p>Minimum tartam: {`${formatNumber(PREMIUM_SELECTION_NY06_MIN_DURATION_YEARS)} év`}</p>
+                      )}
                       {shouldWarnFortisAgeClamp && <p className="text-amber-600">A belépési életkor Fortisnál 16-70 év között kerül figyelembe vételre.</p>}
+                      {shouldWarnJovokepAgeClamp && (
+                        <p className="text-amber-600">
+                          A belépési életkor Jövőképnél 16-{jovokepMaxAllowedEntryAge} év között kerül figyelembe vételre (max. 75 év lejáratkor).
+                        </p>
+                      )}
                       {isSettingsEseti ? <p>Az eseti futamidő legfeljebb a fő számla futamideje lehet.</p> : null}
                     </div>
                   )}
@@ -6308,7 +7428,7 @@ export function SavingsCalculator() {
                   >
                     <label
                       className={`flex items-center gap-3 ${
-                        isSettingsEseti || !isTaxCreditSupportedForSelectedProduct
+                        isSettingsEseti || !isTaxCreditSupportedForSelectedProduct || isTaxCreditMandatoryForSelectedProduct
                           ? "cursor-not-allowed"
                           : "cursor-pointer"
                       }`}
@@ -6316,7 +7436,11 @@ export function SavingsCalculator() {
                       <Checkbox
                         checked={inputs.enableTaxCredit}
                         onCheckedChange={(checked) => {
-                          if (!isSettingsEseti && isTaxCreditSupportedForSelectedProduct) {
+                          if (
+                            !isSettingsEseti &&
+                            isTaxCreditSupportedForSelectedProduct &&
+                            !isTaxCreditMandatoryForSelectedProduct
+                          ) {
                             const isEnabled = checked === true
                             setInputs({
                               ...inputs,
@@ -6325,11 +7449,20 @@ export function SavingsCalculator() {
                             })
                           }
                         }}
-                        disabled={isSettingsEseti || !isTaxCreditSupportedForSelectedProduct}
+                        disabled={
+                          isSettingsEseti ||
+                          !isTaxCreditSupportedForSelectedProduct ||
+                          isTaxCreditMandatoryForSelectedProduct
+                        }
                         className="w-5 h-5"
                       />
                       <span>Adójóváírás bekapcsolása</span>
                     </label>
+                    {isTaxCreditMandatoryForSelectedProduct ? (
+                      <p className="text-xs text-muted-foreground">
+                        Ennél a terméknél az adójóváírás kötelező, ezért automatikusan bekapcsolt állapotban marad.
+                      </p>
+                    ) : null}
                     {!isTaxCreditSupportedForSelectedProduct ? (
                       <p className="text-xs text-muted-foreground">
                         Ennél a terméknél nincs adójóváírás.
@@ -6340,7 +7473,6 @@ export function SavingsCalculator() {
                         Itt csak megjelenítjük az alapbeállításokban kiválasztott adójóváírás állapotot.
                       </p>
                     ) : null}
-
                       {!isSettingsEseti && isTaxCreditSupportedForSelectedProduct && inputs.enableTaxCredit && (
                         <>
                       <div className="space-y-2">
@@ -6547,13 +7679,32 @@ export function SavingsCalculator() {
                               <div className="mt-3 pt-3 border-t space-y-2">
                                 {selectedProduct === "alfa_exclusive_plus" ? (
                                   <p className="text-xs text-muted-foreground">
-                                    A termékváltozat automatikusan az adójóváírás alapján választódik:
+                                    A termékváltozat automatikusan deviza + adójóváírás alapján választódik:
                                     bekapcsolva `NY-05`, kikapcsolva `TR-08`.
                                   </p>
                                 ) : selectedProduct === "alfa_fortis" ? (
                                   <p className="text-xs text-muted-foreground">
                                     A Fortis termékváltozat automatikusan a deviza alapján választódik:
                                     HUF=`WL-02`, EUR=`WL-12`, USD=`WL-22`.
+                                  </p>
+                                ) : selectedProduct === "alfa_jade" ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    A Jáde termékváltozat automatikusan a deviza alapján választódik:
+                                    EUR=`TR19`, USD=`TR29`.
+                                  </p>
+                                ) : selectedProduct === "alfa_jovokep" ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    A Jövőkép terméknél fix TR10 (HUF) variáns érhető el.
+                                  </p>
+                                ) : selectedProduct === "alfa_jovotervezo" ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    A Jövőtervező terméknél fix TR03 (HUF) variáns érhető el.
+                                  </p>
+                                ) : selectedProduct === "alfa_premium_selection" ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    A Premium Selection termékváltozat automatikusan deviza + adójóváírás alapján választódik:
+                                    EUR + adójóváírás=`NY12`, EUR + adójóváírás nélkül=`TR18`, USD + adójóváírás=`NY22`,
+                                    USD + adójóváírás nélkül=`TR28`, HUF + adójóváírás=`NY06`, HUF + adójóváírás nélkül=`TR09`.
                                   </p>
                                 ) : null}
                                 {activeProductVariantMetadata ? (
@@ -7267,7 +8418,7 @@ export function SavingsCalculator() {
             >
               <CardHeader className="pb-2 md:pb-4 flex flex-row items-center justify-between">
                 <CardTitle className="text-lg md:text-xl">
-                  Összegzés - {summaryAccountLabels[yearlyAccountView]}
+                  Összegzés - {summaryAccountLabels[summaryAccountViewKey]}
                 </CardTitle>
                 <div className="flex items-center gap-1">
                   <Button
@@ -7276,9 +8427,14 @@ export function SavingsCalculator() {
                     size="icon"
                     className="h-8 w-8"
                     onClick={() => {
-                      const currentIndex = summaryAccountsOrder.indexOf(yearlyAccountView)
+                      const currentIndex = Math.max(0, summaryAccountsOrder.indexOf(summaryAccountViewKey))
                       const nextIndex = (currentIndex - 1 + summaryAccountsOrder.length) % summaryAccountsOrder.length
-                      setYearlyAccountView(summaryAccountsOrder[nextIndex])
+                      const nextSummaryView = summaryAccountsOrder[nextIndex]
+                      if (nextSummaryView === "eseti") {
+                        setYearlyAccountView(isPremiumSelectionNy06 ? "eseti_immediate_access" : "eseti")
+                      } else {
+                        setYearlyAccountView(nextSummaryView)
+                      }
                     }}
                     aria-label="Előző számla"
                   >
@@ -7290,9 +8446,14 @@ export function SavingsCalculator() {
                     size="icon"
                     className="h-8 w-8"
                     onClick={() => {
-                      const currentIndex = summaryAccountsOrder.indexOf(yearlyAccountView)
+                      const currentIndex = Math.max(0, summaryAccountsOrder.indexOf(summaryAccountViewKey))
                       const nextIndex = (currentIndex + 1) % summaryAccountsOrder.length
-                      setYearlyAccountView(summaryAccountsOrder[nextIndex])
+                      const nextSummaryView = summaryAccountsOrder[nextIndex]
+                      if (nextSummaryView === "eseti") {
+                        setYearlyAccountView(isPremiumSelectionNy06 ? "eseti_immediate_access" : "eseti")
+                      } else {
+                        setYearlyAccountView(nextSummaryView)
+                      }
                     }}
                     aria-label="Következő számla"
                   >
@@ -7581,7 +8742,7 @@ export function SavingsCalculator() {
                     {/* Tax bracket info */}
                     <div className="text-xs text-muted-foreground bg-muted p-3 rounded-md space-y-1">
                       <p className="font-medium">Adósávok ({isCorporateBond ? "céges" : "lakossági"})</p>
-                      {yearlyAccountView === "eseti" ? (
+                      {isEsetiView ? (
                         <ul className="list-disc list-inside space-y-0.5">
                           <li>
                             0-3 év: {isCorporateBond ? "15%" : "28%"}{" "}
@@ -7620,10 +8781,11 @@ export function SavingsCalculator() {
             </Card>
 
             <Card id="yearly-table">
-              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <CardTitle className="text-lg md:text-xl">Éves bontás</CardTitle>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {isAccountSplitOpen && !isAllianzEletprogramView && yearlyAccountView !== "eseti" && (
+              <CardHeader className="sticky top-[96px] z-30 border-b bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:top-[53px]">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <CardTitle className="text-lg md:text-xl shrink-0">Éves bontás</CardTitle>
+                  <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+                  {isAccountSplitOpen && !isAllianzEletprogramView && !isEsetiView && (
                     <div className="flex items-center gap-1 border rounded-md p-1">
                       <Button
                         type="button"
@@ -7671,9 +8833,40 @@ export function SavingsCalculator() {
                   )}
                   {/* </CHANGE> */}
 
+                  {isPremiumSelectionNy06 && isEsetiView && (
+                    <div className="flex items-center gap-1 border rounded-md p-1">
+                      <Button
+                        type="button"
+                        variant={isEsetiImmediateView ? "default" : "ghost"}
+                        size="sm"
+                        className="h-7 text-xs px-2"
+                        onClick={() => setYearlyAccountView("eseti_immediate_access")}
+                        disabled={isYearlyReadOnly}
+                      >
+                        Eseti azonnali
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={isEsetiTaxEligibleView ? "default" : "ghost"}
+                        size="sm"
+                        className="h-7 text-xs px-2"
+                        onClick={() => setYearlyAccountView("eseti_tax_eligible")}
+                        disabled={isYearlyReadOnly}
+                      >
+                        Eseti adójóváírásos
+                      </Button>
+                    </div>
+                  )}
+
                   <Select
-                    value={yearlyAccountView}
-                    onValueChange={(value) => setYearlyAccountView(value as "summary" | "main" | "eseti")}
+                    value={yearlyAccountSelectValue}
+                    onValueChange={(value) => {
+                      if (value === "eseti" && isPremiumSelectionNy06) {
+                        setYearlyAccountView(isEsetiTaxEligibleView ? "eseti_tax_eligible" : "eseti_immediate_access")
+                        return
+                      }
+                      setYearlyAccountView(value as YearlyAccountView)
+                    }}
                   >
                     <SelectTrigger className="h-9 w-32 text-xs">
                       <SelectValue />
@@ -7705,22 +8898,7 @@ export function SavingsCalculator() {
                     size="sm"
                     onClick={clearAllModifications}
                     disabled={
-                      isYearlyReadOnly ||
-                      Object.keys(indexByYear).length === 0 &&
-                      Object.keys(paymentByYear).length === 0 &&
-                      Object.keys(withdrawalByYear).length === 0 &&
-                      Object.keys(taxCreditLimitByYear).length === 0 &&
-                      Object.keys(taxCreditAmountByYear).length === 0 &&
-                      !hasAssetCostOverrides &&
-                      !hasAccountMaintenanceOverrides &&
-                      !hasAdminFeeOverrides &&
-                      Object.keys(plusCostByYear).length === 0 &&
-                      !hasWealthBonusOverrides &&
-                      !hasBonusOnContributionOverrides &&
-                      !hasRefundInitialCostBonusOverrides &&
-                      Object.keys(investedShareByYear).length === 0 &&
-                      Object.keys(redemptionFeeByYear).length === 0 &&
-                      !hasInitialCostOverrides
+                      !(isEsetiView ? hasActiveEsetiOverrides : hasMainYearlyOverrides)
                     }
                     className="h-9 text-xs md:text-sm bg-transparent"
                   >
@@ -7729,19 +8907,20 @@ export function SavingsCalculator() {
 
                   {/* Display currency selector removed here; kept in top bar */}
                 </div>
+                </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-3">
                 {/* Mobile view */}
                 <div className={`md:hidden space-y-3 ${isYearlyMuted ? "opacity-60" : ""}`}>
                   {(adjustedResults?.yearlyBreakdown ?? []).slice(0, visibleYears).map((row, index) => (
                     <MobileYearCard
                       key={`${row.year}-${row.periodType ?? "year"}-${index}`}
                       row={row}
-                      planIndex={isEsetiView ? esetiPlanIndex : planIndex}
-                      planPayment={isEsetiView ? esetiPlanPayment : planPayment}
-                      indexByYear={isEsetiView ? esetiIndexByYear : indexByYear}
-                      paymentByYear={isEsetiView ? esetiPaymentByYear : paymentByYear}
-                      withdrawalByYear={isEsetiView ? esetiWithdrawalByYear : withdrawalByYear}
+                      planIndex={isEsetiTaxEligibleView ? esetiPlanIndexTaxEligible : isEsetiView ? esetiPlanIndex : planIndex}
+                      planPayment={isEsetiTaxEligibleView ? esetiPlanPaymentTaxEligible : isEsetiView ? esetiPlanPayment : planPayment}
+                      indexByYear={isEsetiTaxEligibleView ? esetiIndexByYearTaxEligible : isEsetiView ? esetiIndexByYear : indexByYear}
+                      paymentByYear={isEsetiTaxEligibleView ? esetiPaymentByYearTaxEligible : isEsetiView ? esetiPaymentByYear : paymentByYear}
+                      withdrawalByYear={isEsetiTaxEligibleView ? esetiWithdrawalByYearTaxEligible : isEsetiView ? esetiWithdrawalByYear : withdrawalByYear}
                       taxCreditLimitByYear={taxCreditLimitByYear}
                       displayCurrency={displayCurrency}
                       resultsCurrency={adjustedResults?.currency ?? results.currency}
@@ -7769,7 +8948,13 @@ export function SavingsCalculator() {
                       yearlyViewMode={effectiveYearlyViewMode}
                       yearlyAccountView={yearlyAccountView}
                       cumulativeByYear={
-                        isEsetiView ? cumulativeByYearEseti : yearlyAccountView === "summary" ? cumulativeByYearSummary : cumulativeByYear
+                        isEsetiTaxEligibleView
+                          ? cumulativeByYearEsetiTaxEligible
+                          : isEsetiView
+                            ? cumulativeByYearEseti
+                            : yearlyAccountView === "summary"
+                              ? cumulativeByYearSummary
+                              : cumulativeByYear
                       }
                       shouldApplyTaxCreditPenalty={shouldApplyTaxCreditPenalty}
                       isTaxBonusSeparateAccount={isTaxBonusSeparateAccount}
@@ -7829,7 +9014,7 @@ export function SavingsCalculator() {
                       {showCostBreakdown && showAdminCostColumn && <col style={{ width: "110px" }} />}
                       {showCostBreakdown && showAccountMaintenanceColumn && <col style={{ width: "140px" }} />}
                       {showCostBreakdown && showManagementFeeColumn && <col style={{ width: "120px" }} />}
-                      {showCostBreakdown && showAssetFeeColumn && !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
+                      {showCostBreakdown && effectiveShowAssetFeeColumn && !hideAssetFeeBreakdownInYearlyTable && (
                         <col style={{ width: "90px" }} />
                       )}
                       {showCostBreakdown && showPlusCostColumn && <col style={{ width: "120px" }} />}
@@ -7837,13 +9022,12 @@ export function SavingsCalculator() {
                         <col style={{ width: "120px" }} />
                       )}
                       <col style={{ width: "100px" }} />
-                      {showBonusColumns &&
+                      {effectiveShowBonusColumns &&
                         showBonusBreakdown &&
-                        selectedProduct !== "allianz_bonusz_eletprogram" &&
-                        selectedProduct !== "alfa_fortis" && (
+                        shouldShowWealthBonusPercentColumn && (
                         <col style={{ width: "120px" }} />
                       )}
-                      {showBonusColumns && showBonusBreakdown && <col style={{ width: "120px" }} />}
+                      {effectiveShowBonusColumns && showBonusBreakdown && <col style={{ width: "120px" }} />}
                       {enableRiskInsurance && <col style={{ width: "100px" }} />}
                       {totalExtraServicesCost > 0 && <col style={{ width: "100px" }} />}
                       {shouldShowTaxCreditInYearlyTable && <col style={{ width: "110px" }} />}
@@ -7864,6 +9048,7 @@ export function SavingsCalculator() {
                                 value={esetiFrequency}
                                 onValueChange={(value) => {
                                   const nextFrequency = value as PaymentFrequency
+                                  if (isPremiumSelectionTr18 && nextFrequency !== "éves") return
                                   setEsetiFrequency(nextFrequency)
                                   setEsetiBaseInputs((prev) => ({ ...prev, frequency: nextFrequency }))
                                 }}
@@ -7874,9 +9059,15 @@ export function SavingsCalculator() {
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="éves">Éves</SelectItem>
-                                  <SelectItem value="féléves">Féléves</SelectItem>
-                                  <SelectItem value="negyedéves">Negyedéves</SelectItem>
-                                  <SelectItem value="havi">Havi</SelectItem>
+                                  <SelectItem value="féléves" disabled={isPremiumSelectionTr18}>
+                                    Féléves
+                                  </SelectItem>
+                                  <SelectItem value="negyedéves" disabled={isPremiumSelectionTr18}>
+                                    Negyedéves
+                                  </SelectItem>
+                                  <SelectItem value="havi" disabled={isPremiumSelectionTr18}>
+                                    Havi
+                                  </SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -7911,7 +9102,7 @@ export function SavingsCalculator() {
                             Kezelési díj
                           </th>
                         )}
-                        {showCostBreakdown && showAssetFeeColumn && !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
+                        {showCostBreakdown && effectiveShowAssetFeeColumn && !hideAssetFeeBreakdownInYearlyTable && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("assetFee")}>
                             {selectedProduct === "alfa_exclusive_plus" ? "Számlavezetési költség" : "Vagyon (%)"}
                           </th>
@@ -7925,6 +9116,9 @@ export function SavingsCalculator() {
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("acquisitionFee")}>
                             {selectedProduct === "alfa_fortis"
                               || selectedProduct === "alfa_jade"
+                              || selectedProduct === "alfa_jovokep"
+                              || selectedProduct === "alfa_jovotervezo"
+                              || selectedProduct === "alfa_premium_selection"
                               || selectedProduct === "alfa_exclusive_plus"
                               ? "Szerződéskötési költség"
                               : isAllianzEletprogramView
@@ -7932,7 +9126,7 @@ export function SavingsCalculator() {
                                 : "Akkvizíciós költség"}
                           </th>
                         )}
-                        {showBonusColumns && (
+                        {effectiveShowBonusColumns && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap">
                             <button
                               type="button"
@@ -7947,15 +9141,14 @@ export function SavingsCalculator() {
                             </button>
                           </th>
                         )}
-                        {showBonusColumns &&
+                        {effectiveShowBonusColumns &&
                           showBonusBreakdown &&
-                          selectedProduct !== "allianz_bonusz_eletprogram" &&
-                          selectedProduct !== "alfa_fortis" && (
+                          shouldShowWealthBonusPercentColumn && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-emerald-600" {...getYearlyHeaderInfoHandlers("wealthBonusPercent")}>
                             Vagyon bónusz (%)
                           </th>
                         )}
-                        {showBonusColumns && showBonusBreakdown && (
+                        {effectiveShowBonusColumns && showBonusBreakdown && (
                           <th
                             className="py-3 px-3 text-right font-medium whitespace-nowrap text-emerald-600"
                             {...getYearlyHeaderInfoHandlers(selectedProduct === "alfa_fortis" ? "bonus" : "bonusAmount")}
@@ -7992,15 +9185,24 @@ export function SavingsCalculator() {
                     <tbody className={isYearlyReadOnly ? "pointer-events-none" : undefined}>
                   {(adjustedResults?.yearlyBreakdown ?? []).map((row, index) => {
                         if (!row) return null
-                        const activePlanIndex = (isEsetiView ? esetiPlanIndex : planIndex) ?? {}
-                        const activePlanPayment = (isEsetiView ? esetiPlanPayment : planPayment) ?? {}
+                        const activePlanIndex =
+                          (isEsetiTaxEligibleView ? esetiPlanIndexTaxEligible : isEsetiView ? esetiPlanIndex : planIndex) ?? {}
+                        const activePlanPayment =
+                          (isEsetiTaxEligibleView ? esetiPlanPaymentTaxEligible : isEsetiView ? esetiPlanPayment : planPayment) ??
+                          {}
+                        const activeEsetiIndexByYear = isEsetiTaxEligibleView ? esetiIndexByYearTaxEligible : esetiIndexByYear
+                        const activeEsetiPaymentByYear = isEsetiTaxEligibleView ? esetiPaymentByYearTaxEligible : esetiPaymentByYear
                         const currentIndex = isEsetiView
-                          ? esetiIndexByYear[row.year] ?? activePlanIndex[row.year] ?? 0
+                          ? activeEsetiIndexByYear[row.year] ?? activePlanIndex[row.year] ?? 0
                           : activePlanIndex[row.year] ?? 0
                         const currentPayment = isEsetiView
-                          ? esetiPaymentByYear[row.year] ?? activePlanPayment[row.year] ?? 0
+                          ? activeEsetiPaymentByYear[row.year] ?? activePlanPayment[row.year] ?? 0
                           : row.yearlyPayment ?? activePlanPayment[row.year] ?? 0
-                        const activeWithdrawalByYear = isEsetiView ? esetiWithdrawalByYear : withdrawalByYear
+                        const activeWithdrawalByYear = isEsetiTaxEligibleView
+                          ? esetiWithdrawalByYearTaxEligible
+                          : isEsetiView
+                            ? esetiWithdrawalByYear
+                            : withdrawalByYear
                         const currentWithdrawal = activeWithdrawalByYear[row.year] || 0
                         const updateIndexForView = isEsetiView ? updateEsetiIndex : updateIndex
                         const updatePaymentForView = isEsetiView ? updateEsetiPayment : updatePayment
@@ -8028,12 +9230,16 @@ export function SavingsCalculator() {
                         const isTaxCreditLimited = currentTaxCreditLimit !== undefined
 
                         const netData = yearlyNetCalculations[index]
-                        const sourceCumulativeByYear = isEsetiView
-                          ? cumulativeByYearEseti
+                        const sourceCumulativeByYear = isEsetiTaxEligibleView
+                          ? cumulativeByYearEsetiTaxEligible
+                          : isEsetiView
+                            ? cumulativeByYearEseti
                           : yearlyAccountView === "summary"
                             ? cumulativeByYearSummary
                             : cumulativeByYear
-                        const sourceRow = yearlyAggregationMode === "sum" ? sourceCumulativeByYear[row.year] ?? row : row
+                        const sourceYearRow = row
+                        const sourceCumulativeRow = sourceCumulativeByYear[row.year] ?? sourceYearRow
+                        const sourceRow = yearlyAggregationMode === "sum" ? sourceCumulativeRow : sourceYearRow
                         const baselineAdminFeePercent =
                           productPresetBaseline.adminFeePercentByYear[row.year] ?? productPresetBaseline.adminFeePercentOfPayment
                         const isAlfaExclusivePlusEsetiView = selectedProduct === "alfa_exclusive_plus" && isEsetiView
@@ -8047,12 +9253,17 @@ export function SavingsCalculator() {
                           productPresetBaseline.bonusOnContributionPercentByYear[row.year] ?? 0
                         const baselineRefundInitialCostBonusPercent =
                           productPresetBaseline.refundInitialCostBonusPercentByYear[row.year] ?? 0
+                        const isAllianzEsetiView =
+                          isEsetiView &&
+                          (selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram")
                         const isExclusivePlusSplitView = isAlfaExclusivePlus && isAccountSplitOpen
                         const assetPercentDefaultForView =
                           isExclusivePlusSplitView && effectiveYearlyViewMode === "invested"
                             ? 0.145
                             : isExclusivePlusSplitView && effectiveYearlyViewMode === "taxBonus"
                               ? 0.145
+                              : isAllianzEsetiView
+                                ? 1.19
                               : (productPresetBaseline.assetCostPercentByYear[row.year] ?? productPresetBaseline.assetBasedFeePercent)
                         const baselineAssetCostPercent =
                           assetPercentDefaultForView
@@ -8061,7 +9272,15 @@ export function SavingsCalculator() {
                           ? 0
                           : (adminFeePercentByYear[row.year] ??
                               inputs.adminFeePercentOfPayment ??
-                              (selectedProduct === "alfa_fortis" ? 4 : 0))
+                              (selectedProduct === "alfa_fortis"
+                                ? 4
+                                : selectedProduct === "alfa_jovokep"
+                                  ? 5
+                                  : selectedProduct === "alfa_jovotervezo"
+                                    ? JOVOTERVEZO_REGULAR_ADMIN_FEE_PERCENT
+                                    : selectedProduct === "alfa_premium_selection"
+                                      ? PREMIUM_SELECTION_REGULAR_ADMIN_FEE_PERCENT
+                                    : 0))
                         const adminFeePercentDefault = baselineAdminFeePercent
                         const isAdminFeePercentModified = Math.abs(adminFeePercentDisplay - adminFeePercentDefault) > 1e-9
                         const accountMaintenanceDisplay = isAlfaExclusivePlusEsetiView
@@ -8075,7 +9294,17 @@ export function SavingsCalculator() {
                             ? 0
                           : (accountMaintenancePercentByYear[row.year] ??
                               inputs.accountMaintenanceMonthlyPercent ??
-                              (selectedProduct === "alfa_fortis" ? 0.165 : 0))
+                              (selectedProduct === "alfa_fortis"
+                                ? 0.165
+                                : selectedProduct === "alfa_jovokep"
+                                  ? 0.165
+                                  : selectedProduct === "alfa_jovotervezo"
+                                    ? JOVOTERVEZO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT
+                                  : selectedProduct === "alfa_relax_plusz"
+                                    ? 0.145
+                                    : selectedProduct === "alfa_premium_selection"
+                                      ? PREMIUM_SELECTION_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT
+                                    : 0))
                         const isAccountMaintenancePercentModified = Math.abs(
                           accountMaintenancePercentDisplay - baselineAccountMaintenancePercent,
                         ) > 1e-9
@@ -8099,111 +9328,128 @@ export function SavingsCalculator() {
                         const refundInitialCostBonusPercentDefault = baselineRefundInitialCostBonusPercent
                         const isRefundInitialCostBonusPercentModified =
                           Math.abs(refundInitialCostBonusPercentDisplay - refundInitialCostBonusPercentDefault) > 1e-9
-                        const assetCostPercentDisplay = isEsetiView
-                          ? 0
+                        const assetCostPercentDisplay = isAllianzEsetiView
+                          ? (assetCostPercentByYear[row.year] ?? 1.19)
+                          : isEsetiView
+                            ? 0
                           : isExclusivePlusSplitView && effectiveYearlyViewMode === "invested"
                             ? 0.145
                             : isExclusivePlusSplitView && effectiveYearlyViewMode === "taxBonus"
                               ? 0.145
                               : (assetCostPercentByYear[row.year] ?? inputs.assetBasedFeePercent)
                         const isAssetCostPercentModified = Math.abs(assetCostPercentDisplay - baselineAssetCostPercent) > 1e-9
-                        const displayPaymentValue = sourceRow.yearlyPayment ?? currentPayment
+                        const displayPaymentValue = row.yearlyPayment ?? currentPayment
 
-                        let displayData = {
-                          endBalance: sourceRow.endBalance,
-                          interestForYear: sourceRow.interestForYear,
-                          costForYear: sourceRow.costForYear,
-                          upfrontCostForYear: sourceRow.upfrontCostForYear ?? 0,
-                          adminCostForYear: sourceRow.adminCostForYear ?? 0,
-                          accountMaintenanceCostForYear: sourceRow.accountMaintenanceCostForYear ?? 0,
-                          managementFeeCostForYear: sourceRow.managementFeeCostForYear ?? 0,
-                          assetBasedCostForYear: sourceRow.assetBasedCostForYear,
-                          plusCostForYear: sourceRow.plusCostForYear,
-                          bonusForYear: sourceRow.bonusForYear,
-                          wealthBonusForYear: sourceRow.wealthBonusForYear,
+                        const buildDisplayDataForView = (valueRow: any) => {
+                          let calculatedDisplayData = {
+                            endBalance: valueRow.endBalance,
+                            interestForYear: valueRow.interestForYear,
+                            costForYear: valueRow.costForYear,
+                            upfrontCostForYear: valueRow.upfrontCostForYear ?? 0,
+                            adminCostForYear: valueRow.adminCostForYear ?? 0,
+                            accountMaintenanceCostForYear: valueRow.accountMaintenanceCostForYear ?? 0,
+                            managementFeeCostForYear: valueRow.managementFeeCostForYear ?? 0,
+                            assetBasedCostForYear: valueRow.assetBasedCostForYear,
+                            plusCostForYear: valueRow.plusCostForYear,
+                            bonusForYear: valueRow.bonusForYear,
+                            wealthBonusForYear: valueRow.wealthBonusForYear,
+                          }
+
+                          if (effectiveYearlyViewMode === "client") {
+                            const splitAssetCost = valueRow.client.assetBasedCostForYear ?? 0
+                            const splitPlusCost = valueRow.client.plusCostForYear ?? 0
+                            const splitAccountMaintenance = Math.max(0, (valueRow.client.costForYear ?? 0) - splitAssetCost - splitPlusCost)
+                            calculatedDisplayData = {
+                              endBalance: valueRow.client.endBalance,
+                              interestForYear: valueRow.client.interestForYear,
+                              costForYear: valueRow.client.costForYear,
+                              upfrontCostForYear: 0,
+                              adminCostForYear: 0,
+                              accountMaintenanceCostForYear: splitAccountMaintenance,
+                              managementFeeCostForYear: 0,
+                              assetBasedCostForYear: splitAssetCost,
+                              plusCostForYear: splitPlusCost,
+                              bonusForYear: valueRow.client.bonusForYear,
+                              wealthBonusForYear: valueRow.client.wealthBonusForYear,
+                            }
+                          } else if (effectiveYearlyViewMode === "invested") {
+                            const splitAssetCost = valueRow.invested.assetBasedCostForYear ?? 0
+                            const splitPlusCost = valueRow.invested.plusCostForYear ?? 0
+                            const splitAccountMaintenance = Math.max(
+                              0,
+                              (valueRow.invested.costForYear ?? 0) - splitAssetCost - splitPlusCost,
+                            )
+                            calculatedDisplayData = {
+                              endBalance: valueRow.invested.endBalance,
+                              interestForYear: valueRow.invested.interestForYear,
+                              costForYear: valueRow.invested.costForYear,
+                              upfrontCostForYear: 0,
+                              adminCostForYear: 0,
+                              accountMaintenanceCostForYear: splitAccountMaintenance,
+                              managementFeeCostForYear: 0,
+                              assetBasedCostForYear: splitAssetCost,
+                              plusCostForYear: splitPlusCost,
+                              bonusForYear: valueRow.invested.bonusForYear,
+                              wealthBonusForYear: valueRow.invested.wealthBonusForYear,
+                            }
+                          } else if (effectiveYearlyViewMode === "taxBonus") {
+                            const splitAssetCost = valueRow.taxBonus.assetBasedCostForYear ?? 0
+                            const splitPlusCost = valueRow.taxBonus.plusCostForYear ?? 0
+                            const splitAccountMaintenance = Math.max(
+                              0,
+                              (valueRow.taxBonus.costForYear ?? 0) - splitAssetCost - splitPlusCost,
+                            )
+                            calculatedDisplayData = {
+                              endBalance: valueRow.taxBonus.endBalance,
+                              interestForYear: valueRow.taxBonus.interestForYear,
+                              costForYear: valueRow.taxBonus.costForYear,
+                              upfrontCostForYear: 0,
+                              adminCostForYear: 0,
+                              accountMaintenanceCostForYear: splitAccountMaintenance,
+                              managementFeeCostForYear: 0,
+                              assetBasedCostForYear: splitAssetCost,
+                              plusCostForYear: splitPlusCost,
+                              // Tax credit postings are shown in the Adójóv. column,
+                              // not as product bonus in tax-bonus account view.
+                              bonusForYear: 0,
+                              wealthBonusForYear: 0,
+                            }
+                          }
+
+                          if (isEsetiView) {
+                            const esetiAccountMaintenanceCost = isAlfaExclusivePlusEsetiView
+                              ? (valueRow.accountMaintenanceCostForYear ?? 0)
+                              : 0
+                            const esetiAssetCost = isAllianzEsetiView ? (valueRow.assetBasedCostForYear ?? 0) : 0
+                            calculatedDisplayData = {
+                              ...calculatedDisplayData,
+                              costForYear: esetiAccountMaintenanceCost + esetiAssetCost,
+                              upfrontCostForYear: 0,
+                              adminCostForYear: 0,
+                              accountMaintenanceCostForYear: esetiAccountMaintenanceCost,
+                              managementFeeCostForYear: 0,
+                              assetBasedCostForYear: esetiAssetCost,
+                              plusCostForYear: 0,
+                              bonusForYear: 0,
+                              wealthBonusForYear: 0,
+                            }
+                          }
+
+                          return calculatedDisplayData
                         }
 
-                        if (effectiveYearlyViewMode === "client") {
-                          displayData = {
-                            endBalance: sourceRow.client.endBalance,
-                            interestForYear: sourceRow.client.interestForYear,
-                            costForYear: sourceRow.client.costForYear,
-                            upfrontCostForYear: 0,
-                            adminCostForYear: 0,
-                            accountMaintenanceCostForYear: 0,
-                            managementFeeCostForYear: 0,
-                            assetBasedCostForYear: sourceRow.client.assetBasedCostForYear,
-                            plusCostForYear: sourceRow.client.plusCostForYear,
-                            bonusForYear: sourceRow.client.bonusForYear,
-                            wealthBonusForYear: sourceRow.client.wealthBonusForYear,
-                          }
-                        } else if (effectiveYearlyViewMode === "invested") {
-                          displayData = {
-                            endBalance: sourceRow.invested.endBalance,
-                            interestForYear: sourceRow.invested.interestForYear,
-                            costForYear: sourceRow.invested.costForYear,
-                            upfrontCostForYear: 0,
-                            adminCostForYear: 0,
-                            accountMaintenanceCostForYear: 0,
-                            managementFeeCostForYear: 0,
-                            assetBasedCostForYear: sourceRow.invested.assetBasedCostForYear,
-                            plusCostForYear: sourceRow.invested.plusCostForYear,
-                            bonusForYear: sourceRow.invested.bonusForYear,
-                            wealthBonusForYear: sourceRow.invested.wealthBonusForYear,
-                          }
-                        } else if (effectiveYearlyViewMode === "taxBonus") {
-                          // Use taxBonus breakdown for taxBonus view mode
-                          displayData = {
-                            endBalance: sourceRow.taxBonus.endBalance,
-                            interestForYear: sourceRow.taxBonus.interestForYear,
-                            costForYear: sourceRow.taxBonus.costForYear,
-                            upfrontCostForYear: 0,
-                            adminCostForYear: 0,
-                            accountMaintenanceCostForYear: 0,
-                            managementFeeCostForYear: 0,
-                            assetBasedCostForYear: sourceRow.taxBonus.assetBasedCostForYear,
-                            plusCostForYear: sourceRow.taxBonus.plusCostForYear,
-                            bonusForYear: sourceRow.taxBonus.bonusForYear,
-                            wealthBonusForYear: sourceRow.taxBonus.wealthBonusForYear,
-                          }
-                          // </CHANGE>
-                        }
-
-                        if (isEsetiView) {
-                          const esetiAccountMaintenanceCost = isAlfaExclusivePlusEsetiView
-                            ? (sourceRow.accountMaintenanceCostForYear ?? 0)
-                            : 0
-                          displayData = {
-                            ...displayData,
-                            costForYear: esetiAccountMaintenanceCost,
-                            upfrontCostForYear: 0,
-                            adminCostForYear: 0,
-                            accountMaintenanceCostForYear: esetiAccountMaintenanceCost,
-                            managementFeeCostForYear: 0,
-                            assetBasedCostForYear: 0,
-                            plusCostForYear: 0,
-                            bonusForYear: 0,
-                            wealthBonusForYear: 0,
-                          }
-                        }
+                        const displayData = buildDisplayDataForView(sourceRow)
+                        const yearlyDisplayData = buildDisplayDataForView(sourceYearRow)
 
                         const totalBonusForRow = (displayData.bonusForYear ?? 0) + (displayData.wealthBonusForYear ?? 0)
-                        const cumulativeSourceRow = sourceCumulativeByYear[row.year] ?? sourceRow
-                        const cumulativeBonusForRow = isEsetiView
-                          ? 0
-                          : (cumulativeSourceRow.bonusForYear ?? 0) + (cumulativeSourceRow.wealthBonusForYear ?? 0)
-
-                        const cumulativeRow = sourceCumulativeByYear[row.year] ?? row
-                        let displayBalance = enableNetting ? netData.netBalance : displayData.endBalance
+                        const cumulativeRow = sourceCumulativeRow
+                        let displayBalance = enableNetting ? netData.netBalance : yearlyDisplayData.endBalance
 
                         const taxCreditCumulativeForRow =
                           sourceCumulativeByYear[row.year]?.taxCreditForYear ?? sourceRow.taxCreditForYear ?? 0
                         const taxCreditPenaltyForRow = shouldApplyTaxCreditPenalty ? taxCreditCumulativeForRow * 1.2 : 0
                         let displayBalanceWithPenalty = Math.max(0, displayBalance - taxCreditPenaltyForRow)
-                        const effectiveWithdrawn =
-                          yearlyAggregationMode === "sum"
-                            ? sourceRow.withdrawalForYear ?? currentWithdrawal
-                            : row.withdrawalForYear ?? currentWithdrawal
+                        const effectiveWithdrawn = row.withdrawalForYear ?? currentWithdrawal
                         const preWithdrawalBalanceWithPenalty = displayBalanceWithPenalty + effectiveWithdrawn
                         const maxWithdrawalDisplay = convertForDisplay(
                           preWithdrawalBalanceWithPenalty,
@@ -8303,7 +9549,7 @@ export function SavingsCalculator() {
                               </div>
                             </td>
                             {showCostBreakdown && showAdminCostColumn && (
-                              selectedProduct === "alfa_fortis" ? (
+                              (selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade" || selectedProduct === "alfa_jovokep" || selectedProduct === "alfa_jovotervezo" || selectedProduct === "alfa_premium_selection") ? (
                                 <td className="py-2 px-3 text-right align-top">
                                   <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                     <Input
@@ -8439,14 +9685,14 @@ export function SavingsCalculator() {
                                 </div>
                               </td>
                             )}
-                            {showCostBreakdown && showAssetFeeColumn && !(isAccountSplitOpen && effectiveYearlyViewMode === "total") && (
+                            {showCostBreakdown && effectiveShowAssetFeeColumn && !hideAssetFeeBreakdownInYearlyTable && (
                               <td className="py-2 px-3 text-right align-top">
                                 <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                   <Input
                                     type="text"
                                     inputMode="decimal"
                                     value={
-                                      isEsetiView
+                                      isEsetiView && !isAllianzEsetiView
                                         ? "0"
                                         : editingFields[`assetCost-${row.year}`]
                                           ? assetCostInputByYear[row.year] ?? ""
@@ -8472,6 +9718,10 @@ export function SavingsCalculator() {
                                     onChange={(e) => {
                                       const raw = e.target.value
                                       setAssetCostInputByYear((prev) => ({ ...prev, [row.year]: raw }))
+                                      if (isAllianzEsetiView && raw.trim() === "") {
+                                        updateAssetCostPercent(row.year, 0)
+                                        return
+                                      }
                                       const val = parseNumber(e.target.value)
                                       if (!isNaN(val) && val >= 0 && val <= 100) {
                                         updateAssetCostPercent(row.year, val)
@@ -8485,7 +9735,7 @@ export function SavingsCalculator() {
                                   <p className="text-xs text-muted-foreground tabular-nums">
                                     {formatValue(
                                       applyRealValueForYear(
-                                        isEsetiView
+                                        isEsetiView && !isAllianzEsetiView
                                           ? 0
                                           : effectiveYearlyViewMode === "total"
                                             ? sourceRow.assetBasedCostForYear
@@ -8599,22 +9849,21 @@ export function SavingsCalculator() {
                                 </div>
                               </td>
                             )}
-                            {showBonusColumns && (
+                            {effectiveShowBonusColumns && (
                               <td className="py-2 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 align-top whitespace-nowrap">
                                 <div className="flex items-center justify-end min-h-[44px]">
                                   {formatValue(
                                     applyRealValueForYear(
-                                      selectedProduct === "alfa_fortis" ? totalBonusForRow : cumulativeBonusForRow,
+                                      totalBonusForRow,
                                     ),
                                     displayCurrency,
                                   )}
                                 </div>
                               </td>
                             )}
-                            {showBonusColumns &&
+                            {effectiveShowBonusColumns &&
                               showBonusBreakdown &&
-                              selectedProduct !== "allianz_bonusz_eletprogram" &&
-                              selectedProduct !== "alfa_fortis" && (
+                              shouldShowWealthBonusPercentColumn && (
                               <td className="py-2 px-3 text-right align-top">
                                 <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                   <Input
@@ -8636,8 +9885,8 @@ export function SavingsCalculator() {
                                 </div>
                               </td>
                             )}
-                            {showBonusColumns && showBonusBreakdown && (
-                              selectedProduct === "alfa_fortis" ? (
+                            {effectiveShowBonusColumns && showBonusBreakdown && (
+                              (selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade" || selectedProduct === "alfa_jovokep" || selectedProduct === "alfa_jovotervezo") ? (
                                 <td className="py-2 px-3 text-right align-top">
                                   <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                     <Input
@@ -8963,7 +10212,7 @@ export function SavingsCalculator() {
                                       applyRealValueForYear(
                                         isAlfaExclusivePlus
                                         && !isEsetiView
-                                          ? (sourceRow.surrenderValue ?? row.surrenderValue ?? displayBalanceWithPenalty)
+                                          ? (sourceYearRow.surrenderValue ?? row.surrenderValue ?? displayBalanceWithPenalty)
                                           : displayBalanceWithPenalty,
                                       ),
                                       displayCurrency,
