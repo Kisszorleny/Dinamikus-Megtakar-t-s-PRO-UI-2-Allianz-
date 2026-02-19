@@ -1,10 +1,10 @@
 import type { Currency, InputsDaily } from "../calculate-results-daily"
 
-export type AlfaJadeVariant = "tr19"
+export type AlfaJadeVariant = "tr19" | "tr29"
 
 export interface AlfaJadeVariantConfig {
   variant: AlfaJadeVariant
-  code: "TR19"
+  code: "TR19" | "TR29"
   currency: Currency
   defaultDurationYears: number
   minAnnualPayment: number
@@ -40,21 +40,44 @@ const TR19_CONFIG: AlfaJadeVariantConfig = {
   bonusPercentByYear: { 10: 70, 15: 30 },
 }
 
+const TR29_CONFIG: AlfaJadeVariantConfig = {
+  variant: "tr29",
+  code: "TR29",
+  currency: "USD",
+  defaultDurationYears: 15,
+  minAnnualPayment: 1_200,
+  minExtraordinaryPayment: 500,
+  riskMonthlyFeeAmount: 1,
+  riskBenefitAccidentalDeath: 6_000,
+  regularAdminFeePercent: 2,
+  extraordinaryAdminFeePercent: 2,
+  accountMaintenanceMonthlyPercent: 0.165,
+  accountMaintenanceClientStartMonth: 37,
+  accountMaintenanceInvestedStartMonth: 1,
+  accountMaintenanceExtraStartMonth: 1,
+  partialSurrenderFixedFeeAmount: 10,
+  bonusPercentByYear: { 10: 70, 15: 30 },
+}
+
 export function resolveJadeVariant(productVariant?: string, currency?: Currency): AlfaJadeVariant {
   const normalized = (productVariant ?? "").toLowerCase()
   if (normalized.includes("tr19") || normalized.includes("tr-19")) return "tr19"
+  if (normalized.includes("tr29") || normalized.includes("tr-29")) return "tr29"
+  if (currency === "USD") return "tr29"
   if (currency === "EUR") return "tr19"
   return "tr19"
 }
 
 export function toJadeProductVariantId(variant: AlfaJadeVariant): string {
   if (variant === "tr19") return "alfa_jade_tr19"
+  if (variant === "tr29") return "alfa_jade_tr29"
   return "alfa_jade_tr19"
 }
 
 export function getJadeVariantConfig(productVariant?: string, currency?: Currency): AlfaJadeVariantConfig {
   const variant = resolveJadeVariant(productVariant, currency)
   if (variant === "tr19") return TR19_CONFIG
+  if (variant === "tr29") return TR29_CONFIG
   return TR19_CONFIG
 }
 
@@ -99,9 +122,15 @@ export function isJadeBonusEligible(yearlyPaymentsPlan: number[], durationYears:
   return true
 }
 
-export function buildJadeBonusAmountByYear(yearlyPaymentsPlan: number[], durationYears: number): Record<number, number> {
+export function buildJadeBonusAmountByYear(
+  yearlyPaymentsPlan: number[],
+  durationYears: number,
+  productVariant?: string,
+  currency?: Currency,
+): Record<number, number> {
+  const variantConfig = getJadeVariantConfig(productVariant, currency)
   if (!isJadeBonusEligible(yearlyPaymentsPlan, durationYears)) return {}
-  const horizon = Math.max(1, Math.min(durationYears, TR19_CONFIG.defaultDurationYears))
+  const horizon = Math.max(1, Math.min(durationYears, variantConfig.defaultDurationYears))
   let minMonthlyPremium = Number.POSITIVE_INFINITY
   for (let year = 1; year <= horizon; year++) {
     const yearly = Math.max(0, yearlyPaymentsPlan[year] ?? 0)
@@ -113,7 +142,7 @@ export function buildJadeBonusAmountByYear(yearlyPaymentsPlan: number[], duratio
   if (!Number.isFinite(minMonthlyPremium) || minMonthlyPremium <= 0) return {}
   const annualizedMin = minMonthlyPremium * 12
   return {
-    10: annualizedMin * ((TR19_CONFIG.bonusPercentByYear[10] ?? 0) / 100),
-    15: annualizedMin * ((TR19_CONFIG.bonusPercentByYear[15] ?? 0) / 100),
+    10: annualizedMin * ((variantConfig.bonusPercentByYear[10] ?? 0) / 100),
+    15: annualizedMin * ((variantConfig.bonusPercentByYear[15] ?? 0) / 100),
   }
 }

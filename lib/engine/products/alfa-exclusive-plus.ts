@@ -8,7 +8,10 @@ import {
 import { createAlfaExclusivePlusRiskFeeResolver } from "./alfa-exclusive-plus-risk"
 import type { ProductDefinition } from "./types"
 
-function buildAlfaExclusiveDefaultInitialCosts(durationYears: number): Record<number, number> {
+function buildAlfaExclusiveDefaultInitialCosts(
+  durationYears: number,
+  variant: "ny05" | "tr08",
+): Record<number, number> {
   const config: Record<number, number> = {}
   if (durationYears >= 5 && durationYears <= 10) {
     config[1] = 49
@@ -78,7 +81,7 @@ export const alfaExclusivePlus: ProductDefinition = {
     const variant = resolveAlfaExclusivePlusVariant(inputs.productVariant)
     const variantConfig = getAlfaExclusivePlusVariantConfig(inputs.productVariant)
     const durationYears = estimateDurationYears(inputs)
-    const initialCostByYearDefault = buildAlfaExclusiveDefaultInitialCosts(durationYears)
+    const initialCostByYearDefault = buildAlfaExclusiveDefaultInitialCosts(durationYears, variant)
     const investedShareByYearDefault = buildAlfaExclusiveDefaultInvestedShare(durationYears)
     const assetCostPercentByYearDefault = buildAlfaExclusiveDefaultAssetCost(durationYears)
     const assetCostPercentByYearClientDefault = buildAlfaExclusiveDefaultAssetCostClient(durationYears)
@@ -97,7 +100,10 @@ export const alfaExclusivePlus: ProductDefinition = {
 
     return calculateResultsDaily({
       ...inputs,
-      productVariant: variant === "tr08" ? "alfa_exclusive_plus_tr08" : "alfa_exclusive_plus_ny05",
+      productVariant:
+        variant === "tr08"
+          ? "alfa_exclusive_plus_tr08"
+          : "alfa_exclusive_plus_ny05",
       initialCostByYear: shouldUseProductDefaults ? initialCostByYearDefault : inputs.initialCostByYear,
       initialCostDefaultPercent: shouldUseProductDefaults ? 0 : inputs.initialCostDefaultPercent,
       investedShareByYear: shouldUseProductDefaults ? investedShareByYearDefault : inputs.investedShareByYear,

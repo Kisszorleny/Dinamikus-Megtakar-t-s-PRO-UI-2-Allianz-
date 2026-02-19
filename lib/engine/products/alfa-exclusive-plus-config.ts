@@ -37,7 +37,9 @@ export function resolveAlfaExclusivePlusVariant(productVariant?: string): AlfaEx
 }
 
 export function getAlfaExclusivePlusVariantConfig(productVariant?: string): AlfaExclusivePlusVariantConfig {
-  return resolveAlfaExclusivePlusVariant(productVariant) === "tr08" ? TR08_CONFIG : NY05_CONFIG
+  const variant = resolveAlfaExclusivePlusVariant(productVariant)
+  if (variant === "tr08") return TR08_CONFIG
+  return NY05_CONFIG
 }
 
 export function estimateDurationYears(inputs: InputsDaily): number {
