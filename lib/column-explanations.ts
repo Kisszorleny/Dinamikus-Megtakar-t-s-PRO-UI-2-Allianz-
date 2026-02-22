@@ -17,6 +17,18 @@ export type ProductContextKey =
   | "alfa_premium_selection_ny12"
   | "alfa_premium_selection_tr28"
   | "alfa_premium_selection_ny22"
+  | "alfa_zen_ny13"
+  | "alfa_zen_ny23"
+  | "alfa_zen_pro_ny08"
+  | "alfa_zen_pro_ny14"
+  | "alfa_zen_pro_ny24"
+  | "generali_kabala_u91_life"
+  | "generali_kabala_u91_pension"
+  | "generali_mylife_extra_plusz_u67p_life"
+  | "generali_mylife_extra_plusz_u67p_pension"
+  | "cig_esszenciae_huf"
+  | "cig_esszenciae_eur"
+  | "cig_nyugdijkotvenye"
   | "alfa_relax_plusz_ny01"
   | "mixed"
 
@@ -91,6 +103,11 @@ export const COLUMN_EXPLANATIONS: Record<string, ColumnExplanation> = {
   plusCost: {
     title: "Plusz költség",
     summary: "Külön, kézzel megadott extra éves levonás.",
+  },
+  adminMonthlyCost: {
+    title: "Adminisztrációs költség",
+    summary: "Kézzel megadott havi adminisztrációs költség.",
+    detail: "Kabala terméknél a megadott havi érték éves levonásként (12x) kerül elszámolásra.",
   },
   riskFee: {
     title: "Kock.bizt. / Kocka díj",
@@ -190,6 +207,42 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
     costTypeLabel: "Díjarányos adminisztráció",
     rationale: "A rendszeres díjból 4.8%, a rendkívüli díjakból 1% admin költség kerül levonásra.",
   },
+  "alfa_zen_ny13:adminFee": {
+    costTypeLabel: "Díjarányos adminisztráció",
+    rationale: "A kockázati díjjal csökkentett rendszeres díjból 2% admin költség kerül levonásra.",
+  },
+  "alfa_zen_ny23:adminFee": {
+    costTypeLabel: "Díjarányos adminisztráció",
+    rationale: "A kockázati díjjal csökkentett rendszeres díjból 2% admin költség kerül levonásra (USD variáns).",
+  },
+  "alfa_zen_pro_ny08:adminFee": {
+    costTypeLabel: "Díjarányos adminisztráció",
+    rationale: "A rendszeres díjakból 4%, az eseti díjakból 2% admin költség kerül levonásra.",
+  },
+  "alfa_zen_pro_ny14:adminFee": {
+    costTypeLabel: "Díjarányos adminisztráció",
+    rationale: "A rendszeres díjakból 4%, az eseti díjakból 2% admin költség kerül levonásra (EUR variáns).",
+  },
+  "alfa_zen_pro_ny24:adminFee": {
+    costTypeLabel: "Díjarányos adminisztráció",
+    rationale: "A rendszeres díjakból 4%, az eseti díjakból 2% admin költség kerül levonásra (USD variáns).",
+  },
+  "generali_kabala_u91_life:adminFee": {
+    costTypeLabel: "Fix adminisztrációs költség",
+    rationale: "A 4. biztosítási évtől havi 500 Ft adminisztrációs költség érvényesül.",
+  },
+  "generali_kabala_u91_pension:adminFee": {
+    costTypeLabel: "Fix adminisztrációs költség",
+    rationale: "A 4. biztosítási évtől havi 500 Ft adminisztrációs költség érvényesül (nyugdíj variáns).",
+  },
+  "generali_mylife_extra_plusz_u67p_life:adminFee": {
+    costTypeLabel: "Nincs külön admin díj sor",
+    rationale: "Az adminisztrációs fix költség a Plusz költség soron jelenik meg évesítve.",
+  },
+  "generali_mylife_extra_plusz_u67p_pension:adminFee": {
+    costTypeLabel: "Nincs külön admin díj sor",
+    rationale: "Az adminisztrációs fix költség a Plusz költség soron jelenik meg évesítve (nyugdíj variáns).",
+  },
   "dm_pro:adminFee": {
     costTypeLabel: "Konfigurációfüggő",
     rationale: "A beállított konstrukciótól függően lehet fix vagy díjarányos.",
@@ -219,6 +272,48 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
     costTypeLabel: "Vagyonarányos havi költség",
     rationale: "A számlák értékére vetített 0.145% havi költség, az ügyfélérték számlán 37. hónaptól.",
   },
+  "alfa_zen_ny13:accountMaintenance": {
+    costTypeLabel: "Vagyonarányos havi költség",
+    rationale: "Alapesetben 0.165%/hó, pénzpiaci alap esetén 0.08%/hó; az ügyfélérték számlán csak 37. hónaptól terheljük.",
+  },
+  "alfa_zen_ny23:accountMaintenance": {
+    costTypeLabel: "Vagyonarányos havi költség",
+    rationale: "Minden megtakarítási számlán egységesen 0.165%/hó, pénzpiaci alap kedvezmény nélkül.",
+  },
+  "alfa_zen_pro_ny08:accountMaintenance": {
+    costTypeLabel: "Vagyonarányos havi költség",
+    rationale: "A megtakarítási számlákon 0.165%/hó; a fő megtakarítási alapszámlán 37. hónaptól, a többi számlán az 1. hónaptól.",
+  },
+  "alfa_zen_pro_ny14:accountMaintenance": {
+    costTypeLabel: "Vagyonarányos havi költség",
+    rationale:
+      "A megtakarítási számlákon 0.165%/hó; a fő megtakarítási alapszámlán 37. hónaptól, a többi számlán az 1. hónaptól (EUR variáns).",
+  },
+  "alfa_zen_pro_ny24:accountMaintenance": {
+    costTypeLabel: "Vagyonarányos havi költség",
+    rationale:
+      "A megtakarítási számlákon 0.165%/hó; a fő megtakarítási alapszámlán 37. hónaptól, a többi számlán az 1. hónaptól (USD variáns).",
+  },
+  "generali_kabala_u91_life:accountMaintenance": {
+    costTypeLabel: "Vagyonarányos havi költség",
+    rationale:
+      "Pénzpiaci 2016 alapnál 0.16%/hó, más alapnál 0.175%/hó; a rendszeres díjas egységeknél a 37. hónaptól.",
+  },
+  "generali_kabala_u91_pension:accountMaintenance": {
+    costTypeLabel: "Vagyonarányos havi költség",
+    rationale:
+      "Pénzpiaci 2016 alapnál 0.16%/hó, más alapnál 0.175%/hó; a rendszeres díjas egységeknél a 37. hónaptól (nyugdíj variáns).",
+  },
+  "generali_mylife_extra_plusz_u67p_life:accountMaintenance": {
+    costTypeLabel: "Vagyonarányos havi költség",
+    rationale:
+      "Pénzpiaci 2016 alapnál 0.12%/hó, más alapnál 0.15%/hó; a rendszeres díjas egységeknél a 37. hónaptól.",
+  },
+  "generali_mylife_extra_plusz_u67p_pension:accountMaintenance": {
+    costTypeLabel: "Vagyonarányos havi költség",
+    rationale:
+      "Pénzpiaci 2016 alapnál 0.12%/hó, más alapnál 0.15%/hó; a rendszeres díjas egységeknél a 37. hónaptól (nyugdíj variáns).",
+  },
   "dm_pro:accountMaintenance": {
     costTypeLabel: "Konfigurációfüggő",
     rationale: "A választott beállításoktól függően jelenhet meg.",
@@ -247,6 +342,34 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
   "alfa_relax_plusz_ny01:acquisitionFee": {
     costTypeLabel: "Tartamfüggő kezdeti költség",
     rationale: "Az első 1-3 évben, a választott tartamtól függő százalékos szerződéskötési költség.",
+  },
+  "alfa_zen_ny13:acquisitionFee": {
+    costTypeLabel: "Tartamfüggő kezdeti költség",
+    rationale: "Az első évben 78%, a 2-3. évben tartamfüggő sávos százalék szerint terheljük a szerződéskötési költséget.",
+  },
+  "alfa_zen_ny23:acquisitionFee": {
+    costTypeLabel: "Tartamfüggő kezdeti költség",
+    rationale: "Az első évben 78%, a 2-3. évben tartamfüggő sávos százalék szerint terheljük a szerződéskötési költséget (USD).",
+  },
+  "alfa_zen_pro_ny08:acquisitionFee": {
+    costTypeLabel: "Tartamfüggő kezdeti költség",
+    rationale: "Az első 1-3 évben tartamtól függő táblázatos százalék szerint terheljük a szerződéskötési költséget.",
+  },
+  "alfa_zen_pro_ny14:acquisitionFee": {
+    costTypeLabel: "Tartamfüggő kezdeti költség",
+    rationale: "Az első 1-3 évben tartamtól függő táblázatos százalék szerint terheljük a szerződéskötési költséget (EUR variáns).",
+  },
+  "alfa_zen_pro_ny24:acquisitionFee": {
+    costTypeLabel: "Tartamfüggő kezdeti költség",
+    rationale: "Az első 1-3 évben tartamtól függő táblázatos százalék szerint terheljük a szerződéskötési költséget (USD variáns).",
+  },
+  "generali_mylife_extra_plusz_u67p_life:acquisitionFee": {
+    costTypeLabel: "Díjarányos forgalmazási költség",
+    rationale: "1. év 67%, 2. év 37%, 3-20. év 7%, 21. évtől 0%.",
+  },
+  "generali_mylife_extra_plusz_u67p_pension:acquisitionFee": {
+    costTypeLabel: "Díjarányos forgalmazási költség",
+    rationale: "1. év 67%, 2. év 37%, 3-20. év 7%, 21. évtől 0% (nyugdíj variáns).",
   },
   "dm_pro:acquisitionFee": {
     costTypeLabel: "Konfigurációfüggő",
@@ -352,6 +475,177 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
     costTypeLabel: "Évfordulós nyugdíjbónusz",
     rationale: "A 10. évfordulón 40%, 15+ éves tartamnál a lejárat előtti évfordulón további 100% bónusz jár.",
   },
+  "alfa_zen_ny13:bonus": {
+    costTypeLabel: "Évfordulós ügyfélbónusz",
+    rationale:
+      "A legalacsonyabb évesített havi díj alapján jár: 10. évfordulón 50-100%, 15. évfordulón +100%, 20+ évnél a lejárat előtti évfordulón +100%.",
+  },
+  "alfa_zen_ny23:bonus": {
+    costTypeLabel: "Évfordulós ügyfélbónusz",
+    rationale:
+      "A legalacsonyabb évesített havi díj alapján jár: 10. évfordulón 50-100%, 15. évfordulón +100%, 20+ évnél a lejárat előtti évfordulón +100% (USD-ben).",
+  },
+  "alfa_zen_pro_ny08:bonus": {
+    costTypeLabel: "Tartamfüggő évfordulós ügyfélbónusz",
+    rationale:
+      "A legalacsonyabb havi teljes díj évesített (x12) bázisán, tartamfüggő 7/8/9/10. évfordulós és lejárat előtti utolsó évfordulós jóváírásokkal.",
+  },
+  "alfa_zen_pro_ny14:bonus": {
+    costTypeLabel: "Tartamfüggő évfordulós ügyfélbónusz",
+    rationale:
+      "10-14 éves tartamnál egyösszegű 90% bónusz jár (7/8/9. évfordulón), 15-19 évnél 115% + 35%, 20+ évnél 70%+70%+70% (EUR).",
+  },
+  "alfa_zen_pro_ny24:bonus": {
+    costTypeLabel: "Tartamfüggő évfordulós ügyfélbónusz",
+    rationale:
+      "10-14 éves tartamnál egyösszegű 90% bónusz jár (7/8/9. évfordulón), 15-19 évnél 115% + 35%, 20+ évnél 70%+70%+70% (USD).",
+  },
+  "generali_kabala_u91_life:bonus": {
+    costTypeLabel: "Többszintű hűség- és díjarányos bónusz",
+    rationale:
+      "Díjarányos bónusz jár a rendszeres befizetésekre (1.5-5%), évfordulós hűségjóváírásokkal (10/15/20. év) és 16. évtől vagyonarányos bónusszal.",
+  },
+  "generali_kabala_u91_pension:bonus": {
+    costTypeLabel: "Többszintű hűség- és díjarányos bónusz",
+    rationale:
+      "Díjarányos bónusz jár a rendszeres befizetésekre (1.5-5%), évfordulós hűségjóváírásokkal (10/15/20. év), továbbá 16-19 éves tartamnál speciális lejárati hűségjóváírás is érvényes (6.5-24.5%).",
+  },
+  "generali_mylife_extra_plusz_u67p_life:bonus": {
+    costTypeLabel: "Díjarányos + hűség + vagyonarányos bónusz",
+    rationale:
+      "Díjarányos bónusz (0/2/4%) minden évben, hűségjóváírás az 5/10/15/20. évben, és 21. évtől éves 0.5% vagyonarányos bónusz.",
+  },
+  "generali_mylife_extra_plusz_u67p_pension:bonus": {
+    costTypeLabel: "Díjarányos + hűség + vagyonarányos bónusz",
+    rationale:
+      "Díjarányos bónusz (0/2/4%) minden évben, hűségjóváírás az 5/10/15/20. évben, és 21. évtől éves 0.5% vagyonarányos bónusz (nyugdíj variáns).",
+  },
+  "cig_nyugdijkotvenye:adminFee": {
+    costTypeLabel: "Nincs külön admin díj sor",
+    rationale: "A termékben külön adminisztrációs díjsor nincs definiálva, a fő levonások más sorokon jelennek meg.",
+  },
+  "cig_nyugdijkotvenye:acquisitionFee": {
+    costTypeLabel: "Tartamfüggő kezdeti költség",
+    rationale: "A szerződéskötési és fenntartási díj az első 1-7. évben a választott tartam szerinti táblázat alapján kerül levonásra.",
+  },
+  "cig_nyugdijkotvenye:accountMaintenance": {
+    costTypeLabel: "Nincs külön számlavezetési sor",
+    rationale: "A rendszeres számlára nincs külön havi számlavezetési százalék beállítva.",
+  },
+  "cig_nyugdijkotvenye:assetFee": {
+    costTypeLabel: "Eszközalap-függő éves vagyonarányos költség",
+    rationale: "Az éves költség mértéke a kiválasztott eszközalaptól függ (pl. 1.22%-1.98%).",
+  },
+  "cig_nyugdijkotvenye:bonus": {
+    costTypeLabel: "Hűségbónusz + éves vagyonarányos bónusz",
+    rationale: "A 7. évfordulón egyszeri bónusz jár, majd a 8. évtől évente további 1% bónusz.",
+  },
+  "cig_nyugdijkotvenye:surrenderValue": {
+    costTypeLabel: "Költségmentes teljes visszavásárlás",
+    rationale: "A teljes visszavásárlás 100%-os, részleges visszavásárlásnál külön tranzakciós díj szabály érvényesül.",
+  },
+  "cig_esszenciae_huf:adminFee": {
+    costTypeLabel: "Nincs külön admin díj sor",
+    rationale: "A termék fő levonásai más költségsorokon jelennek meg; 30 napon belüli elállási költség külön eseményhez kötött.",
+  },
+  "cig_esszenciae_eur:adminFee": {
+    costTypeLabel: "Nincs külön admin díj sor",
+    rationale: "A termék fő levonásai más költségsorokon jelennek meg; 30 napon belüli elállási költség külön eseményhez kötött.",
+  },
+  "cig_esszenciae_huf:acquisitionFee": {
+    costTypeLabel: "Tartamfüggő kezdeti költség",
+    rationale: "A szerződéskötési és fenntartási díj az első években tartamfüggő ütemezéssel kerül levonásra (HUF variáns).",
+  },
+  "cig_esszenciae_eur:acquisitionFee": {
+    costTypeLabel: "Tartamfüggő kezdeti költség",
+    rationale: "A szerződéskötési és fenntartási díj az első években tartamfüggő ütemezéssel kerül levonásra (EUR variáns).",
+  },
+  "cig_esszenciae_huf:assetFee": {
+    costTypeLabel: "Eszközalap-függő vagyonarányos költség",
+    rationale: "A költség mértéke a választott eszközalaptól függ; a rendszeres díjas vagyonra az első 3 évben mentesség lehet.",
+  },
+  "cig_esszenciae_eur:assetFee": {
+    costTypeLabel: "Eszközalap-függő vagyonarányos költség",
+    rationale: "A költség mértéke a választott eszközalaptól függ; a rendszeres díjas vagyonra az első 3 évben mentesség lehet.",
+  },
+  "cig_esszenciae_huf:bonus": {
+    costTypeLabel: "Kétlépcsős hűségbónusz",
+    rationale: "A 7. évfordulón egyszeri hűségbónusz jár, majd a 8. évtől évente további 1% bónusz írható jóvá.",
+  },
+  "cig_esszenciae_eur:bonus": {
+    costTypeLabel: "Kétlépcsős hűségbónusz",
+    rationale: "A 7. évfordulón egyszeri hűségbónusz jár, majd a 8. évtől évente további 1% bónusz írható jóvá.",
+  },
+  "cig_esszenciae_huf:surrenderValue": {
+    costTypeLabel: "100%-os teljes visszavásárlás",
+    rationale: "A teljes visszavásárlás 100%-os, részleges visszavásárlásnál tranzakciós díj és minimum bent maradó érték szabály érvényes.",
+  },
+  "cig_esszenciae_eur:surrenderValue": {
+    costTypeLabel: "100%-os teljes visszavásárlás",
+    rationale: "A teljes visszavásárlás 100%-os, részleges visszavásárlásnál tranzakciós díj és minimum bent maradó érték szabály érvényes.",
+  },
+  "generali_kabala_u91_life:plusCost": {
+    costTypeLabel: "Havi adminisztrációs költség",
+    rationale:
+      "A mező havi admin költséget vár (Ft/hó). A motor évesen számol, ezért a beírt havi értéket 12-vel szorozva vonja le az adott évben.",
+  },
+  "generali_kabala_u91_pension:plusCost": {
+    costTypeLabel: "Havi adminisztrációs költség",
+    rationale:
+      "A mező havi admin költséget vár (Ft/hó). A motor évesen számol, ezért a beírt havi értéket 12-vel szorozva vonja le az adott évben (nyugdíj variáns).",
+  },
+  "generali_mylife_extra_plusz_u67p_life:plusCost": {
+    costTypeLabel: "Éves adminisztrációs költség",
+    rationale:
+      "A díjsáv alapján képzett havi admin költség (200/300/400 Ft) évesítve (12x) kerül levonásra ezen a soron.",
+  },
+  "generali_mylife_extra_plusz_u67p_pension:plusCost": {
+    costTypeLabel: "Éves adminisztrációs költség",
+    rationale:
+      "A díjsáv alapján képzett havi admin költség (200/300/400 Ft) évesítve (12x) kerül levonásra ezen a soron (nyugdíj variáns).",
+  },
+  "alfa_zen_ny13:surrenderValue": {
+    costTypeLabel: "Lejárati többletdíj-alapú visszavásárlás",
+    rationale: "A visszavásárlási levonás az első 120 hónapban 100%, majd 121. hónaptól 15% (10 év feletti tartamnál).",
+  },
+  "alfa_zen_ny23:surrenderValue": {
+    costTypeLabel: "Lejárati többletdíj-alapú visszavásárlás",
+    rationale: "A visszavásárlási levonás az első 120 hónapban 100%, majd 121. hónaptól 15% (10 év feletti tartamnál, USD variáns).",
+  },
+  "alfa_zen_pro_ny08:surrenderValue": {
+    costTypeLabel: "Megtakarítási alapszámla-alapú visszavásárlás",
+    rationale:
+      "A visszavásárlási költség évsávos: 2. év 3.5%, 3-8. év 1.95%, 9-15. év 1.5%, 16. évtől 0%.",
+  },
+  "alfa_zen_pro_ny14:surrenderValue": {
+    costTypeLabel: "Megtakarítási alapszámla-alapú visszavásárlás",
+    rationale:
+      "A visszavásárlási költség évsávos: 2. év 3.5%, 3-8. év 1.95%, 9-15. év 1.5%, 16. évtől 0% (EUR variáns).",
+  },
+  "alfa_zen_pro_ny24:surrenderValue": {
+    costTypeLabel: "Megtakarítási alapszámla-alapú visszavásárlás",
+    rationale:
+      "A visszavásárlási költség évsávos: 2. év 3.5%, 3-8. év 1.95%, 9-15. év 1.5%, 16. évtől 0% (USD variáns).",
+  },
+  "generali_kabala_u91_life:surrenderValue": {
+    costTypeLabel: "Költségmentes teljes visszavásárlás",
+    rationale: "A teljes visszavásárlási költség 0 Ft, ugyanakkor korai megszüntetéskor a hűségjellegű jóváírások elveszhetnek.",
+  },
+  "generali_kabala_u91_pension:surrenderValue": {
+    costTypeLabel: "Költségmentes teljes visszavásárlás",
+    rationale:
+      "A teljes visszavásárlási költség 0 Ft, ugyanakkor korai megszüntetéskor a hűségjellegű jóváírások elveszhetnek (nyugdíj variáns).",
+  },
+  "generali_mylife_extra_plusz_u67p_life:surrenderValue": {
+    costTypeLabel: "Befizetés-alapú visszavásárlási levonás",
+    rationale:
+      "A kezdeti megtakarítási tartam végéig (max. 20. év) a befizetett díjrész 7%-a terhelődik, de legfeljebb az első éves díj 1.5x értéke.",
+  },
+  "generali_mylife_extra_plusz_u67p_pension:surrenderValue": {
+    costTypeLabel: "Befizetés-alapú visszavásárlási levonás",
+    rationale:
+      "A kezdeti megtakarítási tartam végéig (max. 20. év) a befizetett díjrész 7%-a terhelődik, de legfeljebb az első éves díj 1.5x értéke (nyugdíj variáns).",
+  },
   "alfa_exclusive_plus_ny05:bonus": {
     costTypeLabel: "Nincs külön bónusz",
     rationale: "A konstrukcióban bónusz sor alapból nem aktív.",
@@ -394,6 +688,25 @@ export function resolveProductContextKey(
     if (options?.currency === "EUR") return "alfa_premium_selection_tr18"
     return "alfa_premium_selection_tr09"
   }
+  if (selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur") {
+    return options?.currency === "USD" ? "alfa_zen_ny23" : "alfa_zen_ny13"
+  }
+  if (selectedProduct === "alfa_zen_pro") {
+    if (options?.currency === "USD") return "alfa_zen_pro_ny24"
+    return options?.currency === "EUR" ? "alfa_zen_pro_ny14" : "alfa_zen_pro_ny08"
+  }
+  if (selectedProduct === "generali_kabala") {
+    return options?.enableTaxCredit ? "generali_kabala_u91_pension" : "generali_kabala_u91_life"
+  }
+  if (selectedProduct === "generali_mylife_extra_plusz") {
+    return options?.enableTaxCredit
+      ? "generali_mylife_extra_plusz_u67p_pension"
+      : "generali_mylife_extra_plusz_u67p_life"
+  }
+  if (selectedProduct === "cig_esszenciae") {
+    return options?.currency === "EUR" ? "cig_esszenciae_eur" : "cig_esszenciae_huf"
+  }
+  if (selectedProduct === "cig_nyugdijkotvenye") return "cig_nyugdijkotvenye"
   if (selectedProduct === "alfa_relax_plusz") return "alfa_relax_plusz_ny01"
   if (selectedProduct === "alfa_exclusive_plus") {
     return options?.enableTaxCredit ? "alfa_exclusive_plus_ny05" : "alfa_exclusive_plus_tr08"

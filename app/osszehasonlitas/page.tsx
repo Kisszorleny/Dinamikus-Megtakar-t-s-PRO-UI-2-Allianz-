@@ -62,11 +62,11 @@ const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
           value: "alfa_jade",
           label: "Alfa Jáde",
           productType: "Életbiztosítás",
-          mnbCode: "TR19 / TR29",
+          mnbCode: "13415 / 13416",
           productCode: "TR19 / TR29",
           variants: [
-            { label: "Alfa Jáde EUR", productType: "Életbiztosítás", mnbCode: "TR19", productCode: "TR19" },
-            { label: "Alfa Jáde USD", productType: "Életbiztosítás", mnbCode: "TR29", productCode: "TR29" },
+            { label: "Alfa Jáde EUR", productType: "Életbiztosítás", mnbCode: "13415", productCode: "TR19" },
+            { label: "Alfa Jáde USD", productType: "Életbiztosítás", mnbCode: "13416", productCode: "TR29" },
           ],
         },
         {
@@ -81,23 +81,46 @@ const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
           value: "alfa_jovotervezo",
           label: "Alfa Jövőtervező",
           productType: "Életbiztosítás",
-          mnbCode: "TR03",
+          mnbCode: "13403",
           productCode: "TR03",
-          variants: [{ label: "Alfa Jövőtervező", productType: "Életbiztosítás", mnbCode: "TR03", productCode: "TR03" }],
+          variants: [{ label: "Alfa Jövőtervező", productType: "Életbiztosítás", mnbCode: "13403", productCode: "TR03" }],
         },
         {
           value: "alfa_premium_selection",
           label: "Alfa Premium Selection",
           productType: "Nyugdíjbiztosítás / Életbiztosítás",
-          mnbCode: "TR09 / NY06 / TR18 / NY12 / TR28 / NY22",
+          mnbCode: "13431 / 13451 / 13413 / 13422 / 13414 / 13423",
           productCode: "TR09 / NY06 / TR18 / NY12 / TR28 / NY22",
           variants: [
-            { label: "Alfa Premium Selection TR09", productType: "Életbiztosítás", mnbCode: "TR09", productCode: "TR09" },
-            { label: "Alfa Premium Selection NY06", productType: "Nyugdíjbiztosítás", mnbCode: "NY06", productCode: "NY06" },
-            { label: "Alfa Premium Selection TR18", productType: "Életbiztosítás", mnbCode: "TR18", productCode: "TR18" },
-            { label: "Alfa Premium Selection NY12", productType: "Nyugdíjbiztosítás", mnbCode: "NY12", productCode: "NY12" },
-            { label: "Alfa Premium Selection TR28", productType: "Életbiztosítás", mnbCode: "TR28", productCode: "TR28" },
-            { label: "Alfa Premium Selection NY22", productType: "Nyugdíjbiztosítás", mnbCode: "NY22", productCode: "NY22" },
+            { label: "Alfa Premium Selection TR09", productType: "Életbiztosítás", mnbCode: "13431", productCode: "TR09" },
+            { label: "Alfa Premium Selection NY06", productType: "Nyugdíjbiztosítás", mnbCode: "13451", productCode: "NY06" },
+            { label: "Alfa Premium Selection TR18", productType: "Életbiztosítás", mnbCode: "13413", productCode: "TR18" },
+            { label: "Alfa Premium Selection NY12", productType: "Nyugdíjbiztosítás", mnbCode: "13422", productCode: "NY12" },
+            { label: "Alfa Premium Selection TR28", productType: "Életbiztosítás", mnbCode: "13414", productCode: "TR28" },
+            { label: "Alfa Premium Selection NY22", productType: "Nyugdíjbiztosítás", mnbCode: "13423", productCode: "NY22" },
+          ],
+        },
+        {
+          value: "alfa_zen",
+          label: "Alfa Zen",
+          productType: "Nyugdíjbiztosítás",
+          mnbCode: "13424 / 13425",
+          productCode: "NY13 / NY23",
+          variants: [
+            { label: "Alfa Zen NY13 (EUR)", productType: "Nyugdíjbiztosítás", mnbCode: "13424", productCode: "NY13" },
+            { label: "Alfa Zen NY23 (USD)", productType: "Nyugdíjbiztosítás", mnbCode: "13425", productCode: "NY23" },
+          ],
+        },
+        {
+          value: "alfa_zen_pro",
+          label: "Alfa Zen Pro",
+          productType: "Nyugdíjbiztosítás",
+          mnbCode: "13433 / 13426 / 13427",
+          productCode: "NY-08 / NY-14 / NY-24",
+          variants: [
+            { label: "Alfa Zen Pro NY-08 (HUF)", productType: "Nyugdíjbiztosítás", mnbCode: "13433", productCode: "NY-08" },
+            { label: "Alfa Zen Pro NY-14 (EUR)", productType: "Nyugdíjbiztosítás", mnbCode: "13426", productCode: "NY-14" },
+            { label: "Alfa Zen Pro NY-24 (USD)", productType: "Nyugdíjbiztosítás", mnbCode: "13427", productCode: "NY-24" },
           ],
         },
       ]
@@ -119,9 +142,47 @@ const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
         },
       ]
     case "CIG Pannonia":
-      return []
+      return [
+        {
+          value: "cig_esszenciae",
+          label: "CIG Pannonia EsszenciaE",
+          productType: "Életbiztosítás",
+          mnbCode: "P0151 / P0251",
+          productCode: "-",
+        },
+        {
+          value: "cig_nyugdijkotvenye",
+          label: "CIG Pannonia NyugdijkotvenyE",
+          productType: "Nyugdíjbiztosítás",
+          mnbCode: "NyugdijkotvenyE",
+          productCode: "NyugdijkotvenyE",
+        },
+      ]
     case "Generali":
-      return []
+      return [
+        {
+          value: "generali_kabala",
+          label: "Generali Kabala",
+          productType: "Életbiztosítás / Nyugdíjbiztosítás",
+          mnbCode: "TODO",
+          productCode: "U91",
+          variants: [
+            { label: "U91 Élet", productType: "Életbiztosítás", mnbCode: "TODO", productCode: "U91" },
+            { label: "U91 Nyugdíj", productType: "Nyugdíjbiztosítás", mnbCode: "TODO", productCode: "U91" },
+          ],
+        },
+        {
+          value: "generali_mylife_extra_plusz",
+          label: "Generali MyLife Extra Plusz",
+          productType: "Életbiztosítás / Nyugdíjbiztosítás",
+          mnbCode: "U67P",
+          productCode: "U67P",
+          variants: [
+            { label: "U67P Élet", productType: "Életbiztosítás", mnbCode: "U67P", productCode: "U67P" },
+            { label: "U67P Nyugdíj", productType: "Nyugdíjbiztosítás", mnbCode: "U67P", productCode: "U67P" },
+          ],
+        },
+      ]
     case "Grupama":
       return []
     case "KnH":
@@ -175,7 +236,9 @@ export default function OsszehasonlitasPage() {
         try {
           const parsed = JSON.parse(stored)
           if (Array.isArray(parsed)) {
-            return parsed.filter((entry): entry is string => typeof entry === "string")
+            return parsed
+              .filter((entry): entry is string => typeof entry === "string")
+              .map((entry) => entry.replace("-alfa_zen_eur", "-alfa_zen"))
           }
           return []
         } catch (e) {
@@ -190,7 +253,9 @@ export default function OsszehasonlitasPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const validKeys = new Set(getAllProductsForComparison().map(({ insurer, product }) => `${insurer}-${product.value}`))
-      const sanitized = selectedProductsForComparison.filter((key) => validKeys.has(key))
+      const sanitized = selectedProductsForComparison
+        .map((key) => key.replace("-alfa_zen_eur", "-alfa_zen"))
+        .filter((key) => validKeys.has(key))
       sessionStorage.setItem("calculator-selectedProductsForComparison", JSON.stringify(sanitized))
       if (sanitized.length !== selectedProductsForComparison.length) {
         setSelectedProductsForComparison(sanitized)
@@ -316,6 +381,12 @@ export default function OsszehasonlitasPage() {
     if (productValue === "alfa_jovotervezo") return "alfa-jovotervezo"
     if (productValue === "alfa_premium_selection") return "alfa-premium-selection"
     if (productValue === "alfa_relax_plusz") return "alfa-relax-plusz"
+    if (productValue === "alfa_zen" || productValue === "alfa_zen_eur") return "alfa-zen"
+    if (productValue === "alfa_zen_pro") return "alfa-zen-pro"
+    if (productValue === "generali_kabala") return "generali-kabala-u91"
+    if (productValue === "generali_mylife_extra_plusz") return "generali-mylife-extra-plusz"
+    if (productValue === "cig_esszenciae") return "cig-esszenciae"
+    if (productValue === "cig_nyugdijkotvenye") return "cig-nyugdijkotvenye"
     if (insurer === "Allianz" && productValue.includes("allianz")) {
       return "allianz-eletprogram"
     }
@@ -330,7 +401,8 @@ export default function OsszehasonlitasPage() {
       .map((productKey) => {
         if (typeof productKey !== "string") return null
         const allProducts = getAllProductsForComparison()
-        const productData = allProducts.find((p) => `${p.insurer}-${p.product.value}` === productKey)
+        const legacyNormalizedKey = productKey.replace("-alfa_zen_eur", "-alfa_zen")
+        const productData = allProducts.find((p) => `${p.insurer}-${p.product.value}` === legacyNormalizedKey)
         if (!productData) return null
 
         try {
@@ -348,6 +420,18 @@ export default function OsszehasonlitasPage() {
                   ? "HUF"
                 : productValue === "alfa_relax_plusz"
                   ? "HUF"
+                : productValue === "generali_kabala"
+                  ? "HUF"
+                : productValue === "generali_mylife_extra_plusz"
+                  ? "HUF"
+                : productValue === "cig_esszenciae"
+                  ? (inputs.currency === "EUR" ? "EUR" : "HUF")
+                : productValue === "cig_nyugdijkotvenye"
+                  ? "HUF"
+                : productValue === "alfa_zen_pro"
+                  ? (inputs.currency === "USD" ? "USD" : inputs.currency === "EUR" ? "EUR" : "HUF")
+                : productValue === "alfa_zen" || productValue === "alfa_zen_eur"
+                  ? (inputs.currency === "USD" ? "USD" : "EUR")
                 : productValue === "alfa_premium_selection"
                   ? inputs.currency === "USD"
                     ? "USD"
@@ -372,6 +456,24 @@ export default function OsszehasonlitasPage() {
                   ? "alfa_jovotervezo_tr03"
                 : productValue === "alfa_relax_plusz"
                   ? "alfa_relax_plusz_ny01"
+                : productValue === "alfa_zen_pro"
+                  ? (effectiveCurrency === "USD"
+                      ? "alfa_zen_pro_ny24"
+                      : effectiveCurrency === "EUR"
+                        ? "alfa_zen_pro_ny14"
+                        : "alfa_zen_pro_ny08")
+                : productValue === "alfa_zen" || productValue === "alfa_zen_eur"
+                  ? (effectiveCurrency === "USD" ? "alfa_zen_ny23" : "alfa_zen_ny13")
+                : productValue === "generali_kabala"
+                  ? (inputs.enableTaxCredit ? "generali_kabala_u91_pension" : "generali_kabala_u91_life")
+                : productValue === "generali_mylife_extra_plusz"
+                  ? (inputs.enableTaxCredit
+                      ? "generali_mylife_extra_plusz_u67p_pension"
+                      : "generali_mylife_extra_plusz_u67p_life")
+                : productValue === "cig_esszenciae"
+                  ? (effectiveCurrency === "EUR" ? "cig_esszenciae_eur" : "cig_esszenciae_huf")
+                : productValue === "cig_nyugdijkotvenye"
+                  ? "cig_nyugdijkotvenye_nyugdij"
                 : productValue === "alfa_premium_selection"
                   ? effectiveCurrency === "USD"
                     ? (inputs.enableTaxCredit ? "alfa_premium_selection_ny22" : "alfa_premium_selection_tr28")

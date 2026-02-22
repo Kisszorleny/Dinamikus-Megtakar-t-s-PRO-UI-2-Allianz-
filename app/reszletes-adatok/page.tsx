@@ -192,6 +192,12 @@ export default function ReszletesAdatokPage() {
     if (selectedProduct === "alfa_jovotervezo") return "alfa-jovotervezo"
     if (selectedProduct === "alfa_premium_selection") return "alfa-premium-selection"
     if (selectedProduct === "alfa_relax_plusz") return "alfa-relax-plusz"
+    if (selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur") return "alfa-zen"
+    if (selectedProduct === "alfa_zen_pro") return "alfa-zen-pro"
+    if (selectedProduct === "generali_kabala") return "generali-kabala-u91"
+    if (selectedProduct === "generali_mylife_extra_plusz") return "generali-mylife-extra-plusz"
+    if (selectedProduct === "cig_esszenciae") return "cig-esszenciae"
+    if (selectedProduct === "cig_nyugdijkotvenye") return "cig-nyugdijkotvenye"
     if (
       selectedInsurer === "Allianz" ||
       (selectedProduct && selectedProduct.includes("allianz"))
@@ -242,6 +248,18 @@ export default function ReszletesAdatokPage() {
             ? "HUF"
             : storedState.selectedProduct === "alfa_relax_plusz"
               ? "HUF"
+            : storedState.selectedProduct === "generali_kabala"
+              ? "HUF"
+            : storedState.selectedProduct === "generali_mylife_extra_plusz"
+              ? "HUF"
+            : storedState.selectedProduct === "cig_esszenciae"
+              ? (storedState.inputs.currency === "EUR" ? "EUR" : "HUF")
+            : storedState.selectedProduct === "cig_nyugdijkotvenye"
+              ? "HUF"
+            : storedState.selectedProduct === "alfa_zen_pro"
+              ? (storedState.inputs.currency === "USD" ? "USD" : storedState.inputs.currency === "EUR" ? "EUR" : "HUF")
+            : storedState.selectedProduct === "alfa_zen" || storedState.selectedProduct === "alfa_zen_eur"
+              ? (storedState.inputs.currency === "USD" ? "USD" : "EUR")
             : storedState.selectedProduct === "alfa_premium_selection"
               ? storedState.inputs.currency === "USD"
                 ? "USD"
@@ -268,6 +286,24 @@ export default function ReszletesAdatokPage() {
             ? "alfa_jovotervezo_tr03"
           : storedState.selectedProduct === "alfa_relax_plusz"
             ? "alfa_relax_plusz_ny01"
+          : storedState.selectedProduct === "alfa_zen_pro"
+            ? (calcCurrency === "USD"
+                ? "alfa_zen_pro_ny24"
+                : calcCurrency === "EUR"
+                  ? "alfa_zen_pro_ny14"
+                  : "alfa_zen_pro_ny08")
+          : storedState.selectedProduct === "alfa_zen" || storedState.selectedProduct === "alfa_zen_eur"
+            ? (calcCurrency === "USD" ? "alfa_zen_ny23" : "alfa_zen_ny13")
+          : storedState.selectedProduct === "generali_kabala"
+            ? (storedState.inputs.enableTaxCredit ? "generali_kabala_u91_pension" : "generali_kabala_u91_life")
+          : storedState.selectedProduct === "generali_mylife_extra_plusz"
+            ? (storedState.inputs.enableTaxCredit
+                ? "generali_mylife_extra_plusz_u67p_pension"
+                : "generali_mylife_extra_plusz_u67p_life")
+          : storedState.selectedProduct === "cig_esszenciae"
+            ? (calcCurrency === "EUR" ? "cig_esszenciae_eur" : "cig_esszenciae_huf")
+          : storedState.selectedProduct === "cig_nyugdijkotvenye"
+            ? "cig_nyugdijkotvenye_nyugdij"
           : storedState.selectedProduct === "alfa_premium_selection"
             ? calcCurrency === "USD"
               ? (storedState.inputs.enableTaxCredit ? "alfa_premium_selection_ny22" : "alfa_premium_selection_tr28")

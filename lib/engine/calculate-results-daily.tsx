@@ -147,6 +147,8 @@ export interface InputsDaily {
   insuredEntryAge?: number
   riskFeeResolver?: (context: RiskFeeResolverContext) => number
   paidUpMaintenanceFeeMonthlyAmount?: number
+  paidUpMaintenanceFeeMonthlyPercent?: number
+  paidUpMaintenanceFeeMonthlyCapAmount?: number
   paidUpMaintenanceFeeStartMonth?: number
   bonusCreditOnAnniversaryDay20?: boolean
 }
@@ -653,6 +655,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   const monthsPerPayment = 12 / ppy
   const clientAccountEarnsYield = inputs.clientAccountEarnsYield === true
   const paidUpMaintenanceFeeMonthlyAmount = Math.max(0, inputs.paidUpMaintenanceFeeMonthlyAmount ?? 0)
+  const paidUpMaintenanceFeeMonthlyPercent = Math.max(0, inputs.paidUpMaintenanceFeeMonthlyPercent ?? 0)
+  const paidUpMaintenanceFeeMonthlyCapAmount = Math.max(0, inputs.paidUpMaintenanceFeeMonthlyCapAmount ?? 0)
   const paidUpMaintenanceFeeStartMonth = Math.max(1, Math.round(inputs.paidUpMaintenanceFeeStartMonth ?? 10))
   const accountMaintenanceStartMonth = Math.max(1, Math.round(inputs.accountMaintenanceStartMonth ?? 1))
   const accountMaintenanceClientStartMonth = Math.max(
@@ -1339,9 +1343,14 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         (inputs.yearlyPaymentsPlan[currentYear] ?? 0) <= 0 &&
         (minimumPaidUpValue <= 0 || totalValueBeforePaidUpCheck >= minimumPaidUpValue)
       const isPaidUpMaintenanceActive = isPaidUpYear && currentMonthNumber >= paidUpMaintenanceFeeStartMonth
-      if (paidUpMaintenanceFeeMonthlyAmount > 0 && isPaidUpMaintenanceActive) {
+      if ((paidUpMaintenanceFeeMonthlyAmount > 0 || paidUpMaintenanceFeeMonthlyPercent > 0) && isPaidUpMaintenanceActive) {
         const totalValue = getTotalValue()
-        const maintenanceFee = Math.min(paidUpMaintenanceFeeMonthlyAmount, totalValue)
+        const percentBasedFee = totalValue * (paidUpMaintenanceFeeMonthlyPercent / 100)
+        const cappedPercentFee =
+          paidUpMaintenanceFeeMonthlyCapAmount > 0
+            ? Math.min(percentBasedFee, paidUpMaintenanceFeeMonthlyCapAmount)
+            : percentBasedFee
+        const maintenanceFee = Math.min(totalValue, paidUpMaintenanceFeeMonthlyAmount + cappedPercentFee)
         if (maintenanceFee > 0) {
           totalCosts += maintenanceFee
           costThisYear += maintenanceFee

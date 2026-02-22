@@ -237,6 +237,13 @@ export default function OsszesitesPage() {
       alfa_jovotervezo: "Alfa Jövőtervező (TR03)",
       alfa_premium_selection: "Alfa Premium Selection (TR09/NY06/TR18/NY12/TR28/NY22)",
       alfa_relax_plusz: "Alfa Relax Plusz (NY01)",
+      alfa_zen: "Alfa Zen (NY13/NY23)",
+      alfa_zen_eur: "Alfa Zen (NY13/NY23)",
+      alfa_zen_pro: "Alfa Zen Pro (NY-08/NY-14/NY-24)",
+      generali_kabala: "Generali Kabala (U91)",
+      generali_mylife_extra_plusz: "Generali MyLife Extra Plusz (U67P)",
+      cig_esszenciae: "CIG Pannonia EsszenciaE",
+      cig_nyugdijkotvenye: "CIG Pannonia NyugdijkotvenyE",
       allianz_eletprogram: "Allianz Életprogram",
       allianz_bonusz_eletprogram: "Allianz Bónusz Életprogram",
     }
@@ -253,6 +260,12 @@ export default function OsszesitesPage() {
     if (productValue === "alfa_jovotervezo") return "alfa-jovotervezo"
     if (productValue === "alfa_premium_selection") return "alfa-premium-selection"
     if (productValue === "alfa_relax_plusz") return "alfa-relax-plusz"
+    if (productValue === "alfa_zen" || productValue === "alfa_zen_eur") return "alfa-zen"
+    if (productValue === "alfa_zen_pro") return "alfa-zen-pro"
+    if (productValue === "generali_kabala") return "generali-kabala-u91"
+    if (productValue === "generali_mylife_extra_plusz") return "generali-mylife-extra-plusz"
+    if (productValue === "cig_esszenciae") return "cig-esszenciae"
+    if (productValue === "cig_nyugdijkotvenye") return "cig-nyugdijkotvenye"
     if (insurer === "Allianz") {
       if (productValue === "allianz_eletprogram" || productValue === "allianz_bonusz_eletprogram") {
         return "allianz-eletprogram"
@@ -443,6 +456,18 @@ export default function OsszesitesPage() {
               ? "HUF"
             : selectedProduct === "alfa_relax_plusz"
               ? "HUF"
+            : selectedProduct === "generali_kabala"
+              ? "HUF"
+            : selectedProduct === "generali_mylife_extra_plusz"
+              ? "HUF"
+            : selectedProduct === "cig_esszenciae"
+              ? (inputs.currency === "EUR" ? "EUR" : "HUF")
+            : selectedProduct === "cig_nyugdijkotvenye"
+              ? "HUF"
+            : selectedProduct === "alfa_zen_pro"
+              ? (inputs.currency === "USD" ? "USD" : inputs.currency === "EUR" ? "EUR" : "HUF")
+            : selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur"
+              ? (inputs.currency === "USD" ? "USD" : "EUR")
             : selectedProduct === "alfa_premium_selection"
               ? inputs.currency === "USD"
                 ? "USD"
@@ -471,6 +496,24 @@ export default function OsszesitesPage() {
               ? "alfa_jovotervezo_tr03"
             : selectedProduct === "alfa_relax_plusz"
               ? "alfa_relax_plusz_ny01"
+            : selectedProduct === "alfa_zen_pro"
+              ? (effectiveCurrency === "USD"
+                  ? "alfa_zen_pro_ny24"
+                  : effectiveCurrency === "EUR"
+                    ? "alfa_zen_pro_ny14"
+                    : "alfa_zen_pro_ny08")
+            : selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur"
+              ? (effectiveCurrency === "USD" ? "alfa_zen_ny23" : "alfa_zen_ny13")
+            : selectedProduct === "generali_kabala"
+              ? (inputs.enableTaxCredit ? "generali_kabala_u91_pension" : "generali_kabala_u91_life")
+            : selectedProduct === "generali_mylife_extra_plusz"
+              ? (inputs.enableTaxCredit
+                  ? "generali_mylife_extra_plusz_u67p_pension"
+                  : "generali_mylife_extra_plusz_u67p_life")
+            : selectedProduct === "cig_esszenciae"
+              ? (effectiveCurrency === "EUR" ? "cig_esszenciae_eur" : "cig_esszenciae_huf")
+            : selectedProduct === "cig_nyugdijkotvenye"
+              ? "cig_nyugdijkotvenye_nyugdij"
             : selectedProduct === "alfa_premium_selection"
               ? effectiveCurrency === "USD"
                 ? (inputs.enableTaxCredit ? "alfa_premium_selection_ny22" : "alfa_premium_selection_tr28")

@@ -28,6 +28,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { calculate } from "@/lib/engine/calculate"
+import { ALFA_EXCLUSIVE_PLUS_MIN_EXTRAORDINARY_PAYMENT } from "@/lib/engine/products/alfa-exclusive-plus-config"
 import type {
   InputsDaily,
   Currency,
@@ -134,6 +135,133 @@ import {
   buildRelaxPluszRedemptionSchedule,
   RELAX_PLUSZ_PRODUCT_CODE,
 } from "@/lib/engine/products/alfa-relax-plusz-config"
+import {
+  buildZenProBonusAmountByYear,
+  buildZenProInitialCostByYear,
+  buildZenProInvestedShareByYear,
+  buildZenProRedemptionSchedule,
+  estimateZenProDurationYears,
+  getZenProVariantConfig,
+  resolveZenProTaxCreditCapPerYear,
+  resolveZenProVariant,
+  resolveZenProMinimumAnnualPayment,
+  toZenProProductVariantId,
+  ZEN_PRO_ACCOUNT_MAINTENANCE_CLIENT_START_MONTH,
+  ZEN_PRO_ACCOUNT_MAINTENANCE_INVESTED_START_MONTH,
+  ZEN_PRO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT,
+  ZEN_PRO_ACCOUNT_MAINTENANCE_TAXBONUS_START_MONTH,
+  ZEN_PRO_EXTRAORDINARY_ADMIN_FEE_PERCENT,
+  ZEN_PRO_NY08_PRODUCT_CODE,
+  ZEN_PRO_NY14_PRODUCT_CODE,
+  ZEN_PRO_NY24_PRODUCT_CODE,
+  ZEN_PRO_REGULAR_ADMIN_FEE_PERCENT,
+  ZEN_PRO_TAX_CREDIT_RATE_PERCENT,
+} from "@/lib/engine/products/alfa-zen-pro-config"
+import {
+  ALFA_ZEN_ACCOUNT_MAINTENANCE_CLIENT_START_MONTH,
+  ALFA_ZEN_ACCOUNT_MAINTENANCE_INVESTED_START_MONTH,
+  ALFA_ZEN_ACCOUNT_MAINTENANCE_TAXBONUS_START_MONTH,
+  ALFA_ZEN_EXTRAORDINARY_ADMIN_FEE_PERCENT,
+  ALFA_ZEN_MIN_EXTRAORDINARY_PAYMENT,
+  ALFA_ZEN_NY13_PRODUCT_CODE,
+  ALFA_ZEN_NY23_PRODUCT_CODE,
+  ALFA_ZEN_REGULAR_ADMIN_FEE_PERCENT,
+  ALFA_ZEN_TAX_CREDIT_RATE_PERCENT,
+  buildAlfaZenBonusAmountByYear,
+  buildAlfaZenInitialCostByYear,
+  buildAlfaZenInvestedShareByYear,
+  buildAlfaZenRedemptionSchedule,
+  estimateAlfaZenDurationYears,
+  getAlfaZenVariantConfig,
+  resolveAlfaZenAccountMaintenanceMonthlyPercent,
+  resolveAlfaZenMinimumAnnualPayment,
+  resolveAlfaZenTaxCreditCapPerYear,
+  resolveAlfaZenVariant,
+  toAlfaZenProductVariantId,
+} from "@/lib/engine/products/alfa-zen-config"
+import {
+  buildCigEsszenciaeBonusAmountByYear,
+  buildCigEsszenciaeBonusPercentByYear,
+  buildCigEsszenciaeInitialCostByYear,
+  buildCigEsszenciaeInvestedShareByYear,
+  buildCigEsszenciaeRedemptionFeeByYear,
+  CIG_ESSZENCIAE_EUR_MNB_CODE,
+  CIG_ESSZENCIAE_HUF_MNB_CODE,
+  CIG_ESSZENCIAE_MIN_DURATION_YEARS,
+  CIG_ESSZENCIAE_PRODUCT_CODE,
+  CIG_ESSZENCIAE_PRODUCT_VARIANT_EUR,
+  CIG_ESSZENCIAE_PRODUCT_VARIANT_HUF,
+  CIG_ESSZENCIAE_PARTIAL_SURRENDER_MIN_EUR,
+  CIG_ESSZENCIAE_PARTIAL_SURRENDER_MIN_HUF,
+  estimateCigEsszenciaeDurationYears,
+  getCigEsszenciaeVariantConfig,
+  resolveCigEsszenciaeVariant,
+  toCigEsszenciaeProductVariantId,
+} from "@/lib/engine/products/cig-esszenciae-config"
+import {
+  buildCigNyugdijkotvenyeBonusAmountByYear,
+  buildCigNyugdijkotvenyeBonusPercentByYear,
+  buildCigNyugdijkotvenyeInitialCostByYear,
+  buildCigNyugdijkotvenyeInvestedShareByYear,
+  buildCigNyugdijkotvenyeRedemptionFeeByYear,
+  CIG_NYUGDIJKOTVENYE_MIN_ANNUAL_PAYMENT,
+  CIG_NYUGDIJKOTVENYE_MIN_DURATION_YEARS,
+  CIG_NYUGDIJKOTVENYE_MIN_EXTRAORDINARY_PAYMENT,
+  CIG_NYUGDIJKOTVENYE_MIN_REGULAR_WITHDRAWAL_MONTHLY,
+  CIG_NYUGDIJKOTVENYE_PAID_UP_MAINTENANCE_MONTHLY_AMOUNT,
+  CIG_NYUGDIJKOTVENYE_PRODUCT_CODE,
+  CIG_NYUGDIJKOTVENYE_PRODUCT_VARIANT,
+  CIG_NYUGDIJKOTVENYE_TAX_CREDIT_RATE_PERCENT,
+  estimateCigNyugdijkotvenyeDurationYears,
+  resolveCigNyugdijkotvenyeAssetFeeAnnualPercent,
+  resolveCigNyugdijkotvenyeTaxCreditCapPerYear,
+} from "@/lib/engine/products/cig-nyugdijkotvenye-config"
+import {
+  buildGeneraliKabalaU91AdminPlusCostByYear,
+  buildGeneraliKabalaU91BonusOnContributionPercentByYear,
+  buildGeneraliKabalaU91FidelityAccountBonusAmountByYear,
+  buildGeneraliKabalaU91InitialCostByYear,
+  buildGeneraliKabalaU91InvestedShareByYear,
+  buildGeneraliKabalaU91LoyaltyCreditBonusAmountByYear,
+  buildGeneraliKabalaU91RedemptionFeeByYear,
+  buildGeneraliKabalaU91WealthBonusPercentByYear,
+  estimateGeneraliKabalaU91DurationYears,
+  GENERALI_KABALA_U91_ACCOUNT_MAINTENANCE_REGULAR_START_MONTH,
+  GENERALI_KABALA_U91_ACCOUNT_MAINTENANCE_TAXBONUS_START_MONTH,
+  GENERALI_KABALA_U91_EXTRA_DISTRIBUTION_FEE_PERCENT,
+  GENERALI_KABALA_U91_PENSION_MAX_ENTRY_AGE,
+  GENERALI_KABALA_U91_PENSION_MIN_ENTRY_AGE,
+  GENERALI_KABALA_U91_MIN_EXTRAORDINARY_PAYMENT,
+  GENERALI_KABALA_U91_PRODUCT_CODE,
+  GENERALI_KABALA_U91_TAX_CREDIT_CAP_HUF,
+  GENERALI_KABALA_U91_TAX_CREDIT_RATE_PERCENT,
+  getGeneraliKabalaU91VariantConfig,
+  resolveGeneraliKabalaU91AccountMaintenanceMonthlyPercent,
+  resolveGeneraliKabalaU91Variant,
+  toGeneraliKabalaU91ProductVariantId,
+} from "@/lib/engine/products/generali-kabala-u91-config"
+import {
+  buildGeneraliMylifeExtraPluszAdminPlusCostByYear,
+  buildGeneraliMylifeExtraPluszBonusOnContributionPercentByYear,
+  buildGeneraliMylifeExtraPluszInitialCostByYear,
+  buildGeneraliMylifeExtraPluszInvestedShareByYear,
+  buildGeneraliMylifeExtraPluszLoyaltyBonusAmountByYear,
+  buildGeneraliMylifeExtraPluszRedemptionFeeByYear,
+  buildGeneraliMylifeExtraPluszWealthBonusPercentByYear,
+  estimateGeneraliMylifeExtraPluszDurationYears,
+  GENERALI_MYLIFE_EXTRA_PLUSZ_ACCOUNT_MAINTENANCE_EXTRA_START_MONTH,
+  GENERALI_MYLIFE_EXTRA_PLUSZ_ACCOUNT_MAINTENANCE_REGULAR_START_MONTH,
+  GENERALI_MYLIFE_EXTRA_PLUSZ_EXTRA_DISTRIBUTION_FEE_PERCENT,
+  GENERALI_MYLIFE_EXTRA_PLUSZ_MIN_EXTRAORDINARY_PAYMENT,
+  GENERALI_MYLIFE_EXTRA_PLUSZ_MIN_REGULAR_WITHDRAWAL_MONTHLY,
+  GENERALI_MYLIFE_EXTRA_PLUSZ_PRODUCT_CODE,
+  GENERALI_MYLIFE_EXTRA_PLUSZ_TAX_CREDIT_CAP_HUF,
+  GENERALI_MYLIFE_EXTRA_PLUSZ_TAX_CREDIT_RATE_PERCENT,
+  getGeneraliMylifeExtraPluszVariantConfig,
+  resolveGeneraliMylifeExtraPluszAccountMaintenanceMonthlyPercent,
+  resolveGeneraliMylifeExtraPluszVariant,
+  toGeneraliMylifeExtraPluszProductVariantId,
+} from "@/lib/engine/products/generali-mylife-extra-plusz-config"
 import { resolveProductContextKey } from "@/lib/column-explanations"
 
 type DurationUnit = "year" | "month" | "day"
@@ -1211,7 +1339,9 @@ function MobileYearCard({
           )}
           {(displayData.accountMaintenanceCostForYear ?? 0) > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Számlavezetési költség</span>
+              <span className="text-muted-foreground">
+                {selectedProduct === "generali_kabala" ? "Vagyonarányos költség" : "Számlavezetési költség"}
+              </span>
               <span className="text-destructive tabular-nums">
                 {formatValue(applyRealValue(displayData.accountMaintenanceCostForYear), displayCurrency)}
               </span>
@@ -1235,7 +1365,9 @@ function MobileYearCard({
           )}
           {(displayData.plusCostForYear ?? 0) > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Plusz költség</span>
+              <span className="text-muted-foreground">
+                {selectedProduct === "generali_kabala" ? "Admin költs./hó" : "Plusz költség"}
+              </span>
               <span className="text-destructive tabular-nums">
                 {formatValue(applyRealValue(displayData.plusCostForYear), displayCurrency)}
               </span>
@@ -1248,7 +1380,11 @@ function MobileYearCard({
             !hideAssetFeeBreakdownInCurrentView && (
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">
-                  {isAlfaExclusivePlusVariant ? "Számlavezetési költség" : "Vagyon%"}
+                  {isAlfaExclusivePlusVariant
+                    ? "Számlavezetési költség"
+                    : selectedProduct === "generali_kabala"
+                      ? "Vagyonarányos költség (%)"
+                      : "Vagyon%"}
                 </Label>
                 <div className="flex items-center gap-1">
                   <Input
@@ -1284,7 +1420,9 @@ function MobileYearCard({
           {/* </CHANGE> */}
           {plusCostByYear !== undefined && updatePlusCost && (
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Plusz költség (Ft)</Label>
+              <Label className="text-xs text-muted-foreground">
+                {selectedProduct === "generali_kabala" ? "Admin költs./hó (Ft)" : "Plusz költség (Ft)"}
+              </Label>
               <div className="flex items-center gap-1">
                 <Input
                   type="text"
@@ -1781,7 +1919,7 @@ export function SavingsCalculator() {
       frequency: "havi",
       annualYieldPercent: 12,
       annualIndexPercent: 3,
-      keepYearlyPayment: false,
+      keepYearlyPayment: true,
       initialCostByYear: {},
       initialCostDefaultPercent: 0,
       yearlyManagementFeePercent: 0, // This is now replaced by managementFeeValue
@@ -2643,7 +2781,17 @@ export function SavingsCalculator() {
     if (selectedProduct === "alfa_jovokep") return ["HUF"]
     if (selectedProduct === "alfa_jovotervezo") return ["HUF"]
     if (selectedProduct === "alfa_relax_plusz") return ["HUF"]
+    if (
+      selectedProduct === "generali_kabala" ||
+      selectedProduct === "generali_mylife_extra_plusz" ||
+      selectedProduct === "cig_nyugdijkotvenye"
+    ) {
+      return ["HUF"]
+    }
+    if (selectedProduct === "cig_esszenciae") return ["HUF", "EUR"]
+    if (selectedProduct === "alfa_zen_pro") return ["HUF", "EUR", "USD"]
     if (selectedProduct === "alfa_premium_selection") return ["HUF", "EUR", "USD"]
+    if (selectedProduct === "alfa_zen") return ["EUR", "USD"]
     if (selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram") {
       return ["HUF", "EUR"]
     }
@@ -2860,6 +3008,12 @@ export function SavingsCalculator() {
       selectedProduct === "alfa_jovokep" ||
       selectedProduct === "alfa_jovotervezo" ||
       selectedProduct === "alfa_premium_selection" ||
+      selectedProduct === "alfa_zen" ||
+      selectedProduct === "alfa_zen_pro" ||
+      selectedProduct === "cig_esszenciae" ||
+      selectedProduct === "cig_nyugdijkotvenye" ||
+      selectedProduct === "generali_kabala" ||
+      selectedProduct === "generali_mylife_extra_plusz" ||
       selectedProduct === "alfa_exclusive_plus"
     ) {
       return "Szerződéskötési költség (év szerint)"
@@ -3001,21 +3155,21 @@ export function SavingsCalculator() {
             value: "alfa_jade",
             label: "Alfa Jáde",
             productType: "Életbiztosítás",
-            mnbCode: "TR19 / TR29",
+            mnbCode: "13415 / 13416",
             productCode: "TR19 / TR29",
             variants: [
               {
                 value: "alfa_jade_tr19",
                 label: "TR19 (EUR)",
                 productType: "Életbiztosítás",
-                mnbCode: "TR19",
+                mnbCode: "13415",
                 productCode: "TR19",
               },
               {
                 value: "alfa_jade_tr29",
                 label: "TR29 (USD)",
                 productType: "Életbiztosítás",
-                mnbCode: "TR29",
+                mnbCode: "13416",
                 productCode: "TR29",
               },
             ],
@@ -3040,14 +3194,14 @@ export function SavingsCalculator() {
             value: "alfa_jovotervezo",
             label: "Alfa Jövőtervező",
             productType: "Életbiztosítás",
-            mnbCode: "TR03",
+            mnbCode: "13403",
             productCode: JOVOTERVEZO_PRODUCT_CODE,
             variants: [
               {
                 value: "alfa_jovotervezo_tr03",
                 label: "TR03 (HUF)",
                 productType: "Életbiztosítás",
-                mnbCode: "TR03",
+                mnbCode: "13403",
                 productCode: JOVOTERVEZO_PRODUCT_CODE,
               },
             ],
@@ -3056,49 +3210,49 @@ export function SavingsCalculator() {
             value: "alfa_premium_selection",
             label: "Alfa Premium Selection",
             productType: "Nyugdíjbiztosítás / Életbiztosítás",
-            mnbCode: "TR09 / NY06 / TR18 / NY12 / TR28 / NY22",
+            mnbCode: "13431 / 13451 / 13413 / 13422 / 13414 / 13423",
             productCode: `${PREMIUM_SELECTION_PRODUCT_CODE} / ${PREMIUM_SELECTION_NYUGDIJ_PRODUCT_CODE} / ${PREMIUM_SELECTION_EUR_PRODUCT_CODE} / ${PREMIUM_SELECTION_NY12_PRODUCT_CODE} / ${PREMIUM_SELECTION_USD_PRODUCT_CODE} / ${PREMIUM_SELECTION_NY22_PRODUCT_CODE}`,
             variants: [
               {
                 value: "alfa_premium_selection_tr09",
                 label: "TR09 (HUF)",
                 productType: "Életbiztosítás",
-                mnbCode: "TR09",
+                mnbCode: "13431",
                 productCode: PREMIUM_SELECTION_PRODUCT_CODE,
               },
               {
                 value: "alfa_premium_selection_ny06",
                 label: "NY06 (Nyugdíjbiztosítás)",
                 productType: "Nyugdíjbiztosítás",
-                mnbCode: "NY06",
+                mnbCode: "13451",
                 productCode: PREMIUM_SELECTION_NYUGDIJ_PRODUCT_CODE,
               },
               {
                 value: "alfa_premium_selection_tr18",
                 label: "TR18 (EUR)",
                 productType: "Életbiztosítás",
-                mnbCode: "TR18",
+                mnbCode: "13413",
                 productCode: PREMIUM_SELECTION_EUR_PRODUCT_CODE,
               },
               {
                 value: "alfa_premium_selection_ny12",
                 label: "NY12 (EUR Nyugdíjbiztosítás)",
                 productType: "Nyugdíjbiztosítás",
-                mnbCode: "NY12",
+                mnbCode: "13422",
                 productCode: PREMIUM_SELECTION_NY12_PRODUCT_CODE,
               },
               {
                 value: "alfa_premium_selection_tr28",
                 label: "TR28 (USD)",
                 productType: "Életbiztosítás",
-                mnbCode: "TR28",
+                mnbCode: "13414",
                 productCode: PREMIUM_SELECTION_USD_PRODUCT_CODE,
               },
               {
                 value: "alfa_premium_selection_ny22",
                 label: "NY22 (USD Nyugdíjbiztosítás)",
                 productType: "Nyugdíjbiztosítás",
-                mnbCode: "NY22",
+                mnbCode: "13423",
                 productCode: PREMIUM_SELECTION_NY22_PRODUCT_CODE,
               },
             ],
@@ -3107,15 +3261,68 @@ export function SavingsCalculator() {
             value: "alfa_relax_plusz",
             label: "Alfa Relax Plusz",
             productType: "Nyugdíjbiztosítás",
-            mnbCode: "NY01",
+            mnbCode: "13401",
             productCode: RELAX_PLUSZ_PRODUCT_CODE,
             variants: [
               {
                 value: "alfa_relax_plusz_ny01",
                 label: "NY01 (Nyugdíjbiztosítás)",
                 productType: "Nyugdíjbiztosítás",
-                mnbCode: "NY01",
+                mnbCode: "13401",
                 productCode: RELAX_PLUSZ_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "alfa_zen",
+            label: "Alfa Zen",
+            productType: "Nyugdíjbiztosítás",
+            mnbCode: "13424 / 13425",
+            productCode: `${ALFA_ZEN_NY13_PRODUCT_CODE} / ${ALFA_ZEN_NY23_PRODUCT_CODE}`,
+            variants: [
+              {
+                value: "alfa_zen_ny13",
+                label: "NY13 (EUR Nyugdíjbiztosítás)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: "13424",
+                productCode: ALFA_ZEN_NY13_PRODUCT_CODE,
+              },
+              {
+                value: "alfa_zen_ny23",
+                label: "NY23 (USD Nyugdíjbiztosítás)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: "13425",
+                productCode: ALFA_ZEN_NY23_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "alfa_zen_pro",
+            label: "Alfa Zen Pro",
+            productType: "Nyugdíjbiztosítás",
+            mnbCode: "13433 / 13426 / 13427",
+            productCode: `${ZEN_PRO_NY08_PRODUCT_CODE} / ${ZEN_PRO_NY14_PRODUCT_CODE} / ${ZEN_PRO_NY24_PRODUCT_CODE}`,
+            variants: [
+              {
+                value: "alfa_zen_pro_ny08",
+                label: "NY-08 (HUF Nyugdíjbiztosítás)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: "13433",
+                productCode: ZEN_PRO_NY08_PRODUCT_CODE,
+              },
+              {
+                value: "alfa_zen_pro_ny14",
+                label: "NY-14 (EUR Nyugdíjbiztosítás)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: "13426",
+                productCode: ZEN_PRO_NY14_PRODUCT_CODE,
+              },
+              {
+                value: "alfa_zen_pro_ny24",
+                label: "NY-24 (USD Nyugdíjbiztosítás)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: "13427",
+                productCode: ZEN_PRO_NY24_PRODUCT_CODE,
               },
             ],
           },
@@ -3139,9 +3346,96 @@ export function SavingsCalculator() {
           },
         ]
       case "CIG Pannonia":
-        return []
+        return [
+          {
+            value: "cig_esszenciae",
+            label: "CIG Pannonia EsszenciaE",
+            productType: "Életbiztosítás",
+            mnbCode: `${CIG_ESSZENCIAE_HUF_MNB_CODE} / ${CIG_ESSZENCIAE_EUR_MNB_CODE}`,
+            productCode: CIG_ESSZENCIAE_PRODUCT_CODE,
+            variants: [
+              {
+                value: CIG_ESSZENCIAE_PRODUCT_VARIANT_HUF,
+                label: "EsszenciaE (HUF)",
+                productType: "Életbiztosítás",
+                mnbCode: CIG_ESSZENCIAE_HUF_MNB_CODE,
+                productCode: CIG_ESSZENCIAE_PRODUCT_CODE,
+              },
+              {
+                value: CIG_ESSZENCIAE_PRODUCT_VARIANT_EUR,
+                label: "EsszenciaE (EUR)",
+                productType: "Életbiztosítás",
+                mnbCode: CIG_ESSZENCIAE_EUR_MNB_CODE,
+                productCode: CIG_ESSZENCIAE_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "cig_nyugdijkotvenye",
+            label: "CIG Pannonia NyugdijkotvenyE",
+            productType: "Nyugdíjbiztosítás",
+            mnbCode: CIG_NYUGDIJKOTVENYE_PRODUCT_CODE,
+            productCode: CIG_NYUGDIJKOTVENYE_PRODUCT_CODE,
+            variants: [
+              {
+                value: CIG_NYUGDIJKOTVENYE_PRODUCT_VARIANT,
+                label: `${CIG_NYUGDIJKOTVENYE_PRODUCT_CODE} (Nyugdíjbiztosítás)`,
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: CIG_NYUGDIJKOTVENYE_PRODUCT_CODE,
+                productCode: CIG_NYUGDIJKOTVENYE_PRODUCT_CODE,
+              },
+            ],
+          },
+        ]
       case "Generali":
-        return []
+        return [
+          {
+            value: "generali_kabala",
+            label: "Generali Kabala",
+            productType: "Életbiztosítás / Nyugdíjbiztosítás",
+            mnbCode: GENERALI_KABALA_U91_PRODUCT_CODE,
+            productCode: GENERALI_KABALA_U91_PRODUCT_CODE,
+            variants: [
+              {
+                value: "generali_kabala_u91_life",
+                label: "U91 (Életbiztosítás)",
+                productType: "Életbiztosítás",
+                mnbCode: GENERALI_KABALA_U91_PRODUCT_CODE,
+                productCode: GENERALI_KABALA_U91_PRODUCT_CODE,
+              },
+              {
+                value: "generali_kabala_u91_pension",
+                label: "U91 (Nyugdíjbiztosítás)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: GENERALI_KABALA_U91_PRODUCT_CODE,
+                productCode: GENERALI_KABALA_U91_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "generali_mylife_extra_plusz",
+            label: "Generali MyLife Extra Plusz",
+            productType: "Életbiztosítás / Nyugdíjbiztosítás",
+            mnbCode: GENERALI_MYLIFE_EXTRA_PLUSZ_PRODUCT_CODE,
+            productCode: GENERALI_MYLIFE_EXTRA_PLUSZ_PRODUCT_CODE,
+            variants: [
+              {
+                value: "generali_mylife_extra_plusz_u67p_life",
+                label: "U67P (Életbiztosítás)",
+                productType: "Életbiztosítás",
+                mnbCode: GENERALI_MYLIFE_EXTRA_PLUSZ_PRODUCT_CODE,
+                productCode: GENERALI_MYLIFE_EXTRA_PLUSZ_PRODUCT_CODE,
+              },
+              {
+                value: "generali_mylife_extra_plusz_u67p_pension",
+                label: "U67P (Nyugdíjbiztosítás)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: GENERALI_MYLIFE_EXTRA_PLUSZ_PRODUCT_CODE,
+                productCode: GENERALI_MYLIFE_EXTRA_PLUSZ_PRODUCT_CODE,
+              },
+            ],
+          },
+        ]
       case "Grupama":
         return []
       case "KnH":
@@ -3200,6 +3494,24 @@ export function SavingsCalculator() {
     if (selectedProduct === "alfa_premium_selection") {
       return getPremiumSelectionVariantConfig(undefined, inputs.enableTaxCredit, inputs.currency).code
     }
+    if (selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur") {
+      return getAlfaZenVariantConfig(undefined, inputs.currency).code
+    }
+    if (selectedProduct === "alfa_zen_pro") {
+      return getZenProVariantConfig(undefined, inputs.currency).code
+    }
+    if (selectedProduct === "generali_kabala") {
+      return getGeneraliKabalaU91VariantConfig(undefined, inputs.enableTaxCredit).code
+    }
+    if (selectedProduct === "generali_mylife_extra_plusz") {
+      return getGeneraliMylifeExtraPluszVariantConfig(undefined, inputs.enableTaxCredit).code
+    }
+    if (selectedProduct === "cig_nyugdijkotvenye") {
+      return CIG_NYUGDIJKOTVENYE_PRODUCT_CODE
+    }
+    if (selectedProduct === "cig_esszenciae") {
+      return CIG_ESSZENCIAE_PRODUCT_CODE
+    }
     return undefined
   }, [selectedProduct, inputs.enableTaxCredit, fortisVariantConfig.code, inputs.currency])
 
@@ -3257,10 +3569,65 @@ export function SavingsCalculator() {
         null
       )
     }
+    if (selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur") {
+      const wantedCode = getAlfaZenVariantConfig(undefined, inputs.currency).code
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.productCode === wantedCode) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "alfa_zen_pro") {
+      const wantedCode = getZenProVariantConfig(undefined, inputs.currency).code
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.productCode === wantedCode) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "generali_kabala") {
+      const wantedVariantValue = toGeneraliKabalaU91ProductVariantId(
+        resolveGeneraliKabalaU91Variant(undefined, inputs.enableTaxCredit),
+      )
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "generali_mylife_extra_plusz") {
+      const wantedVariantValue = toGeneraliMylifeExtraPluszProductVariantId(
+        resolveGeneraliMylifeExtraPluszVariant(undefined, inputs.enableTaxCredit),
+      )
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "cig_nyugdijkotvenye") {
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === CIG_NYUGDIJKOTVENYE_PRODUCT_VARIANT) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "cig_esszenciae") {
+      const wantedVariantValue = toCigEsszenciaeProductVariantId(resolveCigEsszenciaeVariant(undefined, inputs.currency))
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
     return selectedProductMetadata.variants[0] ?? null
   }, [selectedProductMetadata, selectedProduct, inputs.enableTaxCredit, fortisVariantConfig.code, inputs.currency])
 
   useEffect(() => {
+    if (selectedProduct === "alfa_zen_eur") {
+      setSelectedProduct("alfa_zen")
+      return
+    }
     if (!selectedInsurer) {
       if (selectedProduct !== null) setSelectedProduct(null)
       return
@@ -3304,6 +3671,24 @@ export function SavingsCalculator() {
     if (productValue === "alfa_relax_plusz") {
       return "alfa-relax-plusz"
     }
+    if (productValue === "alfa_zen" || productValue === "alfa_zen_eur") {
+      return "alfa-zen"
+    }
+    if (productValue === "alfa_zen_pro") {
+      return "alfa-zen-pro"
+    }
+    if (productValue === "generali_kabala") {
+      return "generali-kabala-u91"
+    }
+    if (productValue === "generali_mylife_extra_plusz") {
+      return "generali-mylife-extra-plusz"
+    }
+    if (productValue === "cig_nyugdijkotvenye") {
+      return "cig-nyugdijkotvenye"
+    }
+    if (productValue === "cig_esszenciae") {
+      return "cig-esszenciae"
+    }
     if (insurer === "Allianz") {
       if (productValue === "allianz_eletprogram" || productValue === "allianz_bonusz_eletprogram") {
         return "allianz-eletprogram"
@@ -3331,6 +3716,8 @@ export function SavingsCalculator() {
     setEurRateManuallyChanged(rate.source !== "default")
     setIsLoadingFx(false)
   }
+
+  const relevantFxRate = inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate
 
   const applyPreset = useCallback(() => {
     const products = selectedInsurer ? getAvailableProductsForInsurer(selectedInsurer) : []
@@ -4029,6 +4416,694 @@ export function SavingsCalculator() {
         setIsTaxBonusSeparateAccount(false)
         setIsAccountSplitOpen(true)
         setIsRedemptionOpen(true)
+      } else if (selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur") {
+        const resolvedVariant = resolveAlfaZenVariant(undefined, inputs.currency)
+        const variantConfig = getAlfaZenVariantConfig(undefined, inputs.currency)
+        const variantProductId = toAlfaZenProductVariantId(resolvedVariant)
+        const durationInYears = estimateAlfaZenDurationYears({
+          ...inputs,
+          durationUnit,
+          durationValue,
+          currency: variantConfig.currency,
+        })
+        const initialCostConfig = buildAlfaZenInitialCostByYear(durationInYears)
+        const investedShareConfig = buildAlfaZenInvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildAlfaZenRedemptionSchedule(durationInYears)
+        const bonusAmountConfig = buildAlfaZenBonusAmountByYear(
+          {
+            ...inputs,
+            durationUnit: "year",
+            durationValue: durationInYears,
+            currency: variantConfig.currency,
+            productVariant: variantProductId,
+          },
+          durationInYears,
+        )
+        const accountMaintenanceForFund = resolveAlfaZenAccountMaintenanceMonthlyPercent(selectedFundId, variantConfig)
+
+        setDurationUnit("year")
+        setDurationValue(durationInYears)
+        setInputs((prev) => ({
+          ...prev,
+          currency: variantConfig.currency,
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          initialCostBaseMode: "afterRisk",
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          assetBasedFeePercent: 0,
+          bonusMode: "none",
+          bonusOnContributionPercent: 0,
+          bonusPercent: 0,
+          bonusStartYear: 1,
+          bonusStopYear: 0,
+          enableTaxCredit: true,
+          taxCreditRatePercent: ALFA_ZEN_TAX_CREDIT_RATE_PERCENT,
+          taxCreditCapPerYear: resolveAlfaZenTaxCreditCapPerYear(variantConfig, prev.eurToHufRate, prev.usdToHufRate),
+          taxCreditYieldPercent: 1,
+          taxCreditCalendarPostingEnabled: true,
+          taxCreditStartYear: 1,
+          taxCreditEndYear: 0,
+          taxCreditAmountByYear: {},
+          taxCreditLimitByYear: {},
+          adminFeePercentOfPayment: ALFA_ZEN_REGULAR_ADMIN_FEE_PERCENT,
+          extraordinaryAdminFeePercentOfPayment: ALFA_ZEN_EXTRAORDINARY_ADMIN_FEE_PERCENT,
+          accountMaintenanceMonthlyPercent: accountMaintenanceForFund,
+          accountMaintenanceStartMonth: 1,
+          accountMaintenanceClientStartMonth: ALFA_ZEN_ACCOUNT_MAINTENANCE_CLIENT_START_MONTH,
+          accountMaintenanceInvestedStartMonth: ALFA_ZEN_ACCOUNT_MAINTENANCE_INVESTED_START_MONTH,
+          accountMaintenanceTaxBonusStartMonth: ALFA_ZEN_ACCOUNT_MAINTENANCE_TAXBONUS_START_MONTH,
+          plusCostByYear: {},
+          bonusAmountByYear: bonusAmountConfig,
+          redemptionEnabled: true,
+          redemptionBaseMode: "surplus-only",
+          redemptionFeeByYear: redemptionFeeConfig,
+          redemptionFeeDefaultPercent: 0,
+          isAccountSplitOpen: true,
+          isTaxBonusSeparateAccount: true,
+        }))
+        setInvestedShareByYear(investedShareConfig)
+        setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear({})
+        setRefundInitialCostBonusPercentByYear({})
+        setPlusCostByYear({})
+        setProductPresetBaseline({
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: accountMaintenanceForFund,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: ALFA_ZEN_REGULAR_ADMIN_FEE_PERCENT,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: {},
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: {},
+        })
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+        setRedemptionBaseMode("surplus-only")
+        setIsTaxBonusSeparateAccount(true)
+        setIsAccountSplitOpen(true)
+        setIsRedemptionOpen(true)
+      } else if (selectedProduct === "alfa_zen_pro") {
+        const preferredCurrency = inputs.currency === "EUR" || inputs.currency === "USD" ? inputs.currency : "HUF"
+        const variantConfig = getZenProVariantConfig(undefined, preferredCurrency)
+        const durationInYears = estimateZenProDurationYears({
+          ...inputs,
+          durationUnit,
+          durationValue,
+          currency: variantConfig.currency,
+        })
+        const initialCostConfig = buildZenProInitialCostByYear(durationInYears)
+        const investedShareConfig = buildZenProInvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildZenProRedemptionSchedule(durationInYears)
+        const bonusAmountConfig = buildZenProBonusAmountByYear(
+          {
+            ...inputs,
+            durationUnit: "year",
+            durationValue: durationInYears,
+            currency: variantConfig.currency,
+            productVariant: toZenProProductVariantId(variantConfig.variant),
+          },
+          durationInYears,
+          { variant: variantConfig.variant },
+        )
+        const taxCreditCapPerYear = resolveZenProTaxCreditCapPerYear(
+          variantConfig,
+          variantConfig.currency === "EUR" ? relevantFxRate : undefined,
+          variantConfig.currency === "USD" ? relevantFxRate : undefined,
+        )
+
+        setDurationUnit("year")
+        setDurationValue(durationInYears)
+        setInputs((prev) => ({
+          ...prev,
+          currency: variantConfig.currency,
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          initialCostBaseMode: "afterRisk",
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          assetBasedFeePercent: 0,
+          bonusMode: "none",
+          bonusOnContributionPercent: 0,
+          bonusPercent: 0,
+          bonusStartYear: 1,
+          bonusStopYear: 0,
+          enableTaxCredit: true,
+          taxCreditRatePercent: ZEN_PRO_TAX_CREDIT_RATE_PERCENT,
+          taxCreditCapPerYear,
+          taxCreditYieldPercent: 1,
+          taxCreditCalendarPostingEnabled: false,
+          taxCreditStartYear: 1,
+          taxCreditEndYear: 0,
+          taxCreditAmountByYear: {},
+          taxCreditLimitByYear: {},
+          adminFeePercentOfPayment: ZEN_PRO_REGULAR_ADMIN_FEE_PERCENT,
+          extraordinaryAdminFeePercentOfPayment: ZEN_PRO_EXTRAORDINARY_ADMIN_FEE_PERCENT,
+          accountMaintenanceMonthlyPercent: ZEN_PRO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT,
+          accountMaintenanceStartMonth: 1,
+          accountMaintenanceClientStartMonth: ZEN_PRO_ACCOUNT_MAINTENANCE_CLIENT_START_MONTH,
+          accountMaintenanceInvestedStartMonth: ZEN_PRO_ACCOUNT_MAINTENANCE_INVESTED_START_MONTH,
+          accountMaintenanceTaxBonusStartMonth: ZEN_PRO_ACCOUNT_MAINTENANCE_TAXBONUS_START_MONTH,
+          plusCostByYear: {},
+          bonusAmountByYear: bonusAmountConfig,
+          redemptionEnabled: true,
+          redemptionBaseMode: "total-account",
+          redemptionFeeByYear: redemptionFeeConfig,
+          redemptionFeeDefaultPercent: 0,
+          isAccountSplitOpen: true,
+          isTaxBonusSeparateAccount: true,
+        }))
+        setInvestedShareByYear(investedShareConfig)
+        setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear({})
+        setRefundInitialCostBonusPercentByYear({})
+        setPlusCostByYear({})
+        setProductPresetBaseline({
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: ZEN_PRO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: ZEN_PRO_REGULAR_ADMIN_FEE_PERCENT,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: {},
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: {},
+        })
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+        setRedemptionBaseMode("total-account")
+        setIsTaxBonusSeparateAccount(true)
+        setIsAccountSplitOpen(true)
+        setIsRedemptionOpen(true)
+      } else if (selectedProduct === "generali_kabala") {
+        const variantConfig = getGeneraliKabalaU91VariantConfig(undefined, inputs.enableTaxCredit)
+        const durationInYears = estimateGeneraliKabalaU91DurationYears(
+          {
+            ...inputs,
+            durationUnit,
+            durationValue,
+            currency: "HUF",
+          },
+          variantConfig,
+        )
+        const periodsPerYear =
+          inputs.frequency === "havi" ? 12 : inputs.frequency === "negyedéves" ? 4 : inputs.frequency === "féléves" ? 2 : 1
+        const baseYearlyPayment = inputs.keepYearlyPayment ? inputs.regularPayment * 12 : inputs.regularPayment * periodsPerYear
+        const yearlyPaymentsPlan = Array.from({ length: durationInYears + 1 }, (_, idx) => {
+          if (idx === 0) return 0
+          return baseYearlyPayment * Math.pow(1 + (inputs.annualIndexPercent ?? 0) / 100, idx - 1)
+        })
+        const yearlyWithdrawalsPlan = Array.from({ length: durationInYears + 1 }, () => 0)
+        const syntheticInputsForBonuses: InputsDaily = {
+          ...inputs,
+          currency: "HUF",
+          productVariant: toGeneraliKabalaU91ProductVariantId(variantConfig.variant),
+          durationUnit: "year",
+          durationValue: durationInYears,
+          yearsPlanned: durationInYears,
+          yearlyPaymentsPlan,
+          yearlyWithdrawalsPlan,
+          annualYieldPercent: inputs.annualYieldPercent,
+          frequency: inputs.frequency,
+        }
+        const initialCostConfig = buildGeneraliKabalaU91InitialCostByYear(durationInYears, variantConfig.variant)
+        const investedShareConfig = buildGeneraliKabalaU91InvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildGeneraliKabalaU91RedemptionFeeByYear(durationInYears)
+        const bonusOnContributionPercentConfig = buildGeneraliKabalaU91BonusOnContributionPercentByYear(
+          syntheticInputsForBonuses,
+          durationInYears,
+        )
+        const wealthBonusPercentConfig = buildGeneraliKabalaU91WealthBonusPercentByYear(durationInYears)
+        const loyaltyCreditBonusAmountConfig = buildGeneraliKabalaU91LoyaltyCreditBonusAmountByYear(
+          syntheticInputsForBonuses,
+          durationInYears,
+          variantConfig.variant,
+        )
+        const fidelityAccountBonusAmountConfig = buildGeneraliKabalaU91FidelityAccountBonusAmountByYear(
+          syntheticInputsForBonuses,
+          durationInYears,
+          variantConfig.variant,
+        )
+        const bonusAmountConfig: Record<number, number> = {}
+        for (const [yearKey, amount] of Object.entries(loyaltyCreditBonusAmountConfig)) {
+          const year = Number(yearKey)
+          bonusAmountConfig[year] = (bonusAmountConfig[year] ?? 0) + amount
+        }
+        for (const [yearKey, amount] of Object.entries(fidelityAccountBonusAmountConfig)) {
+          const year = Number(yearKey)
+          bonusAmountConfig[year] = (bonusAmountConfig[year] ?? 0) + amount
+        }
+        const plusCostConfig = buildGeneraliKabalaU91AdminPlusCostByYear(durationInYears)
+        const plusCostMonthlyInputConfig: Record<number, number> = {}
+        for (let year = 1; year <= durationInYears; year++) {
+          plusCostMonthlyInputConfig[year] = Math.round((plusCostConfig[year] ?? 0) / 12)
+        }
+        const accountMaintenanceForFund = resolveGeneraliKabalaU91AccountMaintenanceMonthlyPercent(selectedFundId)
+        const accountMaintenancePercentConfig: Record<number, number> = {}
+        for (let year = 1; year <= durationInYears; year++) {
+          accountMaintenancePercentConfig[year] = year <= 3 ? 0 : accountMaintenanceForFund
+        }
+
+        setDurationUnit("year")
+        setDurationValue(durationInYears)
+        setInputs((prev) => ({
+          ...prev,
+          currency: "HUF",
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          initialCostBaseMode: "afterRisk",
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          assetBasedFeePercent: 0,
+          bonusMode: "percentOnContribution",
+          bonusOnContributionPercent: 0,
+          bonusPercent: 0,
+          bonusStartYear: 1,
+          bonusStopYear: 0,
+          enableTaxCredit: variantConfig.taxCreditAllowed,
+          taxCreditRatePercent: variantConfig.taxCreditAllowed ? GENERALI_KABALA_U91_TAX_CREDIT_RATE_PERCENT : 0,
+          taxCreditCapPerYear: variantConfig.taxCreditAllowed ? GENERALI_KABALA_U91_TAX_CREDIT_CAP_HUF : 0,
+          taxCreditYieldPercent: variantConfig.taxCreditAllowed ? 1 : 0,
+          taxCreditCalendarPostingEnabled: variantConfig.taxCreditAllowed,
+          taxCreditStartYear: variantConfig.taxCreditAllowed ? 1 : 0,
+          taxCreditEndYear: variantConfig.taxCreditAllowed ? 0 : 0,
+          taxCreditAmountByYear: {},
+          taxCreditLimitByYear: {},
+          adminFeePercentOfPayment: 0,
+          extraordinaryAdminFeePercentOfPayment: GENERALI_KABALA_U91_EXTRA_DISTRIBUTION_FEE_PERCENT,
+          accountMaintenanceMonthlyPercent: accountMaintenanceForFund,
+          accountMaintenancePercentByYear: accountMaintenancePercentConfig,
+          accountMaintenanceStartMonth: 1,
+          accountMaintenanceClientStartMonth: GENERALI_KABALA_U91_ACCOUNT_MAINTENANCE_REGULAR_START_MONTH,
+          accountMaintenanceInvestedStartMonth: GENERALI_KABALA_U91_ACCOUNT_MAINTENANCE_REGULAR_START_MONTH,
+          accountMaintenanceTaxBonusStartMonth: variantConfig.taxCreditAllowed
+            ? GENERALI_KABALA_U91_ACCOUNT_MAINTENANCE_TAXBONUS_START_MONTH
+            : GENERALI_KABALA_U91_ACCOUNT_MAINTENANCE_REGULAR_START_MONTH,
+          plusCostByYear: plusCostMonthlyInputConfig,
+          bonusAmountByYear: bonusAmountConfig,
+          redemptionEnabled: true,
+          redemptionBaseMode: "total-account",
+          redemptionFeeByYear: redemptionFeeConfig,
+          redemptionFeeDefaultPercent: 0,
+          isAccountSplitOpen: false,
+          isTaxBonusSeparateAccount: variantConfig.taxCreditAllowed,
+          riskInsuranceEnabled: true,
+          riskInsuranceMonthlyFeeAmount: 0,
+          riskInsuranceDeathBenefitAmount: 100_000,
+          riskInsuranceStartYear: 1,
+          riskInsuranceEndYear: 1,
+          partialSurrenderFeeAmount: 0,
+          minimumBalanceAfterPartialSurrender: 100_000,
+        }))
+        setInvestedShareByYear(investedShareConfig)
+        setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear(accountMaintenancePercentConfig)
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear(bonusOnContributionPercentConfig)
+        setBonusPercentByYear(wealthBonusPercentConfig)
+        setRefundInitialCostBonusPercentByYear({})
+        setPlusCostByYear(plusCostMonthlyInputConfig)
+        setProductPresetBaseline({
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: accountMaintenanceForFund,
+          accountMaintenancePercentByYear: accountMaintenancePercentConfig,
+          adminFeePercentOfPayment: 0,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: bonusOnContributionPercentConfig,
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: wealthBonusPercentConfig,
+        })
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+        setRedemptionBaseMode("total-account")
+        setIsTaxBonusSeparateAccount(variantConfig.taxCreditAllowed)
+        setIsAccountSplitOpen(false)
+        setIsRedemptionOpen(true)
+      } else if (selectedProduct === "generali_mylife_extra_plusz") {
+        const variantConfig = getGeneraliMylifeExtraPluszVariantConfig(undefined, inputs.enableTaxCredit)
+        const durationInYears = estimateGeneraliMylifeExtraPluszDurationYears(
+          {
+            ...inputs,
+            durationUnit,
+            durationValue,
+            currency: "HUF",
+          },
+          variantConfig,
+        )
+        const periodsPerYear =
+          inputs.frequency === "havi" ? 12 : inputs.frequency === "negyedéves" ? 4 : inputs.frequency === "féléves" ? 2 : 1
+        const baseYearlyPayment = inputs.keepYearlyPayment ? inputs.regularPayment * 12 : inputs.regularPayment * periodsPerYear
+        const yearlyPaymentsPlan = Array.from({ length: durationInYears + 1 }, (_, idx) => {
+          if (idx === 0) return 0
+          return baseYearlyPayment * Math.pow(1 + (inputs.annualIndexPercent ?? 0) / 100, idx - 1)
+        })
+        const yearlyWithdrawalsPlan = Array.from({ length: durationInYears + 1 }, () => 0)
+        const syntheticInputsForBonuses: InputsDaily = {
+          ...inputs,
+          currency: "HUF",
+          productVariant: toGeneraliMylifeExtraPluszProductVariantId(variantConfig.variant),
+          durationUnit: "year",
+          durationValue: durationInYears,
+          yearsPlanned: durationInYears,
+          yearlyPaymentsPlan,
+          yearlyWithdrawalsPlan,
+          annualYieldPercent: inputs.annualYieldPercent,
+          frequency: inputs.frequency,
+        }
+        const initialCostConfig = buildGeneraliMylifeExtraPluszInitialCostByYear(durationInYears)
+        const investedShareConfig = buildGeneraliMylifeExtraPluszInvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildGeneraliMylifeExtraPluszRedemptionFeeByYear(durationInYears)
+        const bonusOnContributionPercentConfig = buildGeneraliMylifeExtraPluszBonusOnContributionPercentByYear(
+          syntheticInputsForBonuses,
+          durationInYears,
+        )
+        const wealthBonusPercentConfig = buildGeneraliMylifeExtraPluszWealthBonusPercentByYear(durationInYears)
+        const loyaltyBonusAmountConfig = buildGeneraliMylifeExtraPluszLoyaltyBonusAmountByYear(
+          syntheticInputsForBonuses,
+          durationInYears,
+        )
+        const plusCostConfig = buildGeneraliMylifeExtraPluszAdminPlusCostByYear(
+          syntheticInputsForBonuses,
+          durationInYears,
+        )
+        const accountMaintenanceForFund = resolveGeneraliMylifeExtraPluszAccountMaintenanceMonthlyPercent(selectedFundId)
+        const accountMaintenancePercentConfig: Record<number, number> = {}
+        for (let year = 1; year <= durationInYears; year++) {
+          accountMaintenancePercentConfig[year] = year <= 3 ? 0 : accountMaintenanceForFund
+        }
+
+        setDurationUnit("year")
+        setDurationValue(durationInYears)
+        setInputs((prev) => ({
+          ...prev,
+          currency: "HUF",
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          initialCostBaseMode: "afterRisk",
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          assetBasedFeePercent: 0,
+          bonusMode: "percentOnContribution",
+          bonusOnContributionPercent: 0,
+          bonusPercent: 0,
+          bonusStartYear: 1,
+          bonusStopYear: 0,
+          enableTaxCredit: variantConfig.taxCreditAllowed,
+          taxCreditRatePercent: variantConfig.taxCreditAllowed ? GENERALI_MYLIFE_EXTRA_PLUSZ_TAX_CREDIT_RATE_PERCENT : 0,
+          taxCreditCapPerYear: variantConfig.taxCreditAllowed ? GENERALI_MYLIFE_EXTRA_PLUSZ_TAX_CREDIT_CAP_HUF : 0,
+          taxCreditYieldPercent: variantConfig.taxCreditAllowed ? 1 : 0,
+          taxCreditCalendarPostingEnabled: variantConfig.taxCreditAllowed,
+          taxCreditStartYear: variantConfig.taxCreditAllowed ? 1 : 0,
+          taxCreditEndYear: variantConfig.taxCreditAllowed ? 0 : 0,
+          taxCreditAmountByYear: {},
+          taxCreditLimitByYear: {},
+          adminFeePercentOfPayment: 0,
+          extraordinaryAdminFeePercentOfPayment: GENERALI_MYLIFE_EXTRA_PLUSZ_EXTRA_DISTRIBUTION_FEE_PERCENT,
+          accountMaintenanceMonthlyPercent: accountMaintenanceForFund,
+          accountMaintenancePercentByYear: accountMaintenancePercentConfig,
+          accountMaintenanceStartMonth: 1,
+          accountMaintenanceClientStartMonth: GENERALI_MYLIFE_EXTRA_PLUSZ_ACCOUNT_MAINTENANCE_REGULAR_START_MONTH,
+          accountMaintenanceInvestedStartMonth: GENERALI_MYLIFE_EXTRA_PLUSZ_ACCOUNT_MAINTENANCE_REGULAR_START_MONTH,
+          accountMaintenanceTaxBonusStartMonth: GENERALI_MYLIFE_EXTRA_PLUSZ_ACCOUNT_MAINTENANCE_EXTRA_START_MONTH,
+          plusCostByYear: plusCostConfig,
+          bonusAmountByYear: loyaltyBonusAmountConfig,
+          redemptionEnabled: true,
+          redemptionBaseMode: "total-account",
+          redemptionFeeByYear: redemptionFeeConfig,
+          redemptionFeeDefaultPercent: 0,
+          isAccountSplitOpen: false,
+          isTaxBonusSeparateAccount: variantConfig.taxCreditAllowed,
+          riskInsuranceEnabled: true,
+          riskInsuranceMonthlyFeeAmount: 0,
+          riskInsuranceDeathBenefitAmount: 0,
+          riskInsuranceStartYear: 1,
+          riskInsuranceEndYear: 1,
+          partialSurrenderFeeAmount: 0,
+          minimumBalanceAfterPartialSurrender: 100_000,
+        }))
+        setInvestedShareByYear(investedShareConfig)
+        setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear(accountMaintenancePercentConfig)
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear(bonusOnContributionPercentConfig)
+        setBonusPercentByYear(wealthBonusPercentConfig)
+        setRefundInitialCostBonusPercentByYear({})
+        setPlusCostByYear(plusCostConfig)
+        setProductPresetBaseline({
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: accountMaintenanceForFund,
+          accountMaintenancePercentByYear: accountMaintenancePercentConfig,
+          adminFeePercentOfPayment: 0,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: bonusOnContributionPercentConfig,
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: wealthBonusPercentConfig,
+        })
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+        setRedemptionBaseMode("total-account")
+        setIsTaxBonusSeparateAccount(variantConfig.taxCreditAllowed)
+        setIsAccountSplitOpen(false)
+        setIsRedemptionOpen(true)
+      } else if (selectedProduct === "cig_esszenciae") {
+        const variantConfig = getCigEsszenciaeVariantConfig(undefined, inputs.currency)
+        const durationInYears = estimateCigEsszenciaeDurationYears({
+          ...inputs,
+          durationUnit,
+          durationValue,
+          currency: variantConfig.currency,
+        })
+        const syntheticInputsForBonuses: InputsDaily = {
+          ...inputs,
+          currency: variantConfig.currency,
+          productVariant: toCigEsszenciaeProductVariantId(variantConfig.variant),
+          durationUnit: "year",
+          durationValue: durationInYears,
+          yearsPlanned: durationInYears,
+          annualYieldPercent: inputs.annualYieldPercent,
+          frequency: inputs.frequency,
+          yearlyPaymentsPlan: [],
+          yearlyWithdrawalsPlan: [],
+        }
+        const initialCostConfig = buildCigEsszenciaeInitialCostByYear(durationInYears, variantConfig.variant)
+        const investedShareConfig = buildCigEsszenciaeInvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildCigEsszenciaeRedemptionFeeByYear(durationInYears)
+        const bonusAmountConfig = buildCigEsszenciaeBonusAmountByYear(
+          syntheticInputsForBonuses,
+          durationInYears,
+          variantConfig.variant,
+        )
+        const bonusPercentConfig = buildCigEsszenciaeBonusPercentByYear(durationInYears)
+        const partialSurrenderMin =
+          variantConfig.currency === "EUR" ? CIG_ESSZENCIAE_PARTIAL_SURRENDER_MIN_EUR : CIG_ESSZENCIAE_PARTIAL_SURRENDER_MIN_HUF
+
+        setDurationUnit("year")
+        setDurationValue(durationInYears)
+        setInputs((prev) => ({
+          ...prev,
+          currency: variantConfig.currency,
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          initialCostBaseMode: "payment",
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          assetBasedFeePercent: 0,
+          bonusMode: "none",
+          bonusOnContributionPercent: 0,
+          bonusPercent: 0,
+          bonusStartYear: 1,
+          bonusStopYear: 0,
+          enableTaxCredit: false,
+          taxCreditRatePercent: 0,
+          taxCreditCapPerYear: 0,
+          taxCreditYieldPercent: 0,
+          taxCreditCalendarPostingEnabled: false,
+          taxCreditStartYear: 0,
+          taxCreditEndYear: 0,
+          taxCreditAmountByYear: {},
+          taxCreditLimitByYear: {},
+          adminFeePercentOfPayment: 0,
+          extraordinaryAdminFeePercentOfPayment: 0,
+          accountMaintenanceMonthlyPercent: 0,
+          plusCostByYear: {},
+          bonusAmountByYear: bonusAmountConfig,
+          bonusPercentByYear: bonusPercentConfig,
+          redemptionEnabled: true,
+          redemptionBaseMode: "total-account",
+          redemptionFeeByYear: redemptionFeeConfig,
+          redemptionFeeDefaultPercent: 0,
+          isAccountSplitOpen: true,
+          isTaxBonusSeparateAccount: false,
+          riskInsuranceEnabled: false,
+          riskInsuranceMonthlyFeeAmount: 0,
+          riskInsuranceDeathBenefitAmount: 0,
+          riskInsuranceStartYear: 1,
+          riskInsuranceEndYear: 1,
+          partialSurrenderFeeAmount: partialSurrenderMin,
+          minimumBalanceAfterPartialSurrender: variantConfig.minAnnualPayment,
+          paidUpMaintenanceFeeMonthlyAmount: variantConfig.paidUpMaintenanceMonthlyAmount,
+          paidUpMaintenanceFeeStartMonth: 1,
+        }))
+        setInvestedShareByYear(investedShareConfig)
+        setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear({})
+        setBonusPercentByYear(bonusPercentConfig)
+        setRefundInitialCostBonusPercentByYear({})
+        setPlusCostByYear({})
+        setProductPresetBaseline({
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: 0,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: 0,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: 0,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: {},
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: bonusPercentConfig,
+        })
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+        setRedemptionBaseMode("total-account")
+        setIsTaxBonusSeparateAccount(false)
+        setIsAccountSplitOpen(true)
+        setIsRedemptionOpen(true)
+      } else if (selectedProduct === "cig_nyugdijkotvenye") {
+        const durationInYears = estimateCigNyugdijkotvenyeDurationYears({
+          ...inputs,
+          durationUnit,
+          durationValue,
+          currency: "HUF",
+        })
+        const syntheticInputsForBonuses: InputsDaily = {
+          ...inputs,
+          currency: "HUF",
+          productVariant: CIG_NYUGDIJKOTVENYE_PRODUCT_VARIANT,
+          durationUnit: "year",
+          durationValue: durationInYears,
+          yearsPlanned: durationInYears,
+          annualYieldPercent: inputs.annualYieldPercent,
+          frequency: inputs.frequency,
+          yearlyPaymentsPlan: [],
+          yearlyWithdrawalsPlan: [],
+        }
+        const initialCostConfig = buildCigNyugdijkotvenyeInitialCostByYear(durationInYears)
+        const investedShareConfig = buildCigNyugdijkotvenyeInvestedShareByYear(durationInYears)
+        const redemptionFeeConfig = buildCigNyugdijkotvenyeRedemptionFeeByYear(durationInYears)
+        const bonusAmountConfig = buildCigNyugdijkotvenyeBonusAmountByYear(syntheticInputsForBonuses, durationInYears)
+        const bonusPercentConfig = buildCigNyugdijkotvenyeBonusPercentByYear(durationInYears)
+        const assetFeePercent = resolveCigNyugdijkotvenyeAssetFeeAnnualPercent(selectedFundId)
+
+        setDurationUnit("year")
+        setDurationValue(durationInYears)
+        setInputs((prev) => ({
+          ...prev,
+          currency: "HUF",
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          initialCostBaseMode: "payment",
+          yearlyManagementFeePercent: 0,
+          yearlyFixedManagementFeeAmount: 0,
+          managementFeeFrequency: "éves",
+          managementFeeValueType: "percent",
+          managementFeeValue: 0,
+          assetBasedFeePercent: assetFeePercent,
+          bonusMode: "none",
+          bonusOnContributionPercent: 0,
+          bonusPercent: 0,
+          bonusStartYear: 1,
+          bonusStopYear: 0,
+          enableTaxCredit: true,
+          taxCreditRatePercent: CIG_NYUGDIJKOTVENYE_TAX_CREDIT_RATE_PERCENT,
+          taxCreditCapPerYear: resolveCigNyugdijkotvenyeTaxCreditCapPerYear(),
+          taxCreditYieldPercent: 1,
+          taxCreditCalendarPostingEnabled: true,
+          taxCreditStartYear: 1,
+          taxCreditEndYear: 0,
+          taxCreditAmountByYear: {},
+          taxCreditLimitByYear: {},
+          adminFeePercentOfPayment: 0,
+          extraordinaryAdminFeePercentOfPayment: 0,
+          accountMaintenanceMonthlyPercent: 0,
+          plusCostByYear: {},
+          bonusAmountByYear: bonusAmountConfig,
+          bonusPercentByYear: bonusPercentConfig,
+          redemptionEnabled: true,
+          redemptionBaseMode: "total-account",
+          redemptionFeeByYear: redemptionFeeConfig,
+          redemptionFeeDefaultPercent: 0,
+          isAccountSplitOpen: true,
+          isTaxBonusSeparateAccount: true,
+          riskInsuranceEnabled: false,
+          riskInsuranceMonthlyFeeAmount: 0,
+          riskInsuranceDeathBenefitAmount: 0,
+          riskInsuranceStartYear: 1,
+          riskInsuranceEndYear: 1,
+          partialSurrenderFeeAmount: 300,
+          minimumBalanceAfterPartialSurrender: 100_000,
+          paidUpMaintenanceFeeMonthlyAmount: CIG_NYUGDIJKOTVENYE_PAID_UP_MAINTENANCE_MONTHLY_AMOUNT,
+          paidUpMaintenanceFeeStartMonth: 1,
+        }))
+        setInvestedShareByYear(investedShareConfig)
+        setAssetCostPercentByYear({})
+        setAccountMaintenancePercentByYear({})
+        setAdminFeePercentByYear({})
+        setBonusOnContributionPercentByYear({})
+        setBonusPercentByYear(bonusPercentConfig)
+        setRefundInitialCostBonusPercentByYear({})
+        setPlusCostByYear({})
+        setProductPresetBaseline({
+          initialCostByYear: initialCostConfig,
+          initialCostDefaultPercent: 0,
+          assetBasedFeePercent: assetFeePercent,
+          assetCostPercentByYear: {},
+          accountMaintenanceMonthlyPercent: 0,
+          accountMaintenancePercentByYear: {},
+          adminFeePercentOfPayment: 0,
+          adminFeePercentByYear: {},
+          bonusOnContributionPercentByYear: {},
+          refundInitialCostBonusPercentByYear: {},
+          bonusPercentByYear: bonusPercentConfig,
+        })
+        setRedemptionFeeByYear(redemptionFeeConfig)
+        setRedemptionFeeDefaultPercent(0)
+        setRedemptionBaseMode("total-account")
+        setIsTaxBonusSeparateAccount(true)
+        setIsAccountSplitOpen(true)
+        setIsRedemptionOpen(true)
       } else {
         // Default placeholder for other products
         setInputs((prev) => ({
@@ -4080,7 +5155,8 @@ export function SavingsCalculator() {
     effectiveSelectedProductVariantCode,
     fortisVariantConfig,
     inputs.currency,
-    inputs.eurToHufRate,
+    inputs.enableTaxCredit,
+    relevantFxRate,
     selectedFundId,
     selectedInsurer,
     selectedProduct,
@@ -4096,7 +5172,7 @@ export function SavingsCalculator() {
       effectiveSelectedProductVariantCode ?? "",
       String(inputs.currency ?? ""),
       String(inputs.enableTaxCredit ?? false),
-      String(inputs.eurToHufRate ?? ""),
+      String(relevantFxRate ?? ""),
       selectedFundId ?? "",
     ].join("|")
 
@@ -4110,7 +5186,7 @@ export function SavingsCalculator() {
     effectiveSelectedProductVariantCode,
     inputs.currency,
     inputs.enableTaxCredit,
-    inputs.eurToHufRate,
+    relevantFxRate,
     selectedFundId,
   ])
 
@@ -4971,6 +6047,29 @@ export function SavingsCalculator() {
             ? "alfa_premium_selection_tr28"
           : "alfa_premium_selection_tr09"
     }
+    if (selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur") {
+      const variant = resolveAlfaZenVariant(undefined, inputs.currency)
+      return toAlfaZenProductVariantId(variant)
+    }
+    if (selectedProduct === "alfa_zen_pro") {
+      const variant = resolveZenProVariant(undefined, inputs.currency)
+      return toZenProProductVariantId(variant)
+    }
+    if (selectedProduct === "generali_kabala") {
+      const variant = resolveGeneraliKabalaU91Variant(undefined, inputs.enableTaxCredit)
+      return toGeneraliKabalaU91ProductVariantId(variant)
+    }
+    if (selectedProduct === "generali_mylife_extra_plusz") {
+      return toGeneraliMylifeExtraPluszProductVariantId(
+        resolveGeneraliMylifeExtraPluszVariant(undefined, inputs.enableTaxCredit),
+      )
+    }
+    if (selectedProduct === "cig_nyugdijkotvenye") {
+      return CIG_NYUGDIJKOTVENYE_PRODUCT_VARIANT
+    }
+    if (selectedProduct === "cig_esszenciae") {
+      return toCigEsszenciaeProductVariantId(resolveCigEsszenciaeVariant(undefined, inputs.currency))
+    }
     return selectedProduct ?? undefined
   }, [selectedProduct, inputs.currency, inputs.enableTaxCredit])
 
@@ -4992,10 +6091,16 @@ export function SavingsCalculator() {
     const isJovokepProduct = selectedProduct === "alfa_jovokep"
     const fortisConfig = isFortisProduct ? getFortisVariantConfig(engineProductVariant, inputs.currency) : null
     const resolvedDurationYears = toYearsFromDuration(durationUnit, durationValue)
+    const isGeneraliKabalaPension = selectedProduct === "generali_kabala" && inputs.enableTaxCredit
     const clampedEntryAge = isFortisProduct
       ? Math.min(FORTIS_MAX_ENTRY_AGE, Math.max(FORTIS_MIN_ENTRY_AGE, Math.round(inputs.insuredEntryAge ?? 38)))
       : isJovokepProduct
         ? clampJovokepEntryAge(inputs.insuredEntryAge, resolvedDurationYears)
+        : isGeneraliKabalaPension
+          ? Math.min(
+              GENERALI_KABALA_U91_PENSION_MAX_ENTRY_AGE,
+              Math.max(GENERALI_KABALA_U91_PENSION_MIN_ENTRY_AGE, Math.round(inputs.insuredEntryAge ?? 38)),
+            )
         : (inputs.insuredEntryAge ?? 38)
 
     return {
@@ -5017,7 +6122,12 @@ export function SavingsCalculator() {
       assetCostPercentByYear: assetCostPercentByYear,
       adminFeePercentByYear: adminFeePercentByYear,
       accountMaintenancePercentByYear: accountMaintenancePercentByYear,
-      plusCostByYear: plusCostByYear,
+      plusCostByYear:
+        selectedProduct === "generali_kabala"
+          ? Object.fromEntries(
+              Object.entries(plusCostByYear).map(([year, value]) => [Number(year), Math.max(0, value) * 12]),
+            )
+          : plusCostByYear,
       // </CHANGE>
       managementFeeFrequency: inputs.managementFeeFrequency, // Added managementFeeFrequency
       managementFeeValueType: inputs.managementFeeValueType, // Added managementFeeValueType
@@ -5273,6 +6383,10 @@ export function SavingsCalculator() {
                 ? JOVOTERVEZO_EXTRAORDINARY_ADMIN_FEE_PERCENT
                 : selectedProduct === "alfa_premium_selection"
                   ? PREMIUM_SELECTION_EXTRAORDINARY_ADMIN_FEE_PERCENT
+                  : selectedProduct === "alfa_zen_pro"
+                    ? ZEN_PRO_EXTRAORDINARY_ADMIN_FEE_PERCENT
+                : selectedProduct === "generali_kabala"
+                  ? GENERALI_KABALA_U91_EXTRA_DISTRIBUTION_FEE_PERCENT
                   : 0,
       adminFeePercentByYear: {},
       accountMaintenanceMonthlyPercent:
@@ -5286,6 +6400,10 @@ export function SavingsCalculator() {
                 ? JOVOTERVEZO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT
                 : selectedProduct === "alfa_relax_plusz"
                   ? 0.145
+                : selectedProduct === "alfa_zen_pro"
+                  ? ZEN_PRO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT
+                : selectedProduct === "generali_kabala"
+                  ? resolveGeneraliKabalaU91AccountMaintenanceMonthlyPercent(selectedFundId)
                 : selectedProduct === "alfa_premium_selection"
                 ? resolvePremiumSelectionAccountMaintenanceMonthlyPercent(
                     selectedFundId,
@@ -6178,7 +7296,12 @@ export function SavingsCalculator() {
     () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "asset") > 0),
     [adjustedResults?.yearlyBreakdown, getViewMetric],
   )
-  const effectiveShowAssetFeeColumn = showAssetFeeColumn || (isAllianzEletprogramView && isEsetiView)
+  const effectiveShowAssetFeeColumn =
+    showAssetFeeColumn ||
+    (isAllianzEletprogramView &&
+      (yearlyAccountView === "eseti" ||
+        yearlyAccountView === "eseti_tax_eligible" ||
+        yearlyAccountView === "eseti_immediate_access"))
   const showPlusCostColumn = useMemo(
     () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "plus") > 0),
     [adjustedResults?.yearlyBreakdown, getViewMetric],
@@ -6196,7 +7319,27 @@ export function SavingsCalculator() {
     selectedProduct !== "allianz_bonusz_eletprogram" &&
     selectedProduct !== "alfa_fortis" &&
     selectedProduct !== "alfa_jade" &&
-    selectedProduct !== "alfa_jovotervezo"
+    selectedProduct !== "alfa_jovotervezo" &&
+    selectedProduct !== "generali_kabala"
+  const kabalaLoyaltyBonusByYear = useMemo(() => {
+    if (selectedProduct !== "generali_kabala") return {}
+    const out: Record<number, number> = {}
+    const source = inputs.bonusAmountByYear ?? {}
+    for (let year = 1; year <= totalYearsForPlan; year++) {
+      out[year] = Math.max(0, source[year] ?? 0)
+    }
+    return out
+  }, [selectedProduct, inputs.bonusAmountByYear, totalYearsForPlan])
+  const kabalaLoyaltyBonusCumulativeByYear = useMemo(() => {
+    if (selectedProduct !== "generali_kabala") return {}
+    const out: Record<number, number> = {}
+    let runningTotal = 0
+    for (let year = 1; year <= totalYearsForPlan; year++) {
+      runningTotal += kabalaLoyaltyBonusByYear[year] ?? 0
+      out[year] = runningTotal
+    }
+    return out
+  }, [selectedProduct, kabalaLoyaltyBonusByYear, totalYearsForPlan])
 
   const addExtraService = () => {
     const newService: ExtraService = {
@@ -6414,8 +7557,18 @@ export function SavingsCalculator() {
     selectedProduct !== "alfa_fortis" &&
     selectedProduct !== "alfa_jade" &&
     selectedProduct !== "alfa_jovokep" &&
-    selectedProduct !== "alfa_jovotervezo"
-  const isTaxCreditMandatoryForSelectedProduct = selectedProduct === "alfa_relax_plusz"
+    selectedProduct !== "alfa_jovotervezo" &&
+    selectedProduct !== "cig_esszenciae"
+  const isTaxCreditMandatoryForSelectedProduct =
+    selectedProduct === "alfa_relax_plusz" ||
+    selectedProduct === "alfa_zen" ||
+    selectedProduct === "alfa_zen_eur" ||
+    selectedProduct === "alfa_zen_pro" ||
+    selectedProduct === "cig_nyugdijkotvenye"
+  const isTaxCreditLockedByCurrentView =
+    isSettingsEseti &&
+    selectedProduct !== "generali_kabala" &&
+    selectedProduct !== "generali_mylife_extra_plusz"
   const settingsDurationUnit = isSettingsEseti ? esetiDurationUnit : durationUnit
   const settingsDurationValue = isSettingsEseti ? esetiDurationValue : durationValue
   const settingsDurationMax =
@@ -6456,6 +7609,23 @@ export function SavingsCalculator() {
       setInputs((prev) => ({ ...prev, enableTaxCredit: true }))
     }
   }, [isTaxCreditSupportedForSelectedProduct, isTaxCreditMandatoryForSelectedProduct, inputs.enableTaxCredit])
+
+  const allianzExtraordinaryMinimumLabel = useMemo(() => {
+    if (!(selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram")) return null
+    const periodsPerYear =
+      inputs.frequency === "havi" ? 12 : inputs.frequency === "negyedéves" ? 4 : inputs.frequency === "féléves" ? 2 : 1
+    const yearlyPayment = inputs.keepYearlyPayment ? inputs.regularPayment * 12 : inputs.regularPayment * periodsPerYear
+    const periodicPayment = periodsPerYear > 0 ? yearlyPayment / periodsPerYear : 0
+    const minimumExtraordinaryPayment =
+      inputs.frequency === "havi"
+        ? yearlyPayment / 2
+        : inputs.frequency === "negyedéves"
+          ? yearlyPayment / 2
+          : periodicPayment * 1.1
+    const suffix = inputs.currency === "EUR" ? "Euro" : "Ft"
+    return `${formatNumber(minimumExtraordinaryPayment)} ${suffix}`
+  }, [selectedProduct, inputs.frequency, inputs.keepYearlyPayment, inputs.regularPayment, inputs.currency])
+
   const minimumAnnualFeeLabel =
     selectedProduct === "alfa_exclusive_plus"
       ? `${formatNumber(360000)} Ft`
@@ -6479,11 +7649,56 @@ export function SavingsCalculator() {
             : premiumSelectionVariantConfig.currency === "USD"
               ? `${formatNumber(premiumSelectionVariantConfig.minAnnualPayment)} USD`
             : `${formatNumber(premiumSelectionVariantConfig.minAnnualPayment)} Ft`
+        : selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur"
+          ? (() => {
+              const variantConfig = getAlfaZenVariantConfig(undefined, inputs.currency)
+              const suffix = variantConfig.currency === "USD" ? "USD" : "Euro"
+              return `${formatNumber(resolveAlfaZenMinimumAnnualPayment(toYearsFromDuration(durationUnit, durationValue)))} ${suffix}`
+            })()
+        : selectedProduct === "alfa_zen_pro"
+          ? (() => {
+              const variantConfig = getZenProVariantConfig(undefined, inputs.currency)
+              const suffix =
+                variantConfig.currency === "EUR" ? "Euro" : variantConfig.currency === "USD" ? "USD" : "Ft"
+              return `${formatNumber(resolveZenProMinimumAnnualPayment(toYearsFromDuration(durationUnit, durationValue), variantConfig))} ${suffix}`
+            })()
+        : selectedProduct === "cig_nyugdijkotvenye"
+          ? `${formatNumber(CIG_NYUGDIJKOTVENYE_MIN_ANNUAL_PAYMENT)} Ft`
+        : selectedProduct === "cig_esszenciae"
+          ? (() => {
+              const variant = getCigEsszenciaeVariantConfig(undefined, inputs.currency)
+              return `${formatNumber(variant.minAnnualPayment)} ${variant.currency === "EUR" ? "Euro" : "Ft"}`
+            })()
         : isAllianzEletprogramView
           ? inputs.currency === "EUR"
             ? "840 Euro"
             : `${formatNumber(144000)} Ft`
           : null
+  const cigDurationPolicyLabel =
+    selectedProduct === "cig_nyugdijkotvenye"
+      ? `Tartam: minimum ${formatNumber(CIG_NYUGDIJKOTVENYE_MIN_DURATION_YEARS)} év.`
+      : null
+  const cigEsszenciaeDurationPolicyLabel =
+    selectedProduct === "cig_esszenciae"
+      ? `Tartam: minimum ${formatNumber(CIG_ESSZENCIAE_MIN_DURATION_YEARS)} év, maximum 80 év (de legfeljebb 90 éves lejárati kor).`
+      : null
+  const generaliKabalaDurationLabel =
+    selectedProduct === "generali_kabala"
+      ? (() => {
+          const variantConfig = getGeneraliKabalaU91VariantConfig(undefined, inputs.enableTaxCredit)
+          return `${formatNumber(variantConfig.minimumDurationYears)}-${formatNumber(variantConfig.maximumDurationYears)} év tartam`
+        })()
+      : null
+  const generaliMylifeDurationPolicyLabel =
+    selectedProduct === "generali_mylife_extra_plusz"
+      ? (inputs.enableTaxCredit
+          ? "Nyugdíj variáns tartam: minimum 5 év, maximum 50 év."
+          : "Kezdeti megtakarítási tartam: 55 év felett min. 5 év, egyébként min. 10 év (jelenleg tájékoztató jelleggel).")
+      : null
+  const generaliMylifePaymentModeLabel =
+    selectedProduct === "generali_mylife_extra_plusz"
+      ? "Díjfizetési mód: átutalás vagy csoportos beszedés (csekk nem elérhető)."
+      : null
   const shouldWarnFortisAgeClamp =
     selectedProduct === "alfa_fortis" &&
     ((inputs.insuredEntryAge ?? 38) < FORTIS_MIN_ENTRY_AGE || (inputs.insuredEntryAge ?? 38) > FORTIS_MAX_ENTRY_AGE)
@@ -6495,6 +7710,11 @@ export function SavingsCalculator() {
   const shouldWarnJovokepAgeClamp =
     selectedProduct === "alfa_jovokep" &&
     ((inputs.insuredEntryAge ?? 38) < JOVOKEP_MIN_ENTRY_AGE || (inputs.insuredEntryAge ?? 38) > jovokepMaxAllowedEntryAge)
+  const shouldWarnGeneraliPensionAgeClamp =
+    selectedProduct === "generali_kabala" &&
+    inputs.enableTaxCredit &&
+    ((inputs.insuredEntryAge ?? 38) < GENERALI_KABALA_U91_PENSION_MIN_ENTRY_AGE ||
+      (inputs.insuredEntryAge ?? 38) > GENERALI_KABALA_U91_PENSION_MAX_ENTRY_AGE)
 
   useEffect(() => {
     // If account split controls are hidden, force the table back to total mode
@@ -7277,7 +8497,12 @@ export function SavingsCalculator() {
 
                   {(
                     minimumAnnualFeeLabel ||
-                    ((selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade" || selectedProduct === "alfa_jovokep" || selectedProduct === "alfa_jovotervezo" || selectedProduct === "alfa_premium_selection") && isSettingsEseti) ||
+                    cigEsszenciaeDurationPolicyLabel ||
+                    generaliKabalaDurationLabel ||
+                    generaliMylifeDurationPolicyLabel ||
+                    generaliMylifePaymentModeLabel ||
+                    cigDurationPolicyLabel ||
+                    ((selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade" || selectedProduct === "alfa_jovokep" || selectedProduct === "alfa_jovotervezo" || selectedProduct === "alfa_premium_selection" || selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur" || selectedProduct === "alfa_zen_pro" || selectedProduct === "generali_kabala" || selectedProduct === "generali_mylife_extra_plusz" || selectedProduct === "cig_nyugdijkotvenye" || selectedProduct === "cig_esszenciae") && isSettingsEseti) ||
                     (selectedProduct === "alfa_premium_selection" && inputs.enableTaxCredit && !isSettingsEseti) ||
                     shouldWarnFortisAgeClamp ||
                     shouldWarnJovokepAgeClamp ||
@@ -7285,6 +8510,11 @@ export function SavingsCalculator() {
                   ) && (
                     <div className={`flex flex-wrap items-center gap-3 text-xs ${isSettingsEseti ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
                       {minimumAnnualFeeLabel && <p>Minimum éves díj: {minimumAnnualFeeLabel}</p>}
+                      {cigEsszenciaeDurationPolicyLabel && <p>{cigEsszenciaeDurationPolicyLabel}</p>}
+                      {cigDurationPolicyLabel && <p>{cigDurationPolicyLabel}</p>}
+                      {generaliKabalaDurationLabel && <p>Tartam: {generaliKabalaDurationLabel}</p>}
+                      {generaliMylifeDurationPolicyLabel && <p>{generaliMylifeDurationPolicyLabel}</p>}
+                      {generaliMylifePaymentModeLabel && <p>{generaliMylifePaymentModeLabel}</p>}
                       {selectedProduct === "alfa_fortis" && isSettingsEseti && (
                         <p>
                           Eseti minimum díj:{" "}
@@ -7309,6 +8539,14 @@ export function SavingsCalculator() {
                       {selectedProduct === "alfa_jovotervezo" && isSettingsEseti && (
                         <p>Eseti minimum díj: {`${formatNumber(JOVOTERVEZO_MIN_EXTRAORDINARY_PAYMENT)} Ft`}</p>
                       )}
+                      {selectedProduct === "alfa_exclusive_plus" && isSettingsEseti && (
+                        <p>Eseti minimum díj: {`${formatNumber(ALFA_EXCLUSIVE_PLUS_MIN_EXTRAORDINARY_PAYMENT)} Ft`}</p>
+                      )}
+                      {(selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram") &&
+                        isSettingsEseti &&
+                        allianzExtraordinaryMinimumLabel && (
+                          <p>Eseti minimum díj: {allianzExtraordinaryMinimumLabel}</p>
+                        )}
                       {selectedProduct === "alfa_premium_selection" && isSettingsEseti && (
                         <p>
                           Eseti minimum díj:{" "}
@@ -7322,10 +8560,57 @@ export function SavingsCalculator() {
                       {selectedProduct === "alfa_premium_selection" && inputs.enableTaxCredit && !isSettingsEseti && (
                         <p>Minimum tartam: {`${formatNumber(PREMIUM_SELECTION_NY06_MIN_DURATION_YEARS)} év`}</p>
                       )}
+                      {(selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur") && isSettingsEseti && (
+                        <p>
+                          Eseti minimum díj:{" "}
+                          {`${formatNumber(ALFA_ZEN_MIN_EXTRAORDINARY_PAYMENT)} ${getAlfaZenVariantConfig(undefined, inputs.currency).currency === "USD" ? "USD" : "Euro"}`}
+                        </p>
+                      )}
+                      {selectedProduct === "alfa_zen_pro" && isSettingsEseti && (
+                        <p>
+                          Eseti minimum díj:{" "}
+                          {(() => {
+                            const variantConfig = getZenProVariantConfig(undefined, inputs.currency)
+                            const suffix =
+                              variantConfig.currency === "EUR" ? "Euro" : variantConfig.currency === "USD" ? "USD" : "Ft"
+                            return `${formatNumber(variantConfig.minExtraordinaryPayment)} ${suffix}`
+                          })()}
+                        </p>
+                      )}
+                      {selectedProduct === "generali_kabala" && isSettingsEseti && (
+                        <p>Eseti minimum díj: {`${formatNumber(GENERALI_KABALA_U91_MIN_EXTRAORDINARY_PAYMENT)} Ft`}</p>
+                      )}
+                      {selectedProduct === "generali_mylife_extra_plusz" && isSettingsEseti && (
+                        <p>Eseti minimum díj: {`${formatNumber(GENERALI_MYLIFE_EXTRA_PLUSZ_MIN_EXTRAORDINARY_PAYMENT)} Ft`}</p>
+                      )}
+                      {selectedProduct === "generali_mylife_extra_plusz" && (
+                        <p>Rendszeres pénzkivonás minimum: {`${formatNumber(GENERALI_MYLIFE_EXTRA_PLUSZ_MIN_REGULAR_WITHDRAWAL_MONTHLY)} Ft/hó`}</p>
+                      )}
+                      {selectedProduct === "cig_nyugdijkotvenye" && isSettingsEseti && (
+                        <p>Eseti minimum díj: {`${formatNumber(CIG_NYUGDIJKOTVENYE_MIN_EXTRAORDINARY_PAYMENT)} Ft`}</p>
+                      )}
+                      {selectedProduct === "cig_esszenciae" && isSettingsEseti && (
+                        <p>
+                          Eseti minimum díj:{" "}
+                          {(() => {
+                            const variantConfig = getCigEsszenciaeVariantConfig(undefined, inputs.currency)
+                            const suffix = variantConfig.currency === "EUR" ? "Euro" : "Ft"
+                            return `${formatNumber(variantConfig.minExtraordinaryPayment)} ${suffix}`
+                          })()}
+                        </p>
+                      )}
+                      {selectedProduct === "cig_nyugdijkotvenye" && (
+                        <p>Rendszeres pénzkivonás minimum: {`${formatNumber(CIG_NYUGDIJKOTVENYE_MIN_REGULAR_WITHDRAWAL_MONTHLY)} Ft/hó`}</p>
+                      )}
                       {shouldWarnFortisAgeClamp && <p className="text-amber-600">A belépési életkor Fortisnál 16-70 év között kerül figyelembe vételre.</p>}
                       {shouldWarnJovokepAgeClamp && (
                         <p className="text-amber-600">
                           A belépési életkor Jövőképnél 16-{jovokepMaxAllowedEntryAge} év között kerül figyelembe vételre (max. 75 év lejáratkor).
+                        </p>
+                      )}
+                      {shouldWarnGeneraliPensionAgeClamp && (
+                        <p className="text-amber-600">
+                          A Kabala Nyugdíj variánsnál a belépési életkor 15-55 év között kerül figyelembe vételre.
                         </p>
                       )}
                       {isSettingsEseti ? <p>Az eseti futamidő legfeljebb a fő számla futamideje lehet.</p> : null}
@@ -7423,12 +8708,14 @@ export function SavingsCalculator() {
                   {/* Tax Credit Section */}
                   <div
                     className={`pt-4 border-t space-y-4 ${
-                      isSettingsEseti || !isTaxCreditSupportedForSelectedProduct ? "opacity-60" : ""
+                      isTaxCreditLockedByCurrentView || !isTaxCreditSupportedForSelectedProduct ? "opacity-60" : ""
                     }`}
                   >
                     <label
                       className={`flex items-center gap-3 ${
-                        isSettingsEseti || !isTaxCreditSupportedForSelectedProduct || isTaxCreditMandatoryForSelectedProduct
+                        isTaxCreditLockedByCurrentView ||
+                        !isTaxCreditSupportedForSelectedProduct ||
+                        isTaxCreditMandatoryForSelectedProduct
                           ? "cursor-not-allowed"
                           : "cursor-pointer"
                       }`}
@@ -7437,7 +8724,7 @@ export function SavingsCalculator() {
                         checked={inputs.enableTaxCredit}
                         onCheckedChange={(checked) => {
                           if (
-                            !isSettingsEseti &&
+                            !isTaxCreditLockedByCurrentView &&
                             isTaxCreditSupportedForSelectedProduct &&
                             !isTaxCreditMandatoryForSelectedProduct
                           ) {
@@ -7450,11 +8737,15 @@ export function SavingsCalculator() {
                           }
                         }}
                         disabled={
-                          isSettingsEseti ||
+                          isTaxCreditLockedByCurrentView ||
                           !isTaxCreditSupportedForSelectedProduct ||
                           isTaxCreditMandatoryForSelectedProduct
                         }
-                        className="w-5 h-5"
+                        className={`w-5 h-5 ${
+                          isTaxCreditMandatoryForSelectedProduct
+                            ? "[&[data-state=checked]]:bg-muted [&[data-state=checked]]:border-muted-foreground/40"
+                            : ""
+                        }`}
                       />
                       <span>Adójóváírás bekapcsolása</span>
                     </label>
@@ -7468,12 +8759,12 @@ export function SavingsCalculator() {
                         Ennél a terméknél nincs adójóváírás.
                       </p>
                     ) : null}
-                    {isSettingsEseti ? (
+                    {isTaxCreditLockedByCurrentView ? (
                       <p className="text-xs text-muted-foreground">
                         Itt csak megjelenítjük az alapbeállításokban kiválasztott adójóváírás állapotot.
                       </p>
                     ) : null}
-                      {!isSettingsEseti && isTaxCreditSupportedForSelectedProduct && inputs.enableTaxCredit && (
+                      {!isTaxCreditLockedByCurrentView && isTaxCreditSupportedForSelectedProduct && inputs.enableTaxCredit && (
                         <>
                       <div className="space-y-2">
                         <Label>Adójóváírás mértéke (%)</Label>
@@ -7706,6 +8997,30 @@ export function SavingsCalculator() {
                                     EUR + adójóváírás=`NY12`, EUR + adójóváírás nélkül=`TR18`, USD + adójóváírás=`NY22`,
                                     USD + adójóváírás nélkül=`TR28`, HUF + adójóváírás=`NY06`, HUF + adójóváírás nélkül=`TR09`.
                                   </p>
+                                ) : selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur" ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    Az Alfa Zen termékváltozat automatikusan deviza alapján választódik:
+                                    EUR=`NY13`, USD=`NY23`.
+                                  </p>
+                                ) : selectedProduct === "alfa_zen_pro" ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    Az Alfa Zen Pro termékváltozat automatikusan deviza alapján választódik:
+                                    HUF=`NY-08`, EUR=`NY-14`, USD=`NY-24`.
+                                  </p>
+                                ) : selectedProduct === "generali_kabala" ? (
+                                  <div className="space-y-1 text-xs text-muted-foreground">
+                                    <p>
+                                      A Generali Kabala variáns az adójóváírás kapcsoló alapján választódik:
+                                      kikapcsolva=`U91 Élet`, bekapcsolva=`U91 Nyugdíj`.
+                                    </p>
+                                  </div>
+                                ) : selectedProduct === "generali_mylife_extra_plusz" ? (
+                                  <div className="space-y-1 text-xs text-muted-foreground">
+                                    <p>
+                                      A Generali MyLife Extra Plusz variáns az adójóváírás kapcsoló alapján választódik:
+                                      kikapcsolva=`U67P Élet`, bekapcsolva=`U67P Nyugdíj`.
+                                    </p>
+                                  </div>
                                 ) : null}
                                 {activeProductVariantMetadata ? (
                                   <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
@@ -7793,53 +9108,61 @@ export function SavingsCalculator() {
                   </div>
 
                   <div className="space-y-3 pt-4 border-t">
-                    <Collapsible open={isAccountSplitOpen} onOpenChange={setIsAccountSplitOpen}>
-                      <CollapsibleTrigger className="flex items-start justify-between w-full text-left group">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-base mb-1">
-                            Számlaértékek megoszlása (befektetésre kerülő összeg)
-                          </h3>
-                          <p className="text-sm text-muted-foreground">
-                            Ha meg van nyitva, az adott évben megadott % azt jelzi, a költségek levonása után a
-                            számlaérték mekkora része kerül befektetésre, így a Többletdíj számlára. A maradék
-                            automatikusan az Ügyfélérték számlára kerül.
-                          </p>
-                        </div>
-                        <ChevronDown
-                          className={`h-5 w-5 text-muted-foreground transition-transform ml-2 flex-shrink-0 ${
-                            isAccountSplitOpen ? "transform rotate-180" : ""
-                          }`}
-                        />
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="pt-3">
-                        <div className="mb-4 flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id="taxBonusSeparate"
-                            checked={isTaxBonusSeparateAccount}
-                            onChange={(e) => {
-                              setIsTaxBonusSeparateAccount(e.target.checked)
+                    {selectedProduct === "generali_kabala" || selectedProduct === "generali_mylife_extra_plusz" ? (
+                      <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                        {selectedProduct === "generali_kabala"
+                          ? "A Kabala U91 terméknél nincs Ügyfélérték/Többletdíj számla felosztás. A befizetések a Szerződő számláján kerülnek nyilvántartásra, nyugdíj variáns esetén az adójóváírás külön adójóváírási számlára kerül."
+                          : "A MyLife Extra Plusz U67P terméknél nincs Ügyfélérték/Többletdíj számla felosztás. A befizetések egységes szerződői számlán kerülnek nyilvántartásra."}
+                      </div>
+                    ) : (
+                      <Collapsible open={isAccountSplitOpen} onOpenChange={setIsAccountSplitOpen}>
+                        <CollapsibleTrigger className="flex items-start justify-between w-full text-left group">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-base mb-1">
+                              Számlaértékek megoszlása (befektetésre kerülő összeg)
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              Ha meg van nyitva, az adott évben megadott % azt jelzi, a költségek levonása után a
+                              számlaérték mekkora része kerül befektetésre, így a Többletdíj számlára. A maradék
+                              automatikusan az Ügyfélérték számlára kerül.
+                            </p>
+                          </div>
+                          <ChevronDown
+                            className={`h-5 w-5 text-muted-foreground transition-transform ml-2 flex-shrink-0 ${
+                              isAccountSplitOpen ? "transform rotate-180" : ""
+                            }`}
+                          />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-3">
+                          <div className="mb-4 flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="taxBonusSeparate"
+                              checked={isTaxBonusSeparateAccount}
+                              onChange={(e) => {
+                                setIsTaxBonusSeparateAccount(e.target.checked)
+                                if (appliedPresetLabel) setAppliedPresetLabel(null)
+                              }}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                            <label htmlFor="taxBonusSeparate" className="text-sm font-medium">
+                              Adójóváírás külön számlán kezelve
+                            </label>
+                          </div>
+                          {/* </CHANGE> */}
+                          <InvestedShareByYear
+                            termYears={totalYearsForPlan}
+                            investedShareByYear={investedShareByYear}
+                            defaultPercent={inputs.investedShareDefaultPercent || 100}
+                            onUpdate={(byYear, defaultPercent) => {
+                              setInvestedShareByYear(byYear)
+                              setInputs({ ...inputs, investedShareDefaultPercent: defaultPercent })
                               if (appliedPresetLabel) setAppliedPresetLabel(null)
                             }}
-                            className="h-4 w-4 rounded border-gray-300"
                           />
-                          <label htmlFor="taxBonusSeparate" className="text-sm font-medium">
-                            Adójóváírás külön számlán kezelve
-                          </label>
-                        </div>
-                        {/* </CHANGE> */}
-                        <InvestedShareByYear
-                          termYears={totalYearsForPlan}
-                          investedShareByYear={investedShareByYear}
-                          defaultPercent={inputs.investedShareDefaultPercent || 100}
-                          onUpdate={(byYear, defaultPercent) => {
-                            setInvestedShareByYear(byYear)
-                            setInputs({ ...inputs, investedShareDefaultPercent: defaultPercent })
-                            if (appliedPresetLabel) setAppliedPresetLabel(null)
-                          }}
-                        />
-                      </CollapsibleContent>
-                    </Collapsible>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
                   </div>
                   {/* </CHANGE> */}
 
@@ -9028,6 +10351,9 @@ export function SavingsCalculator() {
                         <col style={{ width: "120px" }} />
                       )}
                       {effectiveShowBonusColumns && showBonusBreakdown && <col style={{ width: "120px" }} />}
+                      {effectiveShowBonusColumns && showBonusBreakdown && selectedProduct === "generali_kabala" && (
+                        <col style={{ width: "120px" }} />
+                      )}
                       {enableRiskInsurance && <col style={{ width: "100px" }} />}
                       {totalExtraServicesCost > 0 && <col style={{ width: "100px" }} />}
                       {shouldShowTaxCreditInYearlyTable && <col style={{ width: "110px" }} />}
@@ -9094,7 +10420,7 @@ export function SavingsCalculator() {
                         )}
                         {showCostBreakdown && showAccountMaintenanceColumn && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("accountMaintenance")}>
-                            Számlavezetési költség
+                            {selectedProduct === "generali_kabala" ? "Vagyonarányos költség" : "Számlavezetési költség"}
                           </th>
                         )}
                         {showCostBreakdown && showManagementFeeColumn && (
@@ -9108,8 +10434,13 @@ export function SavingsCalculator() {
                           </th>
                         )}
                         {showCostBreakdown && showPlusCostColumn && (
-                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600" {...getYearlyHeaderInfoHandlers("plusCost")}>
-                            Plusz költség (Ft)
+                          <th
+                            className="py-3 px-3 text-right font-medium whitespace-nowrap text-red-600"
+                            {...getYearlyHeaderInfoHandlers(
+                              selectedProduct === "generali_kabala" ? "adminMonthlyCost" : "plusCost",
+                            )}
+                          >
+                            {selectedProduct === "generali_kabala" ? "Admin költs./hó (Ft)" : "Plusz költség (Ft)"}
                           </th>
                         )}
                         {showCostBreakdown && showAcquisitionColumn && shouldShowAcquisitionInYearlyTableView && (
@@ -9119,6 +10450,10 @@ export function SavingsCalculator() {
                               || selectedProduct === "alfa_jovokep"
                               || selectedProduct === "alfa_jovotervezo"
                               || selectedProduct === "alfa_premium_selection"
+                              || selectedProduct === "alfa_zen"
+                              || selectedProduct === "alfa_zen_eur"
+                              || selectedProduct === "alfa_zen_pro"
+                              || selectedProduct === "generali_kabala"
                               || selectedProduct === "alfa_exclusive_plus"
                               ? "Szerződéskötési költség"
                               : isAllianzEletprogramView
@@ -9157,7 +10492,17 @@ export function SavingsCalculator() {
                               ? "Bónusz (%)"
                               : selectedProduct === "allianz_bonusz_eletprogram"
                                 ? "Bónusz (%)"
+                                : selectedProduct === "generali_kabala"
+                                  ? "Díjbónusz (Ft)"
                                 : "Bónusz (Ft)"}
+                          </th>
+                        )}
+                        {effectiveShowBonusColumns && showBonusBreakdown && selectedProduct === "generali_kabala" && (
+                          <th
+                            className="py-3 px-3 text-right font-medium whitespace-nowrap text-emerald-600"
+                            {...getYearlyHeaderInfoHandlers("bonusAmount")}
+                          >
+                            Hűségjóváírás (Ft)
                           </th>
                         )}
                         {/* </CHANGE> */}
@@ -9280,6 +10625,12 @@ export function SavingsCalculator() {
                                     ? JOVOTERVEZO_REGULAR_ADMIN_FEE_PERCENT
                                     : selectedProduct === "alfa_premium_selection"
                                       ? PREMIUM_SELECTION_REGULAR_ADMIN_FEE_PERCENT
+                                    : selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur"
+                                      ? ALFA_ZEN_REGULAR_ADMIN_FEE_PERCENT
+                                    : selectedProduct === "alfa_zen_pro"
+                                      ? ZEN_PRO_REGULAR_ADMIN_FEE_PERCENT
+                                    : selectedProduct === "generali_kabala"
+                                      ? 0
                                     : 0))
                         const adminFeePercentDefault = baselineAdminFeePercent
                         const isAdminFeePercentModified = Math.abs(adminFeePercentDisplay - adminFeePercentDefault) > 1e-9
@@ -9304,6 +10655,15 @@ export function SavingsCalculator() {
                                     ? 0.145
                                     : selectedProduct === "alfa_premium_selection"
                                       ? PREMIUM_SELECTION_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT
+                                    : selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur"
+                                      ? resolveAlfaZenAccountMaintenanceMonthlyPercent(
+                                          selectedFundId,
+                                          getAlfaZenVariantConfig(undefined, inputs.currency),
+                                        )
+                                    : selectedProduct === "alfa_zen_pro"
+                                      ? ZEN_PRO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT
+                                    : selectedProduct === "generali_kabala"
+                                      ? resolveGeneraliKabalaU91AccountMaintenanceMonthlyPercent(selectedFundId)
                                     : 0))
                         const isAccountMaintenancePercentModified = Math.abs(
                           accountMaintenancePercentDisplay - baselineAccountMaintenancePercent,
@@ -9442,6 +10802,12 @@ export function SavingsCalculator() {
                         const yearlyDisplayData = buildDisplayDataForView(sourceYearRow)
 
                         const totalBonusForRow = (displayData.bonusForYear ?? 0) + (displayData.wealthBonusForYear ?? 0)
+                        const kabalaLoyaltyBonusForRow =
+                          selectedProduct === "generali_kabala"
+                            ? yearlyAggregationMode === "sum"
+                              ? (kabalaLoyaltyBonusCumulativeByYear[row.year] ?? 0)
+                              : (kabalaLoyaltyBonusByYear[row.year] ?? 0)
+                            : 0
                         const cumulativeRow = sourceCumulativeRow
                         let displayBalance = enableNetting ? netData.netBalance : yearlyDisplayData.endBalance
 
@@ -9549,7 +10915,7 @@ export function SavingsCalculator() {
                               </div>
                             </td>
                             {showCostBreakdown && showAdminCostColumn && (
-                              (selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade" || selectedProduct === "alfa_jovokep" || selectedProduct === "alfa_jovotervezo" || selectedProduct === "alfa_premium_selection") ? (
+                              (selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade" || selectedProduct === "alfa_jovokep" || selectedProduct === "alfa_jovotervezo" || selectedProduct === "alfa_premium_selection" || selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur" || selectedProduct === "alfa_zen_pro" || selectedProduct === "generali_kabala") ? (
                                 <td className="py-2 px-3 text-right align-top">
                                   <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                     <Input
@@ -9985,6 +11351,12 @@ export function SavingsCalculator() {
                                     </p>
                                   </div>
                                 </td>
+                              ) : selectedProduct === "generali_kabala" ? (
+                                <td className="py-2 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 align-top whitespace-nowrap">
+                                  <div className="flex items-center justify-end min-h-[44px]">
+                                    {formatValue(applyRealValueForYear(displayData.bonusForYear ?? 0), displayCurrency)}
+                                  </div>
+                                </td>
                               ) : (
                                 <td className="py-2 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 align-top whitespace-nowrap">
                                   <div className="flex items-center justify-end min-h-[44px]">
@@ -9992,6 +11364,13 @@ export function SavingsCalculator() {
                                   </div>
                                 </td>
                               )
+                            )}
+                            {effectiveShowBonusColumns && showBonusBreakdown && selectedProduct === "generali_kabala" && (
+                              <td className="py-2 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 align-top whitespace-nowrap">
+                                <div className="flex items-center justify-end min-h-[44px]">
+                                  {formatValue(applyRealValueForYear(kabalaLoyaltyBonusForRow), displayCurrency)}
+                                </div>
+                              </td>
                             )}
                             {/* </CHANGE> */}
                             {enableRiskInsurance && (

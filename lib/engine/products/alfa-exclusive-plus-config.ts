@@ -2,6 +2,8 @@ import type { InputsDaily } from "../calculate-results-daily"
 
 export type AlfaExclusivePlusVariant = "ny05" | "tr08"
 
+export const ALFA_EXCLUSIVE_PLUS_MIN_EXTRAORDINARY_PAYMENT = 50_000
+
 export interface AlfaExclusivePlusVariantConfig {
   variant: AlfaExclusivePlusVariant
   code: "NY-05" | "TR-08"
