@@ -184,7 +184,31 @@ const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
         },
       ]
     case "Grupama":
-      return []
+      return [
+        {
+          value: "groupama_easy",
+          label: "Groupama Easy Életbiztosítás",
+          productType: "Életbiztosítás",
+          mnbCode: "EASY",
+          productCode: "EASY",
+          variants: [
+            { label: "Easy Life (adójóváírás nélkül)", productType: "Életbiztosítás", mnbCode: "EASY", productCode: "EASY" },
+            { label: "Easy Life (adójóváírással)", productType: "Életbiztosítás", mnbCode: "EASY", productCode: "EASY" },
+          ],
+        },
+        {
+          value: "groupama_next",
+          label: "Groupama Next Életbiztosítás",
+          productType: "Életbiztosítás",
+          mnbCode: "NEXT",
+          productCode: "NEXT",
+          variants: [
+            { label: "100% UL / 0% hagyományos", productType: "Életbiztosítás", mnbCode: "NEXT", productCode: "NEXT" },
+            { label: "75% UL / 25% hagyományos", productType: "Életbiztosítás", mnbCode: "NEXT", productCode: "NEXT" },
+            { label: "0% UL / 100% hagyományos", productType: "Életbiztosítás", mnbCode: "NEXT", productCode: "NEXT" },
+          ],
+        },
+      ]
     case "KnH":
       return []
     case "Magyar Posta":
@@ -194,9 +218,78 @@ const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
     case "NN":
       return []
     case "Signal Iduna":
-      return []
+      return [
+        {
+          value: "signal_elorelato_ul001",
+          label: "Előrelátó Program",
+          productType: "Életbiztosítás",
+          mnbCode: "UL001",
+          productCode: "UL001",
+          variants: [{ label: "UL001", productType: "Életbiztosítás", mnbCode: "UL001", productCode: "UL001" }],
+        },
+        {
+          value: "signal_nyugdij_terv_plusz_ny010",
+          label: "SIGNAL Nyugdíj terv Plusz",
+          productType: "Nyugdíjbiztosítás",
+          mnbCode: "NY010",
+          productCode: "NY010",
+          variants: [{ label: "NY010", productType: "Nyugdíjbiztosítás", mnbCode: "NY010", productCode: "NY010" }],
+        },
+        {
+          value: "signal_nyugdijprogram_sn005",
+          label: "SIGNAL IDUNA Nyugdíjprogram",
+          productType: "Nyugdíjbiztosítás",
+          mnbCode: "SN005",
+          productCode: "SN005",
+          variants: [{ label: "SN005", productType: "Nyugdíjbiztosítás", mnbCode: "SN005", productCode: "SN005" }],
+        },
+        {
+          value: "signal_ongondoskodasi_wl009",
+          label: "Öngondoskodási terv 2.0 Plusz",
+          productType: "Életbiztosítás",
+          mnbCode: "WL009",
+          productCode: "WL009",
+          variants: [{ label: "WL009", productType: "Életbiztosítás", mnbCode: "WL009", productCode: "WL009" }],
+        },
+      ]
     case "Union":
       return [
+        {
+          value: "union_vienna_age_505",
+          label: "UNION Vienna Age Nyugdíjbiztosítás",
+          productType: "Nyugdíjbiztosítás",
+          mnbCode: "505",
+          productCode: "505",
+          variants: [
+            { label: "505 (HUF)", productType: "Nyugdíjbiztosítás", mnbCode: "505", productCode: "505" },
+            { label: "505 (EUR)", productType: "Nyugdíjbiztosítás", mnbCode: "505", productCode: "505" },
+            { label: "505 (USD)", productType: "Nyugdíjbiztosítás", mnbCode: "505", productCode: "505" },
+          ],
+        },
+        {
+          value: "union_vienna_plan_500",
+          label: "UNION Vienna Plan Életbiztosítás",
+          productType: "Életbiztosítás",
+          mnbCode: "500",
+          productCode: "500",
+          variants: [
+            { label: "500 (HUF)", productType: "Életbiztosítás", mnbCode: "500", productCode: "500" },
+            { label: "500 (EUR)", productType: "Életbiztosítás", mnbCode: "500", productCode: "500" },
+            { label: "500 (USD)", productType: "Életbiztosítás", mnbCode: "500", productCode: "500" },
+          ],
+        },
+        {
+          value: "union_vienna_time",
+          label: "UNION Vienna Time Nyugdíjbiztosítás",
+          productType: "Nyugdíjbiztosítás",
+          mnbCode: "564 / 584 / 606",
+          productCode: "564 / 584 / 606",
+          variants: [
+            { label: "Erste 564 (HUF)", productType: "Nyugdíjbiztosítás", mnbCode: "564", productCode: "564" },
+            { label: "Standard 584 (HUF)", productType: "Nyugdíjbiztosítás", mnbCode: "584", productCode: "584" },
+            { label: "Select 606 (HUF)", productType: "Nyugdíjbiztosítás", mnbCode: "606", productCode: "606" },
+          ],
+        },
         {
           value: "union_classic",
           label: "Classic",
@@ -206,7 +299,24 @@ const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
         },
       ]
     case "Uniqa":
-      return []
+      return [
+        {
+          value: "uniqa_eletcel_275",
+          label: "Életcél",
+          productType: "Életbiztosítás",
+          mnbCode: "275",
+          productCode: "275",
+          variants: [{ label: "275 (HUF)", productType: "Életbiztosítás", mnbCode: "275", productCode: "275" }],
+        },
+        {
+          value: "uniqa_premium_life_190",
+          label: "Premium Life",
+          productType: "Életbiztosítás",
+          mnbCode: "190",
+          productCode: "190",
+          variants: [{ label: "190 (HUF)", productType: "Életbiztosítás", mnbCode: "190", productCode: "190" }],
+        },
+      ]
     default:
       return []
   }
@@ -387,6 +497,17 @@ export default function OsszehasonlitasPage() {
     if (productValue === "generali_mylife_extra_plusz") return "generali-mylife-extra-plusz"
     if (productValue === "cig_esszenciae") return "cig-esszenciae"
     if (productValue === "cig_nyugdijkotvenye") return "cig-nyugdijkotvenye"
+    if (productValue === "signal_elorelato_ul001") return "signal-elorelato-ul001"
+    if (productValue === "signal_nyugdij_terv_plusz_ny010") return "signal-nyugdij-terv-plusz-ny010"
+    if (productValue === "signal_nyugdijprogram_sn005") return "signal-nyugdijprogram-sn005"
+    if (productValue === "signal_ongondoskodasi_wl009") return "signal-ongondoskodasi-wl009"
+    if (productValue === "union_vienna_age_505") return "union-vienna-age-505"
+    if (productValue === "union_vienna_plan_500") return "union-vienna-plan-500"
+    if (productValue === "union_vienna_time") return "union-vienna-time-584"
+    if (productValue === "uniqa_eletcel_275") return "uniqa-eletcel-275"
+    if (productValue === "uniqa_premium_life_190") return "uniqa-premium-life-190"
+    if (productValue === "groupama_next") return "groupama-next"
+    if (productValue === "groupama_easy") return "groupama-easy"
     if (insurer === "Allianz" && productValue.includes("allianz")) {
       return "allianz-eletprogram"
     }
@@ -440,6 +561,28 @@ export default function OsszehasonlitasPage() {
                       : inputs.currency === "EUR"
                         ? "EUR"
                         : "HUF"
+                : productValue === "signal_elorelato_ul001"
+                  ? "HUF"
+                : productValue === "signal_nyugdij_terv_plusz_ny010"
+                  ? "HUF"
+                : productValue === "signal_nyugdijprogram_sn005"
+                  ? "HUF"
+                : productValue === "signal_ongondoskodasi_wl009"
+                  ? "HUF"
+                : productValue === "union_vienna_age_505"
+                  ? (inputs.currency === "USD" ? "USD" : inputs.currency === "EUR" ? "EUR" : "HUF")
+                : productValue === "union_vienna_plan_500"
+                  ? (inputs.currency === "USD" ? "USD" : inputs.currency === "EUR" ? "EUR" : "HUF")
+                : productValue === "union_vienna_time"
+                  ? "HUF"
+                : productValue === "uniqa_eletcel_275"
+                  ? "HUF"
+                : productValue === "uniqa_premium_life_190"
+                  ? "HUF"
+                : productValue === "groupama_next"
+                  ? "HUF"
+                : productValue === "groupama_easy"
+                  ? "HUF"
                 : inputs.currency
           const effectiveProductVariant =
             productValue === "alfa_exclusive_plus"
@@ -484,6 +627,56 @@ export default function OsszehasonlitasPage() {
                     : effectiveCurrency === "EUR"
                       ? "alfa_premium_selection_tr18"
                       : "alfa_premium_selection_tr09"
+                : productValue === "signal_elorelato_ul001"
+                  ? "signal_elorelato_ul001_huf"
+                : productValue === "signal_nyugdij_terv_plusz_ny010"
+                  ? "signal_nyugdij_terv_plusz_ny010_huf"
+                : productValue === "signal_nyugdijprogram_sn005"
+                  ? "signal_nyugdijprogram_sn005_huf"
+                : productValue === "signal_ongondoskodasi_wl009"
+                  ? "signal_ongondoskodasi_wl009_huf"
+                : productValue === "union_vienna_age_505"
+                  ? (
+                      effectiveCurrency === "USD"
+                        ? ((inputs.productVariant ?? "").includes("__bonus_blocked")
+                            ? "union_vienna_age_505_usd__bonus_blocked"
+                            : "union_vienna_age_505_usd")
+                        : effectiveCurrency === "EUR"
+                          ? ((inputs.productVariant ?? "").includes("__bonus_blocked")
+                              ? "union_vienna_age_505_eur__bonus_blocked"
+                              : "union_vienna_age_505_eur")
+                          : ((inputs.productVariant ?? "").includes("__bonus_blocked")
+                              ? "union_vienna_age_505_huf__bonus_blocked"
+                              : "union_vienna_age_505_huf")
+                    )
+                : productValue === "union_vienna_plan_500"
+                  ? (
+                      effectiveCurrency === "USD"
+                        ? "union_vienna_plan_500_usd"
+                        : effectiveCurrency === "EUR"
+                          ? "union_vienna_plan_500_eur"
+                          : "union_vienna_plan_500_huf"
+                    )
+                : productValue === "union_vienna_time"
+                  ? (inputs.productVariant?.includes("564")
+                      ? "union_vienna_time_564"
+                      : inputs.productVariant?.includes("606")
+                        ? "union_vienna_time_606"
+                        : "union_vienna_time_584")
+                : productValue === "uniqa_eletcel_275"
+                  ? "uniqa_eletcel_275_huf"
+                : productValue === "uniqa_premium_life_190"
+                  ? "uniqa_premium_life_190_huf"
+                : productValue === "groupama_next"
+                  ? (
+                      (inputs.productVariant ?? "").includes("ul0")
+                        ? "groupama_next_ul0_trad100_huf"
+                        : (inputs.productVariant ?? "").includes("ul75")
+                          ? "groupama_next_ul75_trad25_huf"
+                          : "groupama_next_ul100_trad0_huf"
+                    )
+                : productValue === "groupama_easy"
+                  ? (inputs.enableTaxCredit ? "groupama_easy_life_tax_huf" : "groupama_easy_life_huf")
                 : productValue
           const durationInYears = Math.max(
             1,

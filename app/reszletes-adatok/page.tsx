@@ -198,6 +198,17 @@ export default function ReszletesAdatokPage() {
     if (selectedProduct === "generali_mylife_extra_plusz") return "generali-mylife-extra-plusz"
     if (selectedProduct === "cig_esszenciae") return "cig-esszenciae"
     if (selectedProduct === "cig_nyugdijkotvenye") return "cig-nyugdijkotvenye"
+    if (selectedProduct === "signal_elorelato_ul001") return "signal-elorelato-ul001"
+    if (selectedProduct === "signal_nyugdij_terv_plusz_ny010") return "signal-nyugdij-terv-plusz-ny010"
+    if (selectedProduct === "signal_nyugdijprogram_sn005") return "signal-nyugdijprogram-sn005"
+    if (selectedProduct === "signal_ongondoskodasi_wl009") return "signal-ongondoskodasi-wl009"
+    if (selectedProduct === "union_vienna_age_505") return "union-vienna-age-505"
+    if (selectedProduct === "union_vienna_plan_500") return "union-vienna-plan-500"
+    if (selectedProduct === "union_vienna_time") return "union-vienna-time-584"
+    if (selectedProduct === "uniqa_eletcel_275") return "uniqa-eletcel-275"
+    if (selectedProduct === "uniqa_premium_life_190") return "uniqa-premium-life-190"
+    if (selectedProduct === "groupama_next") return "groupama-next"
+    if (selectedProduct === "groupama_easy") return "groupama-easy"
     if (
       selectedInsurer === "Allianz" ||
       (selectedProduct && selectedProduct.includes("allianz"))
@@ -268,6 +279,28 @@ export default function ReszletesAdatokPage() {
                   : storedState.inputs.currency === "EUR"
                     ? "EUR"
                     : "HUF"
+            : storedState.selectedProduct === "signal_elorelato_ul001"
+              ? "HUF"
+            : storedState.selectedProduct === "signal_nyugdij_terv_plusz_ny010"
+              ? "HUF"
+            : storedState.selectedProduct === "signal_nyugdijprogram_sn005"
+              ? "HUF"
+            : storedState.selectedProduct === "signal_ongondoskodasi_wl009"
+              ? "HUF"
+            : storedState.selectedProduct === "union_vienna_age_505"
+              ? (storedState.inputs.currency === "USD" ? "USD" : storedState.inputs.currency === "EUR" ? "EUR" : "HUF")
+            : storedState.selectedProduct === "union_vienna_plan_500"
+              ? (storedState.inputs.currency === "USD" ? "USD" : storedState.inputs.currency === "EUR" ? "EUR" : "HUF")
+            : storedState.selectedProduct === "union_vienna_time"
+              ? "HUF"
+            : storedState.selectedProduct === "uniqa_eletcel_275"
+              ? "HUF"
+            : storedState.selectedProduct === "uniqa_premium_life_190"
+              ? "HUF"
+            : storedState.selectedProduct === "groupama_next"
+              ? "HUF"
+            : storedState.selectedProduct === "groupama_easy"
+              ? "HUF"
         : (storedState.inputs.currency ?? contextData?.currency ?? "HUF")
     ) as Currency
     const isAllianzProduct = productId === "allianz-eletprogram"
@@ -314,6 +347,56 @@ export default function ReszletesAdatokPage() {
               : calcCurrency === "EUR"
                 ? "alfa_premium_selection_tr18"
                 : "alfa_premium_selection_tr09"
+          : storedState.selectedProduct === "signal_elorelato_ul001"
+            ? "signal_elorelato_ul001_huf"
+          : storedState.selectedProduct === "signal_nyugdij_terv_plusz_ny010"
+            ? "signal_nyugdij_terv_plusz_ny010_huf"
+          : storedState.selectedProduct === "signal_nyugdijprogram_sn005"
+            ? "signal_nyugdijprogram_sn005_huf"
+          : storedState.selectedProduct === "signal_ongondoskodasi_wl009"
+            ? "signal_ongondoskodasi_wl009_huf"
+          : storedState.selectedProduct === "union_vienna_age_505"
+            ? (
+                calcCurrency === "USD"
+                  ? ((storedState.inputs.productVariant ?? "").includes("__bonus_blocked")
+                      ? "union_vienna_age_505_usd__bonus_blocked"
+                      : "union_vienna_age_505_usd")
+                  : calcCurrency === "EUR"
+                    ? ((storedState.inputs.productVariant ?? "").includes("__bonus_blocked")
+                        ? "union_vienna_age_505_eur__bonus_blocked"
+                        : "union_vienna_age_505_eur")
+                    : ((storedState.inputs.productVariant ?? "").includes("__bonus_blocked")
+                        ? "union_vienna_age_505_huf__bonus_blocked"
+                        : "union_vienna_age_505_huf")
+              )
+          : storedState.selectedProduct === "union_vienna_plan_500"
+            ? (
+                calcCurrency === "USD"
+                  ? "union_vienna_plan_500_usd"
+                  : calcCurrency === "EUR"
+                    ? "union_vienna_plan_500_eur"
+                    : "union_vienna_plan_500_huf"
+              )
+          : storedState.selectedProduct === "union_vienna_time"
+            ? (storedState.inputs.productVariant?.includes("564")
+                ? "union_vienna_time_564"
+                : storedState.inputs.productVariant?.includes("606")
+                  ? "union_vienna_time_606"
+                  : "union_vienna_time_584")
+          : storedState.selectedProduct === "uniqa_eletcel_275"
+            ? "uniqa_eletcel_275_huf"
+          : storedState.selectedProduct === "uniqa_premium_life_190"
+            ? "uniqa_premium_life_190_huf"
+          : storedState.selectedProduct === "groupama_next"
+            ? (
+                (storedState.inputs.productVariant ?? "").includes("ul0")
+                  ? "groupama_next_ul0_trad100_huf"
+                  : (storedState.inputs.productVariant ?? "").includes("ul75")
+                    ? "groupama_next_ul75_trad25_huf"
+                    : "groupama_next_ul100_trad0_huf"
+              )
+          : storedState.selectedProduct === "groupama_easy"
+            ? (storedState.inputs.enableTaxCredit ? "groupama_easy_life_tax_huf" : "groupama_easy_life_huf")
         : (storedState.selectedProduct ?? contextData?.selectedProduct ?? undefined)
     const adminFeeMonthlyAmount = isAllianzProduct ? (calcCurrency === "EUR" ? 3.3 : 990) : undefined
 

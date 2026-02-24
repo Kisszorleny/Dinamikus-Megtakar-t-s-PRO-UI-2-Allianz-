@@ -246,6 +246,17 @@ export default function OsszesitesPage() {
       cig_nyugdijkotvenye: "CIG Pannonia NyugdijkotvenyE",
       allianz_eletprogram: "Allianz Életprogram",
       allianz_bonusz_eletprogram: "Allianz Bónusz Életprogram",
+      signal_elorelato_ul001: "Signal Előrelátó Program (UL001)",
+      signal_nyugdij_terv_plusz_ny010: "SIGNAL Nyugdíj terv Plusz (NY010)",
+      signal_nyugdijprogram_sn005: "SIGNAL IDUNA Nyugdíjprogram (SN005)",
+      signal_ongondoskodasi_wl009: "Signal Öngondoskodási terv 2.0 Plusz (WL009)",
+      union_vienna_age_505: "UNION Vienna Age Nyugdíjbiztosítás (505)",
+      union_vienna_plan_500: "UNION Vienna Plan Életbiztosítás (500)",
+      union_vienna_time: "UNION Vienna Time Nyugdíjbiztosítás (564/584/606)",
+      uniqa_eletcel_275: "UNIQA Életcél (275)",
+      uniqa_premium_life_190: "UNIQA Premium Life (190)",
+      groupama_next: "Groupama Next Életbiztosítás",
+      groupama_easy: "Groupama Easy Életbiztosítás",
     }
     return productMap[productValue] || productValue
   }
@@ -266,6 +277,17 @@ export default function OsszesitesPage() {
     if (productValue === "generali_mylife_extra_plusz") return "generali-mylife-extra-plusz"
     if (productValue === "cig_esszenciae") return "cig-esszenciae"
     if (productValue === "cig_nyugdijkotvenye") return "cig-nyugdijkotvenye"
+    if (productValue === "signal_elorelato_ul001") return "signal-elorelato-ul001"
+    if (productValue === "signal_nyugdij_terv_plusz_ny010") return "signal-nyugdij-terv-plusz-ny010"
+    if (productValue === "signal_nyugdijprogram_sn005") return "signal-nyugdijprogram-sn005"
+    if (productValue === "signal_ongondoskodasi_wl009") return "signal-ongondoskodasi-wl009"
+    if (productValue === "union_vienna_age_505") return "union-vienna-age-505"
+    if (productValue === "union_vienna_plan_500") return "union-vienna-plan-500"
+    if (productValue === "union_vienna_time") return "union-vienna-time-584"
+    if (productValue === "uniqa_eletcel_275") return "uniqa-eletcel-275"
+    if (productValue === "uniqa_premium_life_190") return "uniqa-premium-life-190"
+    if (productValue === "groupama_next") return "groupama-next"
+    if (productValue === "groupama_easy") return "groupama-easy"
     if (insurer === "Allianz") {
       if (productValue === "allianz_eletprogram" || productValue === "allianz_bonusz_eletprogram") {
         return "allianz-eletprogram"
@@ -476,6 +498,28 @@ export default function OsszesitesPage() {
                   : inputs.currency === "EUR"
                     ? "EUR"
                     : "HUF"
+            : selectedProduct === "signal_elorelato_ul001"
+              ? "HUF"
+            : selectedProduct === "signal_nyugdij_terv_plusz_ny010"
+              ? "HUF"
+            : selectedProduct === "signal_nyugdijprogram_sn005"
+              ? "HUF"
+            : selectedProduct === "signal_ongondoskodasi_wl009"
+              ? "HUF"
+            : selectedProduct === "union_vienna_age_505"
+              ? (inputs.currency === "USD" ? "USD" : inputs.currency === "EUR" ? "EUR" : "HUF")
+            : selectedProduct === "union_vienna_plan_500"
+              ? (inputs.currency === "USD" ? "USD" : inputs.currency === "EUR" ? "EUR" : "HUF")
+            : selectedProduct === "union_vienna_time"
+              ? "HUF"
+            : selectedProduct === "uniqa_eletcel_275"
+              ? "HUF"
+            : selectedProduct === "uniqa_premium_life_190"
+              ? "HUF"
+            : selectedProduct === "groupama_next"
+              ? "HUF"
+            : selectedProduct === "groupama_easy"
+              ? "HUF"
             : inputs.currency
       let results: any
       let totalBonus = 0
@@ -524,6 +568,56 @@ export default function OsszesitesPage() {
                 : effectiveCurrency === "EUR"
                   ? "alfa_premium_selection_tr18"
                   : "alfa_premium_selection_tr09"
+            : selectedProduct === "signal_elorelato_ul001"
+              ? "signal_elorelato_ul001_huf"
+            : selectedProduct === "signal_nyugdij_terv_plusz_ny010"
+              ? "signal_nyugdij_terv_plusz_ny010_huf"
+            : selectedProduct === "signal_nyugdijprogram_sn005"
+              ? "signal_nyugdijprogram_sn005_huf"
+            : selectedProduct === "signal_ongondoskodasi_wl009"
+              ? "signal_ongondoskodasi_wl009_huf"
+            : selectedProduct === "union_vienna_age_505"
+              ? (
+                  effectiveCurrency === "USD"
+                    ? ((inputs.productVariant ?? "").includes("__bonus_blocked")
+                        ? "union_vienna_age_505_usd__bonus_blocked"
+                        : "union_vienna_age_505_usd")
+                    : effectiveCurrency === "EUR"
+                      ? ((inputs.productVariant ?? "").includes("__bonus_blocked")
+                          ? "union_vienna_age_505_eur__bonus_blocked"
+                          : "union_vienna_age_505_eur")
+                      : ((inputs.productVariant ?? "").includes("__bonus_blocked")
+                          ? "union_vienna_age_505_huf__bonus_blocked"
+                          : "union_vienna_age_505_huf")
+                )
+            : selectedProduct === "union_vienna_plan_500"
+              ? (
+                  effectiveCurrency === "USD"
+                    ? "union_vienna_plan_500_usd"
+                    : effectiveCurrency === "EUR"
+                      ? "union_vienna_plan_500_eur"
+                      : "union_vienna_plan_500_huf"
+                )
+            : selectedProduct === "union_vienna_time"
+              ? (inputs.productVariant?.includes("564")
+                  ? "union_vienna_time_564"
+                  : inputs.productVariant?.includes("606")
+                    ? "union_vienna_time_606"
+                    : "union_vienna_time_584")
+            : selectedProduct === "uniqa_eletcel_275"
+              ? "uniqa_eletcel_275_huf"
+            : selectedProduct === "uniqa_premium_life_190"
+              ? "uniqa_premium_life_190_huf"
+            : selectedProduct === "groupama_next"
+              ? (
+                  (inputs.productVariant ?? "").includes("ul0")
+                    ? "groupama_next_ul0_trad100_huf"
+                    : (inputs.productVariant ?? "").includes("ul75")
+                      ? "groupama_next_ul75_trad25_huf"
+                      : "groupama_next_ul100_trad0_huf"
+                )
+            : selectedProduct === "groupama_easy"
+              ? (inputs.enableTaxCredit ? "groupama_easy_life_tax_huf" : "groupama_easy_life_huf")
             : (selectedProduct ?? undefined)
         const dailyInputs: InputsDaily = {
           ...inputs,
