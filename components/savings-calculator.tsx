@@ -54,6 +54,7 @@ import { InvestedShareByYear } from "./invested-share-by-year" // Added import
 import { ColumnHoverInfoPanel } from "@/components/column-hover-info-panel"
 import { parseChartImageToSeries } from "@/lib/chart-image-parser"
 import type { ParsedChartSeries } from "@/lib/chart-series"
+import type { CustomPreset } from "@/lib/custom-presets/types"
 import {
   buildFortisBonusPercentByYear,
   FORTIS_MAX_ENTRY_AGE,
@@ -551,6 +552,18 @@ function minIsoDate(a: string, b: string): string {
   return a <= b ? a : b
 }
 
+function resolveCustomEntryYearValue(
+  row: any,
+  mode: "total" | "client" | "invested" | "taxBonus",
+  entryId: string,
+): number {
+  if (!row || !entryId) return 0
+  if (mode === "client") return row.client?.customEntriesById?.[entryId] ?? 0
+  if (mode === "invested") return row.invested?.customEntriesById?.[entryId] ?? 0
+  if (mode === "taxBonus") return row.taxBonus?.customEntriesById?.[entryId] ?? 0
+  return row.customEntriesById?.[entryId] ?? 0
+}
+
 type FundSeriesApiResponse = {
   source?: string
   updatedAt?: string
@@ -576,17 +589,38 @@ type FundSeriesApiResponse = {
 
 interface ManagementFee {
   id: string
+  label: string
   frequency: ManagementFeeFrequency
   valueType: ManagementFeeValueType
   value: number
-  account: "client" | "invested" | "taxBonus"
+  valueByYear?: Record<number, number>
+  account: "client" | "invested" | "taxBonus" | "main" | "eseti"
 }
 
 interface Bonus {
   id: string
   valueType: "percent" | "amount"
   value: number
-  account: "client" | "invested" | "taxBonus"
+  label?: string
+  valueByYear?: Record<number, number>
+  account: "client" | "invested" | "taxBonus" | "main" | "eseti"
+}
+
+type CustomEntryKind = "cost" | "bonus"
+type CustomEntryAccount = "client" | "invested" | "taxBonus" | "main" | "eseti"
+type CustomEntryValueType = "percent" | "amount"
+
+type CustomEntryDefinition = {
+  id: string
+  label: string
+  kind: CustomEntryKind
+  valueType: CustomEntryValueType
+  value: number
+  valueByYear?: Record<number, number>
+  account: CustomEntryAccount
+  frequency?: ManagementFeeFrequency
+  startYear?: number
+  stopYear?: number
 }
 
 // Added product metadata types
@@ -628,6 +662,7 @@ type YearRow = {
   endingInvestedValue: number
   endingClientValue: number
   endingTaxBonusValue?: number // Added for tooltip display
+  customEntriesById?: Record<string, number>
   client: {
     endBalance: number
     interestForYear: number
@@ -635,6 +670,7 @@ type YearRow = {
     assetBasedCostForYear: number
     plusCostForYear: number
     wealthBonusForYear: number
+    customEntriesById?: Record<string, number>
   }
   invested: {
     endBalance: number
@@ -643,6 +679,7 @@ type YearRow = {
     assetBasedCostForYear: number
     plusCostForYear: number
     wealthBonusForYear: number
+    customEntriesById?: Record<string, number>
   }
   taxBonus: {
     endBalance: number
@@ -651,6 +688,7 @@ type YearRow = {
     assetBasedCostForYear: number
     plusCostForYear: number
     wealthBonusForYear: number
+    customEntriesById?: Record<string, number>
   }
 }
 // </CHANGE>
@@ -2497,6 +2535,9 @@ export function SavingsCalculator() {
   // Bonuses array (multiple bonuses can be added)
   // Initialize with default value to avoid hydration mismatch
   const [bonuses, setBonuses] = useState<Bonus[]>([])
+  const [customPresets, setCustomPresets] = useState<CustomPreset[]>([])
+  const [selectedCustomPresetId, setSelectedCustomPresetId] = useState<string>("")
+  const [customPresetName, setCustomPresetName] = useState("")
   
   // Load from sessionStorage after hydration
   useEffect(() => {
@@ -2506,7 +2547,21 @@ export function SavingsCalculator() {
         try {
           const parsed = JSON.parse(stored)
           if (Array.isArray(parsed)) {
-            setBonuses(parsed)
+            const normalized = parsed
+              .filter(Boolean)
+              .map((bonus: any, index: number) => ({
+                ...bonus,
+                account:
+                  bonus?.account === "client" ||
+                  bonus?.account === "invested" ||
+                  bonus?.account === "taxBonus" ||
+                  bonus?.account === "main" ||
+                  bonus?.account === "eseti"
+                    ? bonus.account
+                    : "main",
+                id: typeof bonus?.id === "string" ? bonus.id : `bonus-${Date.now()}-${index}`,
+              }))
+            setBonuses(normalized)
           }
         } catch (e) {
           console.error("[v0] Failed to parse stored bonuses:", e)
@@ -2527,7 +2582,7 @@ export function SavingsCalculator() {
       id: `bonus-${Date.now()}`,
       valueType: "percent",
       value: 0,
-      account: "client",
+      account: customAccountOptions[0]?.value ?? "main",
     }
     setBonuses([...bonuses, newBonus])
     if (appliedPresetLabel) setAppliedPresetLabel(null)
@@ -2540,6 +2595,18 @@ export function SavingsCalculator() {
 
   const updateBonus = (id: string, updates: Partial<Bonus>) => {
     setBonuses(bonuses.map((b) => (b.id === id ? { ...b, ...updates } : b)))
+    if (appliedPresetLabel) setAppliedPresetLabel(null)
+  }
+
+  const updateBonusValueByYear = (id: string, year: number, value: number) => {
+    setBonuses((prev) =>
+      prev.map((bonus) => {
+        if (bonus.id !== id) return bonus
+        const nextByYear = { ...(bonus.valueByYear ?? {}) }
+        nextByYear[year] = value
+        return { ...bonus, valueByYear: nextByYear }
+      }),
+    )
     if (appliedPresetLabel) setAppliedPresetLabel(null)
   }
 
@@ -2635,16 +2702,8 @@ export function SavingsCalculator() {
   // </CHANGE>
 
   // Management fees array (multiple fees can be added)
-  // Initialize with default value to avoid hydration mismatch
-  const [managementFees, setManagementFees] = useState<ManagementFee[]>([
-    {
-      id: "fee-default",
-      frequency: "éves" as ManagementFeeFrequency,
-      valueType: "percent" as ManagementFeeValueType,
-      value: 0,
-      account: "client" as "client" | "invested" | "taxBonus",
-    },
-  ])
+  // Start empty; user adds rows via plus button (same UX as bonuses)
+  const [managementFees, setManagementFees] = useState<ManagementFee[]>([])
 
   // Load from sessionStorage after hydration
   useEffect(() => {
@@ -2653,8 +2712,51 @@ export function SavingsCalculator() {
       if (stored) {
         try {
           const parsed = JSON.parse(stored)
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setManagementFees(parsed)
+          if (Array.isArray(parsed)) {
+            const normalized: ManagementFee[] = parsed
+              .filter(Boolean)
+              .map((fee: any, index: number): ManagementFee => ({
+                id: typeof fee?.id === "string" ? fee.id : `fee-${Date.now()}-${index}`,
+                label:
+                  typeof fee?.label === "string" && fee.label.trim().length > 0
+                    ? fee.label.trim()
+                    : `Egyedi költség ${index + 1}`,
+                frequency:
+                  fee?.frequency === "napi" ||
+                  fee?.frequency === "havi" ||
+                  fee?.frequency === "negyedéves" ||
+                  fee?.frequency === "féléves" ||
+                  fee?.frequency === "éves"
+                    ? fee.frequency
+                    : "éves",
+                valueType:
+                  fee?.valueType === "amount" || fee?.valueType === "percent" ? fee.valueType : "percent",
+                value: Number.isFinite(Number(fee?.value)) ? Number(fee.value) : 0,
+                valueByYear:
+                  fee?.valueByYear && typeof fee.valueByYear === "object"
+                    ? Object.fromEntries(
+                        Object.entries(fee.valueByYear)
+                          .map(([year, value]) => [Number(year), Number(value)])
+                          .filter(([year, value]) => Number.isFinite(year) && Number.isFinite(value)),
+                      )
+                    : {},
+                account:
+                  fee?.account === "invested" ||
+                  fee?.account === "taxBonus" ||
+                  fee?.account === "client" ||
+                  fee?.account === "main" ||
+                  fee?.account === "eseti"
+                    ? fee.account
+                    : "main",
+              }))
+            const isLegacyDefaultOnly =
+              normalized.length === 1 &&
+              normalized[0]?.id === "fee-default" &&
+              (normalized[0]?.value ?? 0) === 0 &&
+              normalized[0]?.valueType === "percent" &&
+              normalized[0]?.frequency === "éves" &&
+              normalized[0]?.account === "client"
+            setManagementFees(isLegacyDefaultOnly ? [] : normalized)
           }
         } catch (e) {
           console.error("[v0] Failed to parse stored managementFees:", e)
@@ -2673,26 +2775,74 @@ export function SavingsCalculator() {
   const addManagementFee = () => {
     const newFee: ManagementFee = {
       id: `fee-${Date.now()}`,
+      label: `Egyedi költség ${managementFees.length + 1}`,
       frequency: "éves",
       valueType: "percent",
       value: 0,
-      account: "client",
+      valueByYear: {},
+      account: customAccountOptions[0]?.value ?? "main",
     }
     setManagementFees([...managementFees, newFee])
     if (appliedPresetLabel) setAppliedPresetLabel(null)
   }
 
   const removeManagementFee = (id: string) => {
-    if (managementFees.length > 1) {
-      setManagementFees(managementFees.filter((f) => f.id !== id))
-      if (appliedPresetLabel) setAppliedPresetLabel(null)
-    }
+    setManagementFees(managementFees.filter((f) => f.id !== id))
+    if (appliedPresetLabel) setAppliedPresetLabel(null)
   }
 
   const updateManagementFee = (id: string, updates: Partial<ManagementFee>) => {
     setManagementFees(managementFees.map((f) => (f.id === id ? { ...f, ...updates } : f)))
     if (appliedPresetLabel) setAppliedPresetLabel(null)
   }
+
+  const updateManagementFeeValueByYear = (id: string, year: number, value: number) => {
+    setManagementFees((prev) =>
+      prev.map((fee) => {
+        if (fee.id !== id) return fee
+        const nextByYear = { ...(fee.valueByYear ?? {}) }
+        nextByYear[year] = value
+        return { ...fee, valueByYear: nextByYear }
+      }),
+    )
+    if (appliedPresetLabel) setAppliedPresetLabel(null)
+  }
+
+  const customEntryDefinitions = useMemo<CustomEntryDefinition[]>(() => {
+    const feeEntries: CustomEntryDefinition[] = managementFees.map((fee, index) => ({
+      id: fee.id,
+      label: fee.label?.trim() || `Egyedi költség ${index + 1}`,
+      kind: "cost",
+      valueType: fee.valueType,
+      value: fee.value,
+      valueByYear: fee.valueByYear ?? {},
+      account: fee.account,
+      frequency: fee.frequency,
+      startYear: 1,
+      stopYear: 0,
+    }))
+    const bonusEntries: CustomEntryDefinition[] = bonuses.map((bonus, index) => ({
+      id: bonus.id,
+      label: `Egyedi bónusz ${index + 1}`,
+      kind: "bonus",
+      valueType: bonus.valueType,
+      value: bonus.value,
+      valueByYear: bonus.valueByYear ?? {},
+      account: bonus.account,
+      frequency: "éves",
+      startYear: 1,
+      stopYear: 0,
+    }))
+    return [...feeEntries, ...bonusEntries]
+  }, [managementFees, bonuses])
+  const customEntryDefinitionsMain = useMemo<CustomEntryDefinition[]>(
+    () => customEntryDefinitions.filter((entry) => entry.account !== "eseti"),
+    [customEntryDefinitions],
+  )
+  const customEntryDefinitionsEseti = useMemo<CustomEntryDefinition[]>(
+    () => customEntryDefinitions.filter((entry) => entry.account !== "main"),
+    [customEntryDefinitions],
+  )
 
   const [redemptionFeeByYear, setRedemptionFeeByYear] = useState<Record<number, number>>(() => {
     if (typeof window !== "undefined") {
@@ -2901,20 +3051,6 @@ export function SavingsCalculator() {
     }
   }, [isPresetCardOpen])
 
-  const [isCostsCardOpen, setIsCostsCardOpen] = useState(() => {
-    if (typeof window !== "undefined") {
-      const stored = sessionStorage.getItem("calculator-isCostsCardOpen")
-      return stored === "true"
-    }
-    return false
-  })
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("calculator-isCostsCardOpen", String(isCostsCardOpen))
-    }
-  }, [isCostsCardOpen])
-
   const [isCustomCostsCardOpen, setIsCustomCostsCardOpen] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = sessionStorage.getItem("calculator-isCustomCostsCardOpen")
@@ -3017,6 +3153,52 @@ export function SavingsCalculator() {
   )
   const isAllianzEletprogramView =
     selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram"
+  const customAccountOptions = useMemo<Array<{ value: CustomEntryAccount; label: string }>>(() => {
+    if (isAllianzEletprogramView) {
+      return [
+        { value: "main", label: "Fő" },
+        { value: "eseti", label: "Eseti" },
+      ]
+    }
+
+    if (isAccountSplitOpen) {
+      const splitOptions: Array<{ value: CustomEntryAccount; label: string }> = [
+        { value: "client", label: "Ügyfélérték" },
+        { value: "invested", label: "Többletdíj" },
+      ]
+      if (isTaxBonusSeparateAccount) {
+        splitOptions.push({ value: "taxBonus", label: "Adójóváírási számla" })
+      }
+      return splitOptions
+    }
+
+    return [{ value: "main", label: "Fő" }]
+  }, [isAccountSplitOpen, isTaxBonusSeparateAccount, isAllianzEletprogramView])
+
+  const normalizeCustomAccountForEditor = useCallback(
+    (account: CustomEntryAccount | undefined): CustomEntryAccount => {
+      if (!account) return customAccountOptions[0]?.value ?? "main"
+      const valid = customAccountOptions.some((option) => option.value === account)
+      return valid ? account : customAccountOptions[0]?.value ?? "main"
+    },
+    [customAccountOptions],
+  )
+  useEffect(() => {
+    setManagementFees((prev) => {
+      const normalized = prev.map((fee) => {
+        const nextAccount = normalizeCustomAccountForEditor(fee.account)
+        return nextAccount === fee.account ? fee : { ...fee, account: nextAccount }
+      })
+      return normalized
+    })
+    setBonuses((prev) => {
+      const normalized = prev.map((bonus) => {
+        const nextAccount = normalizeCustomAccountForEditor(bonus.account)
+        return nextAccount === bonus.account ? bonus : { ...bonus, account: nextAccount }
+      })
+      return normalized
+    })
+  }, [normalizeCustomAccountForEditor])
   const canUseFundYield = Boolean(selectedProduct)
   const allowedInputCurrencies = useMemo<Currency[]>(() => {
     if (selectedProduct === "alfa_exclusive_plus") return ["HUF"]
@@ -7252,6 +7434,7 @@ export function SavingsCalculator() {
       managementFeeFrequency: inputs.managementFeeFrequency, // Added managementFeeFrequency
       managementFeeValueType: inputs.managementFeeValueType, // Added managementFeeValueType
       managementFeeValue: inputs.managementFeeValue, // Added managementFeeValue
+      customEntries: customEntryDefinitionsMain,
       // </CHANGE>
       bonusPercentByYear: bonusPercentByYear, // Added bonusPercentByYear to daily inputs
       bonusOnContributionPercentByYear: bonusOnContributionPercentByYear,
@@ -7388,6 +7571,7 @@ export function SavingsCalculator() {
     inputs.managementFeeFrequency,
     inputs.managementFeeValueType,
     inputs.managementFeeValue,
+    customEntryDefinitionsMain,
     // </CHANGE>
     isTaxBonusSeparateAccount, // Added dependency
     // </CHANGE>
@@ -7464,6 +7648,7 @@ export function SavingsCalculator() {
 
     return {
       ...dailyInputs,
+      customEntries: customEntryDefinitionsEseti,
       disableProductDefaults: true,
       durationUnit: esetiDurationUnit,
       durationValue: Math.min(esetiDurationValue, esetiDurationMaxByUnit[esetiDurationUnit]),
@@ -7558,6 +7743,7 @@ export function SavingsCalculator() {
     }
   }, [
     dailyInputs,
+    customEntryDefinitionsEseti,
     esetiDurationUnit,
     esetiDurationValue,
     esetiDurationMaxByUnit,
@@ -8418,10 +8604,7 @@ export function SavingsCalculator() {
   )
   const effectiveShowAssetFeeColumn =
     showAssetFeeColumn ||
-    (isAllianzEletprogramView &&
-      (yearlyAccountView === "eseti" ||
-        yearlyAccountView === "eseti_tax_eligible" ||
-        yearlyAccountView === "eseti_immediate_access"))
+    isAllianzEletprogramView
   const showPlusCostColumn = useMemo(
     () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "plus") > 0),
     [adjustedResults?.yearlyBreakdown, getViewMetric],
@@ -8551,6 +8734,17 @@ export function SavingsCalculator() {
     } else {
       setPlusCostByYear((prev) => ({ ...prev, [year]: value }))
     }
+    setManagementFees((prev) => {
+      const target = prev.find((fee) => fee.valueType === "amount")
+      if (!target) return prev
+      return prev.map((fee) => {
+        if (fee.id !== target.id) return fee
+        const nextByYear = { ...(fee.valueByYear ?? {}) }
+        if (value === 0) delete nextByYear[year]
+        else nextByYear[year] = value
+        return { ...fee, valueByYear: nextByYear }
+      })
+    })
     if (appliedPresetLabel) setAppliedPresetLabel(null)
   }
   // </CHANGE>
@@ -8564,6 +8758,17 @@ export function SavingsCalculator() {
         updated[year] = percent
       }
       return updated
+    })
+    setBonuses((prev) => {
+      const target = prev.find((bonus) => bonus.valueType === "percent")
+      if (!target) return prev
+      return prev.map((bonus) => {
+        if (bonus.id !== target.id) return bonus
+        const nextByYear = { ...(bonus.valueByYear ?? {}) }
+        if (percent === 0) delete nextByYear[year]
+        else nextByYear[year] = percent
+        return { ...bonus, valueByYear: nextByYear }
+      })
     })
     if (appliedPresetLabel) setAppliedPresetLabel(null)
   }
@@ -8703,7 +8908,10 @@ export function SavingsCalculator() {
   const effectiveYearlyViewMode =
     yearlyAccountView === "main" && isAccountSplitOpen ? yearlyViewMode : "total"
   const hideAssetFeeBreakdownInYearlyTable =
-    isAccountSplitOpen && yearlyAccountView === "main" && effectiveYearlyViewMode === "total"
+    isAccountSplitOpen &&
+    yearlyAccountView === "main" &&
+    effectiveYearlyViewMode === "total" &&
+    !isAllianzEletprogramView
   const shouldShowTaxCreditInYearlyTable =
     inputs.enableTaxCredit &&
     !(selectedProduct === "alfa_exclusive_plus" && effectiveYearlyViewMode !== "taxBonus") &&
@@ -8714,6 +8922,208 @@ export function SavingsCalculator() {
     () => resolveProductContextKey(selectedProduct, { enableTaxCredit: inputs.enableTaxCredit, currency: inputs.currency }),
     [selectedProduct, inputs.enableTaxCredit, inputs.currency],
   )
+  const customYearlyColumns = useMemo(
+    () =>
+      customEntryDefinitions
+        .filter((entry) =>
+          isEsetiView ? entry.account !== "main" : entry.account !== "eseti",
+        )
+        .map((entry) => ({
+        id: `custom:${entry.id}`,
+        entryId: entry.id,
+        kind: entry.kind,
+        account: entry.account,
+        frequency: entry.frequency,
+        valueType: entry.valueType,
+        value: entry.value,
+        valueByYear: entry.valueByYear ?? {},
+        startYear: entry.startYear,
+        stopYear: entry.stopYear,
+        title: entry.label,
+        infoKey: `custom-entry:${entry.id}`,
+        className:
+          entry.kind === "cost"
+            ? "py-3 px-3 text-right font-medium whitespace-nowrap text-red-600"
+            : "py-3 px-3 text-right font-medium whitespace-nowrap text-emerald-600",
+        width: "130px",
+      })),
+    [customEntryDefinitions, isEsetiView],
+  )
+  const customCostYearlyColumns = useMemo(
+    () => customYearlyColumns.filter((column) => column.kind === "cost"),
+    [customYearlyColumns],
+  )
+  const customBonusYearlyColumns = useMemo(
+    () => customYearlyColumns.filter((column) => column.kind === "bonus"),
+    [customYearlyColumns],
+  )
+  const customColumnExplanations = useMemo(() => {
+    const accountLabelByKey: Record<CustomEntryAccount, string> = {
+      client: "Ügyfélérték",
+      invested: "Többletdíj",
+      taxBonus: "Adójóváírási számla",
+      main: "Fő",
+      eseti: "Eseti",
+    }
+    const frequencyLabelByKey: Record<ManagementFeeFrequency, string> = {
+      napi: "napi",
+      havi: "havi",
+      negyedéves: "negyedéves",
+      féléves: "féléves",
+      éves: "éves",
+    }
+
+    return Object.fromEntries(
+      customYearlyColumns.map((column) => {
+        const infoKey = column.infoKey
+        const typeLabel = column.kind === "cost" ? "Egyedi költség" : "Egyedi bónusz"
+        const frequency =
+          (column.frequency && frequencyLabelByKey[column.frequency]) || frequencyLabelByKey["éves"]
+        const valueLabel =
+          column.valueType === "percent"
+            ? `${column.value.toLocaleString("hu-HU", { maximumFractionDigits: 4 })}% (alapérték, évenként felülírható)`
+            : `${formatNumber(Math.round(column.value))} ${results.currency} (alapérték, évenként felülírható)`
+        const startYear = Math.max(1, Number(column.startYear ?? 1))
+        const stopYear = Number(column.stopYear ?? 0)
+        const yearsLabel = stopYear > 0 ? `${startYear}-${stopYear}. év` : `${startYear}. évtől`
+        const detail = `${typeLabel}, ${frequency} alkalmazás, ${valueLabel}, cél számla: ${accountLabelByKey[column.account]}, évek: ${yearsLabel}.`
+        return [
+          infoKey,
+          {
+            title: column.title,
+            summary: `${typeLabel} – a megadott beállítások alapján számolt dinamikus éves oszlop.`,
+            detail,
+          },
+        ]
+      }),
+    )
+  }, [customYearlyColumns, results.currency])
+
+  const loadCustomPresets = useCallback(async () => {
+    try {
+      const query = selectedProduct ? `?productScope=${encodeURIComponent(selectedProduct)}` : ""
+      const response = await fetch(`/api/custom-presets${query}`)
+      if (!response.ok) return
+      const data = await response.json()
+      setCustomPresets(Array.isArray(data?.presets) ? data.presets : [])
+    } catch (error) {
+      console.error("[v0] custom preset list error:", error)
+    }
+  }, [selectedProduct])
+
+  useEffect(() => {
+    void loadCustomPresets()
+  }, [loadCustomPresets])
+
+  const saveCurrentCustomPreset = useCallback(async () => {
+    const name = customPresetName.trim()
+    if (!name || customEntryDefinitions.length === 0) return
+    try {
+      const response = await fetch("/api/custom-presets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          productScope: selectedProduct ?? null,
+          entries: customEntryDefinitions,
+        }),
+      })
+      if (!response.ok) return
+      setCustomPresetName("")
+      await loadCustomPresets()
+    } catch (error) {
+      console.error("[v0] custom preset save error:", error)
+    }
+  }, [customPresetName, customEntryDefinitions, selectedProduct, loadCustomPresets])
+
+  const applyCustomPreset = useCallback((preset: CustomPreset) => {
+    const feeEntries = preset.entries.filter((entry) => entry.kind === "cost")
+    const bonusEntries = preset.entries.filter((entry) => entry.kind === "bonus")
+    setManagementFees(
+      feeEntries.length > 0
+        ? feeEntries.map((entry, index) => ({
+            id: entry.id || `fee-${Date.now()}-${index}`,
+            label: (entry.label || "").trim() || `Egyedi költség ${index + 1}`,
+            frequency: entry.frequency ?? "éves",
+            valueType: entry.valueType,
+            value: Number(entry.value ?? 0),
+            valueByYear:
+              entry.valueByYear && typeof entry.valueByYear === "object"
+                ? Object.fromEntries(
+                    Object.entries(entry.valueByYear)
+                      .map(([year, value]) => [Number(year), Number(value)])
+                      .filter(([year, value]) => Number.isFinite(year) && Number.isFinite(value)),
+                  )
+                : {},
+            account: normalizeCustomAccountForEditor(entry.account),
+          }))
+        : [
+            {
+              id: `fee-${Date.now()}`,
+              label: "Egyedi költség 1",
+              frequency: "éves",
+              valueType: "percent",
+              value: 0,
+              valueByYear: {},
+              account: "main",
+            },
+          ],
+    )
+    setBonuses(
+      bonusEntries.map((entry, index) => ({
+        id: entry.id || `bonus-${Date.now()}-${index}`,
+        valueType: entry.valueType,
+        value: Number(entry.value ?? 0),
+        valueByYear:
+          entry.valueByYear && typeof entry.valueByYear === "object"
+            ? Object.fromEntries(
+                Object.entries(entry.valueByYear)
+                  .map(([year, value]) => [Number(year), Number(value)])
+                  .filter(([year, value]) => Number.isFinite(year) && Number.isFinite(value)),
+              )
+            : {},
+        account: normalizeCustomAccountForEditor(entry.account),
+      })),
+    )
+  }, [normalizeCustomAccountForEditor])
+
+  const onSelectCustomPreset = useCallback(
+    (presetId: string) => {
+      setSelectedCustomPresetId(presetId)
+      const preset = customPresets.find((item) => item.id === presetId)
+      if (!preset) return
+      applyCustomPreset(preset)
+    },
+    [customPresets, applyCustomPreset],
+  )
+
+  const updateCurrentCustomPreset = useCallback(async () => {
+    if (!selectedCustomPresetId || customEntryDefinitions.length === 0) return
+    try {
+      const response = await fetch(`/api/custom-presets/${selectedCustomPresetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries: customEntryDefinitions, productScope: selectedProduct ?? null }),
+      })
+      if (!response.ok) return
+      await loadCustomPresets()
+    } catch (error) {
+      console.error("[v0] custom preset update error:", error)
+    }
+  }, [selectedCustomPresetId, customEntryDefinitions, selectedProduct, loadCustomPresets])
+
+  const deleteCurrentCustomPreset = useCallback(async () => {
+    if (!selectedCustomPresetId) return
+    try {
+      const response = await fetch(`/api/custom-presets/${selectedCustomPresetId}`, { method: "DELETE" })
+      if (!response.ok) return
+      setSelectedCustomPresetId("")
+      await loadCustomPresets()
+    } catch (error) {
+      console.error("[v0] custom preset delete error:", error)
+    }
+  }, [selectedCustomPresetId, loadCustomPresets])
+
   const getYearlyHeaderInfoHandlers = (key: string) => ({
     onMouseEnter: () => setActiveYearlyColumnInfoKey(key),
     onMouseLeave: () => setActiveYearlyColumnInfoKey(null),
@@ -10333,153 +10743,6 @@ export function SavingsCalculator() {
                 </Collapsible>
               </Card>
 
-              <Card className="w-full p-4 md:p-6">
-                <Collapsible open={isCostsCardOpen} onOpenChange={setIsCostsCardOpen}>
-                  <CollapsibleTrigger asChild>
-                    <CardHeader className="px-0 pt-0 cursor-pointer hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center justify-between">
-                  <CardTitle>Költségek és bónuszok</CardTitle>
-                        <ChevronDown
-                          className={`h-5 w-5 text-muted-foreground transition-transform ${
-                            isCostsCardOpen ? "transform rotate-180" : ""
-                          }`}
-                        />
-                      </div>
-                </CardHeader>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                <CardContent className="px-0 pb-0 space-y-6">
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-base border-b pb-2">Költségek</h3>
-
-                    {appliedPresetLabel && (
-                      <div className="bg-muted/50 rounded-md p-2 text-xs text-muted-foreground flex items-center justify-between">
-                        <span>
-                          <span className="font-medium">Preset:</span> {appliedPresetLabel}
-                        </span>
-                        <span className="text-[10px]">(felülírható)</span>
-                      </div>
-                    )}
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">{getAcquisitionCostTitle()}</Label>
-                      <InitialCostByYear
-                        termYears={totalYearsForPlan}
-                        initialCostByYear={inputs.initialCostByYear || {}}
-                        defaultPercent={inputs.initialCostDefaultPercent || 0}
-                        onUpdate={(byYear, defaultPercent) => {
-                          setInputs({
-                            ...inputs,
-                            initialCostByYear: byYear,
-                            initialCostDefaultPercent: defaultPercent,
-                          })
-                          if (appliedPresetLabel) setAppliedPresetLabel(null)
-                        }}
-                      />
-                    </div>
-
-                    {/* Management fees moved to separate card below */}
-                  </div>
-
-                  <div className="space-y-3 pt-4 border-t">
-                    {selectedProduct === "generali_kabala" || selectedProduct === "generali_mylife_extra_plusz" ? (
-                      <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-                        {selectedProduct === "generali_kabala"
-                          ? "A Kabala U91 terméknél nincs Ügyfélérték/Többletdíj számla felosztás. A befizetések a Szerződő számláján kerülnek nyilvántartásra, nyugdíj variáns esetén az adójóváírás külön adójóváírási számlára kerül."
-                          : "A MyLife Extra Plusz U67P terméknél nincs Ügyfélérték/Többletdíj számla felosztás. A befizetések egységes szerződői számlán kerülnek nyilvántartásra."}
-                      </div>
-                    ) : (
-                      <Collapsible open={isAccountSplitOpen} onOpenChange={setIsAccountSplitOpen}>
-                        <CollapsibleTrigger className="flex items-start justify-between w-full text-left group">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-base mb-1">
-                              Számlaértékek megoszlása (befektetésre kerülő összeg)
-                            </h3>
-                            <p className="text-sm text-muted-foreground">
-                              Ha meg van nyitva, az adott évben megadott % azt jelzi, a költségek levonása után a
-                              számlaérték mekkora része kerül befektetésre, így a Többletdíj számlára. A maradék
-                              automatikusan az Ügyfélérték számlára kerül.
-                            </p>
-                          </div>
-                          <ChevronDown
-                            className={`h-5 w-5 text-muted-foreground transition-transform ml-2 flex-shrink-0 ${
-                              isAccountSplitOpen ? "transform rotate-180" : ""
-                            }`}
-                          />
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="pt-3">
-                          <div className="mb-4 flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id="taxBonusSeparate"
-                              checked={isTaxBonusSeparateAccount}
-                              onChange={(e) => {
-                                setIsTaxBonusSeparateAccount(e.target.checked)
-                                if (appliedPresetLabel) setAppliedPresetLabel(null)
-                              }}
-                              className="h-4 w-4 rounded border-gray-300"
-                            />
-                            <label htmlFor="taxBonusSeparate" className="text-sm font-medium">
-                              Adójóváírás külön számlán kezelve
-                            </label>
-                          </div>
-                          {/* </CHANGE> */}
-                          <InvestedShareByYear
-                            termYears={totalYearsForPlan}
-                            investedShareByYear={investedShareByYear}
-                            defaultPercent={inputs.investedShareDefaultPercent || 100}
-                            onUpdate={(byYear, defaultPercent) => {
-                              setInvestedShareByYear(byYear)
-                              setInputs({ ...inputs, investedShareDefaultPercent: defaultPercent })
-                              if (appliedPresetLabel) setAppliedPresetLabel(null)
-                            }}
-                          />
-                        </CollapsibleContent>
-                      </Collapsible>
-                    )}
-                  </div>
-                  {/* </CHANGE> */}
-
-                  <div className="space-y-3 pt-4 border-t">
-                    <Collapsible open={isRedemptionOpen} onOpenChange={setIsRedemptionOpen}>
-                      <CollapsibleTrigger className="flex items-start justify-between w-full text-left group">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-base mb-1">Visszavásárlási költség</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Évenként megadható, hogy mekkora visszavásárlási költség terheli a számlaértéket.
-                          </p>
-                        </div>
-                        <ChevronDown
-                          className={`h-5 w-5 text-muted-foreground transition-transform ml-2 flex-shrink-0 ${
-                            isRedemptionOpen ? "transform rotate-180" : ""
-                          }`}
-                        />
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="pt-3">
-                        <RedemptionFeeByYear
-                          termYears={totalYearsForPlan}
-                          redemptionFeeByYear={redemptionFeeByYear}
-                          defaultPercent={redemptionFeeDefaultPercent}
-                          redemptionBaseMode={redemptionBaseMode}
-                          isAccountSplitOpen={isAccountSplitOpen}
-                          onUpdate={(byYear, defaultPercent) => {
-                            setRedemptionFeeByYear(byYear)
-                            setRedemptionFeeDefaultPercent(defaultPercent)
-                            if (appliedPresetLabel) setAppliedPresetLabel(null)
-                          }}
-                          onBaseModeChange={(mode) => {
-                            setRedemptionBaseMode(mode)
-                            if (appliedPresetLabel) setAppliedPresetLabel(null)
-                          }}
-                        />
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </div>
-                  {/* </CHANGE> */}
-                </CardContent>
-                  </CollapsibleContent>
-                </Collapsible>
-              </Card>
-
               {/* New card for custom costs and bonuses */}
               <Card className="w-full p-4 md:p-6">
                 <Collapsible open={isCustomCostsCardOpen} onOpenChange={setIsCustomCostsCardOpen}>
@@ -10497,6 +10760,65 @@ export function SavingsCalculator() {
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <CardContent className="px-0 pb-0 space-y-6">
+                  <div className="grid gap-2 md:grid-cols-[1fr_auto_auto] items-end p-3 rounded-lg border">
+                    <div className="space-y-1">
+                      <Label htmlFor="custom-preset-name">Sablon neve</Label>
+                      <Input
+                        id="custom-preset-name"
+                        value={customPresetName}
+                        onChange={(e) => setCustomPresetName(e.target.value)}
+                        placeholder="Pl. Kiemelt költség/bónusz mix"
+                        className="h-10"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="h-10"
+                      onClick={() => void saveCurrentCustomPreset()}
+                      disabled={!customPresetName.trim() || customEntryDefinitions.length === 0}
+                    >
+                      Mentés sablonként
+                    </Button>
+                    <Button type="button" variant="outline" className="h-10" onClick={() => void loadCustomPresets()}>
+                      Lista frissítése
+                    </Button>
+                    <div className="space-y-1 md:col-span-3">
+                      <Label htmlFor="custom-preset-select">Betöltés listából</Label>
+                      <div className="flex flex-col gap-2 md:flex-row">
+                        <Select value={selectedCustomPresetId} onValueChange={onSelectCustomPreset}>
+                          <SelectTrigger id="custom-preset-select" className="h-10 w-full md:max-w-md">
+                            <SelectValue placeholder="Válassz mentett sablont" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {customPresets.map((preset) => (
+                              <SelectItem key={preset.id} value={preset.id}>
+                                {preset.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-10"
+                          onClick={() => void updateCurrentCustomPreset()}
+                          disabled={!selectedCustomPresetId || customEntryDefinitions.length === 0}
+                        >
+                          Sablon frissítése
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          className="h-10"
+                          onClick={() => void deleteCurrentCustomPreset()}
+                          disabled={!selectedCustomPresetId}
+                        >
+                          Sablon törlése
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                   {/* Management Fees Section */}
                   <div className="space-y-3">
                     <h3 className="font-semibold text-base border-b pb-2">Egyedi költségek</h3>
@@ -10540,29 +10862,36 @@ export function SavingsCalculator() {
                                   </SelectContent>
                                 </Select>
                                 <span>)</span>
-                                {isAccountSplitOpen && (
+                                {customAccountOptions.length > 0 && (
                                   <>
                                     <span> rész</span>
                                     <Select
-                                      value={fee.account}
-                                      onValueChange={(value: "client" | "invested" | "taxBonus") => {
-                                        updateManagementFee(fee.id, { account: value })
+                                      value={normalizeCustomAccountForEditor(fee.account)}
+                                      onValueChange={(value: CustomEntryAccount) => {
+                                        updateManagementFee(fee.id, { account: normalizeCustomAccountForEditor(value) })
                                       }}
                                     >
                                       <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="client">Ügyfélérték</SelectItem>
-                                        <SelectItem value="invested">Többletdíj</SelectItem>
-                                        {isTaxBonusSeparateAccount && (
-                                          <SelectItem value="taxBonus">Adójóváírási számla</SelectItem>
-                                        )}
+                                        {customAccountOptions.map((option) => (
+                                          <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                          </SelectItem>
+                                        ))}
                                       </SelectContent>
                                     </Select>
                                   </>
                                 )}
                               </Label>
+                              <Input
+                                type="text"
+                                value={fee.label}
+                                onChange={(e) => updateManagementFee(fee.id, { label: e.target.value })}
+                                placeholder={`Egyedi költség ${index + 1} neve`}
+                                className="h-9"
+                              />
                               <Input
                                 type="text"
                                 inputMode="numeric"
@@ -10576,23 +10905,40 @@ export function SavingsCalculator() {
                                 onChange={(e) => {
                                   const parsed = parseNumber(e.target.value)
                                   if (!isNaN(parsed)) {
-                                    updateManagementFee(fee.id, { value: parsed })
+                                    if (fee.valueType !== "percent") {
+                                      updateManagementFee(fee.id, { value: parsed })
+                                      return
+                                    }
+                                    const selectedAccount = normalizeCustomAccountForEditor(fee.account)
+                                    const otherPercentCostsOnSameAccount = managementFees.reduce((sum, otherFee) => {
+                                      if (otherFee.id === fee.id) return sum
+                                      if (otherFee.valueType !== "percent") return sum
+                                      if (normalizeCustomAccountForEditor(otherFee.account) !== selectedAccount) return sum
+                                      return sum + Math.max(0, otherFee.value ?? 0)
+                                    }, 0)
+                                    const acquisitionPercentForAccount =
+                                      selectedAccount === "main" || selectedAccount === "eseti"
+                                        ? Math.max(0, inputs.initialCostDefaultPercent ?? 0)
+                                        : 0
+                                    const maxAllowedForThisEntry = Math.max(
+                                      0,
+                                      100 - acquisitionPercentForAccount - otherPercentCostsOnSameAccount,
+                                    )
+                                    updateManagementFee(fee.id, { value: Math.min(parsed, maxAllowedForThisEntry) })
                                   }
                                 }}
                                 min={0}
                                 className="h-11"
                               />
                             </div>
-                            {managementFees.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => removeManagementFee(fee.id)}
-                                className="mt-8 text-muted-foreground hover:text-foreground p-2"
-                                title="Törlés"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => removeManagementFee(fee.id)}
+                              className="mt-8 text-muted-foreground hover:text-foreground p-2"
+                              title="Törlés"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -10632,24 +10978,24 @@ export function SavingsCalculator() {
                                   </SelectContent>
                                 </Select>
                                 <span>)</span>
-                                {isAccountSplitOpen && (
+                                {customAccountOptions.length > 0 && (
                                   <>
                                     <span> rész</span>
                                     <Select
-                                      value={bonus.account}
-                                      onValueChange={(value: "client" | "invested" | "taxBonus") => {
-                                        updateBonus(bonus.id, { account: value })
+                                      value={normalizeCustomAccountForEditor(bonus.account)}
+                                      onValueChange={(value: CustomEntryAccount) => {
+                                        updateBonus(bonus.id, { account: normalizeCustomAccountForEditor(value) })
                                       }}
                                     >
                                       <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="client">Ügyfélérték</SelectItem>
-                                        <SelectItem value="invested">Többletdíj</SelectItem>
-                                        {isTaxBonusSeparateAccount && (
-                                          <SelectItem value="taxBonus">Adójóváírási számla</SelectItem>
-                                        )}
+                                        {customAccountOptions.map((option) => (
+                                          <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                          </SelectItem>
+                                        ))}
                                       </SelectContent>
                                     </Select>
                                   </>
@@ -11617,7 +11963,16 @@ export function SavingsCalculator() {
                       {showCostBreakdown && showAcquisitionColumn && shouldShowAcquisitionInYearlyTableView && (
                         <col style={{ width: "120px" }} />
                       )}
+                      {showCostBreakdown &&
+                        customCostYearlyColumns.map((column) => (
+                          <col key={column.id} style={{ width: column.width }} />
+                        ))}
                       <col style={{ width: "100px" }} />
+                      {effectiveShowBonusColumns &&
+                        showBonusBreakdown &&
+                        customBonusYearlyColumns.map((column) => (
+                          <col key={column.id} style={{ width: column.width }} />
+                        ))}
                       {effectiveShowBonusColumns &&
                         showBonusBreakdown &&
                         shouldShowWealthBonusPercentColumn && (
@@ -11734,6 +12089,15 @@ export function SavingsCalculator() {
                                 : "Akkvizíciós költség"}
                           </th>
                         )}
+                        {showCostBreakdown && customCostYearlyColumns.map((column) => (
+                          <th
+                            key={column.id}
+                            className={column.className}
+                            {...getYearlyHeaderInfoHandlers(column.infoKey)}
+                          >
+                            {column.title}
+                          </th>
+                        ))}
                         {effectiveShowBonusColumns && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap">
                             <button
@@ -11749,6 +12113,17 @@ export function SavingsCalculator() {
                             </button>
                           </th>
                         )}
+                        {effectiveShowBonusColumns &&
+                          showBonusBreakdown &&
+                          customBonusYearlyColumns.map((column) => (
+                            <th
+                              key={column.id}
+                              className={column.className}
+                              {...getYearlyHeaderInfoHandlers(column.infoKey)}
+                            >
+                              {column.title}
+                            </th>
+                          ))}
                         {effectiveShowBonusColumns &&
                           showBonusBreakdown &&
                           shouldShowWealthBonusPercentColumn && (
@@ -12488,6 +12863,122 @@ export function SavingsCalculator() {
                                 </div>
                               </td>
                             )}
+                            {showCostBreakdown && customCostYearlyColumns.map((column) => {
+                              const rawCustomValue = resolveCustomEntryYearValue(sourceRow, effectiveYearlyViewMode, column.entryId)
+                              const customEntry = customEntryDefinitions.find((entry) => entry.id === column.entryId)
+                              const isCustomPercent = customEntry?.valueType === "percent"
+                              const customEditorKey = `custom-entry-${column.entryId}-${row.year}`
+                              return (
+                                <td
+                                  key={`${row.year}-${column.id}`}
+                                  className={`py-2 px-3 text-right tabular-nums whitespace-nowrap align-top ${
+                                    column.kind === "cost"
+                                      ? "text-red-600"
+                                      : "text-emerald-600 dark:text-emerald-400"
+                                  }`}
+                                >
+                                  <div className="flex flex-col items-end gap-1 min-h-[44px]">
+                                    <Input
+                                      type="text"
+                                      inputMode="decimal"
+                                      disabled={isPartialRow}
+                                      value={
+                                        editingFields[customEditorKey]
+                                          ? String(customEntry?.valueByYear?.[row.year] ?? customEntry?.value ?? 0)
+                                          : isCustomPercent
+                                            ? (customEntry?.valueByYear?.[row.year] ?? customEntry?.value ?? 0)
+                                                .toLocaleString("hu-HU", { maximumFractionDigits: 4 })
+                                                .replace(/\u00A0/g, " ")
+                                            : formatNumber(Math.round(customEntry?.valueByYear?.[row.year] ?? customEntry?.value ?? 0))
+                                      }
+                                      onFocus={() => setFieldEditing(customEditorKey, true)}
+                                      onBlur={() => setFieldEditing(customEditorKey, false)}
+                                      onChange={(e) => {
+                                        const val = parseNumber(e.target.value)
+                                        if (isNaN(val) || val < 0) return
+                                        if (customEntry?.kind === "cost") {
+                                        const selectedAccount = normalizeCustomAccountForEditor(customEntry.account)
+                                          if (isCustomPercent) {
+                                            const otherPercentCostsOnSameAccount = managementFees.reduce((sum, fee) => {
+                                              if (fee.id === column.entryId) return sum
+                                              if (fee.valueType !== "percent") return sum
+                                              if (normalizeCustomAccountForEditor(fee.account) !== selectedAccount) return sum
+                                              return sum + Math.max(0, fee.valueByYear?.[row.year] ?? fee.value ?? 0)
+                                            }, 0)
+                                            const acquisitionPercentForAccount =
+                                              selectedAccount === "main" || selectedAccount === "eseti"
+                                                ? Math.max(0, acquisitionPercentDisplay)
+                                                : 0
+                                            const maxAllowedForThisEntry = Math.max(
+                                              0,
+                                              100 - acquisitionPercentForAccount - otherPercentCostsOnSameAccount,
+                                            )
+                                            updateManagementFeeValueByYear(
+                                              column.entryId,
+                                              row.year,
+                                              Math.min(val, maxAllowedForThisEntry),
+                                            )
+                                          } else {
+                                            const otherCustomContributionCostsForYear = managementFees.reduce((sum, fee) => {
+                                              if (fee.id === column.entryId) return sum
+                                              if (fee.valueType === "percent") {
+                                                const percentValue = Math.max(
+                                                  0,
+                                                  fee.valueByYear?.[row.year] ?? fee.value ?? 0,
+                                                )
+                                                return sum + (Math.max(0, displayPaymentValue) * percentValue) / 100
+                                              }
+                                              const amountValue = Math.max(
+                                                0,
+                                                fee.valueByYear?.[row.year] ?? fee.value ?? 0,
+                                              )
+                                              const frequencyMultiplier =
+                                                fee.frequency === "napi"
+                                                  ? 365
+                                                  : fee.frequency === "havi"
+                                                    ? 12
+                                                    : fee.frequency === "negyedéves"
+                                                      ? 4
+                                                      : fee.frequency === "féléves"
+                                                        ? 2
+                                                        : 1
+                                              return sum + amountValue * frequencyMultiplier
+                                            }, 0)
+                                            const nonCustomContributionCostsForYear = Math.max(
+                                              0,
+                                              (sourceRow.upfrontCostForYear ?? 0) +
+                                                (sourceRow.adminCostForYear ?? 0) +
+                                                (sourceRow.riskInsuranceCostForYear ?? 0),
+                                            )
+                                            const maxAllowedForThisEntry = Math.max(
+                                              0,
+                                              Math.floor(
+                                                Math.max(0, displayPaymentValue) -
+                                                  nonCustomContributionCostsForYear -
+                                                  otherCustomContributionCostsForYear,
+                                              ),
+                                            )
+                                            updateManagementFeeValueByYear(
+                                              column.entryId,
+                                              row.year,
+                                              Math.min(val, maxAllowedForThisEntry),
+                                            )
+                                          }
+                                        } else {
+                                          updateBonusValueByYear(column.entryId, row.year, val)
+                                        }
+                                      }}
+                                      className={`w-24 h-8 text-right tabular-nums ${
+                                        column.kind === "cost" ? "text-red-600" : "text-emerald-600"
+                                      }`}
+                                    />
+                                    <p className="text-xs text-muted-foreground tabular-nums">
+                                      {formatValue(applyRealValueForYear(rawCustomValue), displayCurrency)}
+                                    </p>
+                                  </div>
+                                </td>
+                              )
+                            })}
                             {effectiveShowBonusColumns && (
                               <td className="py-2 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 align-top whitespace-nowrap">
                                 <div className="flex items-center justify-end min-h-[44px]">
@@ -12500,6 +12991,122 @@ export function SavingsCalculator() {
                                 </div>
                               </td>
                             )}
+                            {effectiveShowBonusColumns && showBonusBreakdown && customBonusYearlyColumns.map((column) => {
+                              const rawCustomValue = resolveCustomEntryYearValue(sourceRow, effectiveYearlyViewMode, column.entryId)
+                              const customEntry = customEntryDefinitions.find((entry) => entry.id === column.entryId)
+                              const isCustomPercent = customEntry?.valueType === "percent"
+                              const customEditorKey = `custom-entry-${column.entryId}-${row.year}`
+                              return (
+                                <td
+                                  key={`${row.year}-${column.id}`}
+                                  className={`py-2 px-3 text-right tabular-nums whitespace-nowrap align-top ${
+                                    column.kind === "cost"
+                                      ? "text-red-600"
+                                      : "text-emerald-600 dark:text-emerald-400"
+                                  }`}
+                                >
+                                  <div className="flex flex-col items-end gap-1 min-h-[44px]">
+                                    <Input
+                                      type="text"
+                                      inputMode="decimal"
+                                      disabled={isPartialRow}
+                                      value={
+                                        editingFields[customEditorKey]
+                                          ? String(customEntry?.valueByYear?.[row.year] ?? customEntry?.value ?? 0)
+                                          : isCustomPercent
+                                            ? (customEntry?.valueByYear?.[row.year] ?? customEntry?.value ?? 0)
+                                                .toLocaleString("hu-HU", { maximumFractionDigits: 4 })
+                                                .replace(/\u00A0/g, " ")
+                                            : formatNumber(Math.round(customEntry?.valueByYear?.[row.year] ?? customEntry?.value ?? 0))
+                                      }
+                                      onFocus={() => setFieldEditing(customEditorKey, true)}
+                                      onBlur={() => setFieldEditing(customEditorKey, false)}
+                                      onChange={(e) => {
+                                        const val = parseNumber(e.target.value)
+                                        if (isNaN(val) || val < 0) return
+                                        if (customEntry?.kind === "cost") {
+                                        const selectedAccount = normalizeCustomAccountForEditor(customEntry.account)
+                                          if (isCustomPercent) {
+                                            const otherPercentCostsOnSameAccount = managementFees.reduce((sum, fee) => {
+                                              if (fee.id === column.entryId) return sum
+                                              if (fee.valueType !== "percent") return sum
+                                              if (normalizeCustomAccountForEditor(fee.account) !== selectedAccount) return sum
+                                              return sum + Math.max(0, fee.valueByYear?.[row.year] ?? fee.value ?? 0)
+                                            }, 0)
+                                            const acquisitionPercentForAccount =
+                                              selectedAccount === "main" || selectedAccount === "eseti"
+                                                ? Math.max(0, acquisitionPercentDisplay)
+                                                : 0
+                                            const maxAllowedForThisEntry = Math.max(
+                                              0,
+                                              100 - acquisitionPercentForAccount - otherPercentCostsOnSameAccount,
+                                            )
+                                            updateManagementFeeValueByYear(
+                                              column.entryId,
+                                              row.year,
+                                              Math.min(val, maxAllowedForThisEntry),
+                                            )
+                                          } else {
+                                            const otherCustomContributionCostsForYear = managementFees.reduce((sum, fee) => {
+                                              if (fee.id === column.entryId) return sum
+                                              if (fee.valueType === "percent") {
+                                                const percentValue = Math.max(
+                                                  0,
+                                                  fee.valueByYear?.[row.year] ?? fee.value ?? 0,
+                                                )
+                                                return sum + (Math.max(0, displayPaymentValue) * percentValue) / 100
+                                              }
+                                              const amountValue = Math.max(
+                                                0,
+                                                fee.valueByYear?.[row.year] ?? fee.value ?? 0,
+                                              )
+                                              const frequencyMultiplier =
+                                                fee.frequency === "napi"
+                                                  ? 365
+                                                  : fee.frequency === "havi"
+                                                    ? 12
+                                                    : fee.frequency === "negyedéves"
+                                                      ? 4
+                                                      : fee.frequency === "féléves"
+                                                        ? 2
+                                                        : 1
+                                              return sum + amountValue * frequencyMultiplier
+                                            }, 0)
+                                            const nonCustomContributionCostsForYear = Math.max(
+                                              0,
+                                              (sourceRow.upfrontCostForYear ?? 0) +
+                                                (sourceRow.adminCostForYear ?? 0) +
+                                                (sourceRow.riskInsuranceCostForYear ?? 0),
+                                            )
+                                            const maxAllowedForThisEntry = Math.max(
+                                              0,
+                                              Math.floor(
+                                                Math.max(0, displayPaymentValue) -
+                                                  nonCustomContributionCostsForYear -
+                                                  otherCustomContributionCostsForYear,
+                                              ),
+                                            )
+                                            updateManagementFeeValueByYear(
+                                              column.entryId,
+                                              row.year,
+                                              Math.min(val, maxAllowedForThisEntry),
+                                            )
+                                          }
+                                        } else {
+                                          updateBonusValueByYear(column.entryId, row.year, val)
+                                        }
+                                      }}
+                                      className={`w-24 h-8 text-right tabular-nums ${
+                                        column.kind === "cost" ? "text-red-600" : "text-emerald-600"
+                                      }`}
+                                    />
+                                    <p className="text-xs text-muted-foreground tabular-nums">
+                                      {formatValue(applyRealValueForYear(rawCustomValue), displayCurrency)}
+                                    </p>
+                                  </div>
+                                </td>
+                              )
+                            })}
                             {effectiveShowBonusColumns &&
                               showBonusBreakdown &&
                               shouldShowWealthBonusPercentColumn && (
@@ -12880,7 +13487,11 @@ export function SavingsCalculator() {
                   </table>
                 </div>
                 <div className="hidden md:block mt-3">
-                  <ColumnHoverInfoPanel activeKey={activeYearlyColumnInfoKey} productKey={yearlyPanelProductKey} />
+                  <ColumnHoverInfoPanel
+                    activeKey={activeYearlyColumnInfoKey}
+                    productKey={yearlyPanelProductKey}
+                    dynamicExplanations={customColumnExplanations}
+                  />
                 </div>
               </CardContent>
             </Card>

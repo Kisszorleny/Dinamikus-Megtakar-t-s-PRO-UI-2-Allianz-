@@ -3,8 +3,9 @@
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import {
-  COLUMN_EXPLANATIONS,
+  getColumnExplanationWithFallback,
   getProductColumnTypeExplanation,
+  type ColumnExplanation,
   type ProductContextKey,
 } from "@/lib/column-explanations"
 import { Button } from "@/components/ui/button"
@@ -13,12 +14,13 @@ import { X } from "lucide-react"
 type ColumnHoverInfoPanelProps = {
   activeKey: string | null
   productKey?: ProductContextKey | null
+  dynamicExplanations?: Record<string, ColumnExplanation>
   className?: string
 }
 
-export function ColumnHoverInfoPanel({ activeKey, productKey, className }: ColumnHoverInfoPanelProps) {
-  const [isHidden, setIsHidden] = useState(false)
-  const active = activeKey ? COLUMN_EXPLANATIONS[activeKey] : undefined
+export function ColumnHoverInfoPanel({ activeKey, productKey, dynamicExplanations, className }: ColumnHoverInfoPanelProps) {
+  const [isHidden, setIsHidden] = useState(true)
+  const active = (activeKey ? dynamicExplanations?.[activeKey] : undefined) ?? getColumnExplanationWithFallback(activeKey)
   const typeExplanation = getProductColumnTypeExplanation(productKey, activeKey)
 
   if (isHidden) {

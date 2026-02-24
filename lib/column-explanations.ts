@@ -731,3 +731,29 @@ export function getProductColumnTypeExplanation(
   return null
 }
 
+export function getColumnExplanationWithFallback(columnKey: string | null | undefined): ColumnExplanation | undefined {
+  if (!columnKey) return undefined
+  const direct = COLUMN_EXPLANATIONS[columnKey]
+  if (direct) return direct
+
+  if (columnKey.startsWith("custom-cost:")) {
+    const label = columnKey.replace("custom-cost:", "").trim()
+    return {
+      title: label || "Egyedi költség",
+      summary: "Felhasználó által definiált dinamikus költség oszlop.",
+      detail: "A kiválasztott típus/frekvencia/számla alapján számolt éves levonás.",
+    }
+  }
+
+  if (columnKey.startsWith("custom-bonus:")) {
+    const label = columnKey.replace("custom-bonus:", "").trim()
+    return {
+      title: label || "Egyedi bónusz",
+      summary: "Felhasználó által definiált dinamikus bónusz oszlop.",
+      detail: "A kiválasztott típus/frekvencia/számla alapján számolt éves jóváírás.",
+    }
+  }
+
+  return undefined
+}
+

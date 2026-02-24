@@ -9,6 +9,22 @@ export type PaymentFrequency = "havi" | "negyedéves" | "féléves" | "éves"
 export type Currency = "HUF" | "EUR" | "USD"
 export type ManagementFeeFrequency = "napi" | "havi" | "negyedéves" | "féléves" | "éves"
 export type ManagementFeeValueType = "percent" | "amount"
+export type CustomEntryAccount = "client" | "invested" | "taxBonus" | "main" | "eseti"
+export type CustomEntryKind = "cost" | "bonus"
+export type CustomEntryValueType = "percent" | "amount"
+
+export interface CustomEntryInput {
+  id: string
+  label: string
+  kind: CustomEntryKind
+  valueType: CustomEntryValueType
+  value: number
+  valueByYear?: Record<number, number>
+  account: CustomEntryAccount
+  frequency?: ManagementFeeFrequency
+  startYear?: number
+  stopYear?: number
+}
 
 export interface RiskFeeResolverContext {
   currentYear: number
@@ -151,6 +167,7 @@ export interface InputsDaily {
   paidUpMaintenanceFeeMonthlyCapAmount?: number
   paidUpMaintenanceFeeStartMonth?: number
   bonusCreditOnAnniversaryDay20?: boolean
+  customEntries?: CustomEntryInput[]
 }
 
 export interface YearRow {
@@ -180,6 +197,7 @@ export interface YearRow {
   endingTaxBonusValue: number
   endingTaxEligibleExtraValue?: number
   endingImmediateExtraValue?: number
+  customEntriesById?: Record<string, number>
   surrenderValue: number
   surrenderCharge: number
   client: {
@@ -190,6 +208,7 @@ export interface YearRow {
     plusCostForYear: number
     bonusForYear: number
     wealthBonusForYear: number
+    customEntriesById?: Record<string, number>
   }
   invested: {
     endBalance: number
@@ -199,6 +218,7 @@ export interface YearRow {
     plusCostForYear: number
     bonusForYear: number
     wealthBonusForYear: number
+    customEntriesById?: Record<string, number>
   }
   taxBonus: {
     endBalance: number
@@ -208,6 +228,7 @@ export interface YearRow {
     plusCostForYear: number
     bonusForYear: number
     wealthBonusForYear: number
+    customEntriesById?: Record<string, number>
   }
 }
 
@@ -313,6 +334,11 @@ function periodsPerYear(freq: PaymentFrequency): number {
 
 function periodsPerManagementFeeYear(freq: ManagementFeeFrequency): number {
   return freq === "napi" ? 365 : freq === "havi" ? 12 : freq === "negyedéves" ? 4 : freq === "féléves" ? 2 : 1
+}
+
+function periodsPerCustomEntryYear(freq?: ManagementFeeFrequency): number {
+  if (!freq) return 1
+  return periodsPerManagementFeeYear(freq)
 }
 
 function getAssetBasedFeePercent(inputs: InputsDaily, year: number): number {
@@ -485,6 +511,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
 
   const bonusMode = inputs.bonusMode ?? "none"
   const bonusFromYear = inputs.bonusFromYear ?? 1
+  const customEntries = Array.isArray(inputs.customEntries) ? inputs.customEntries : []
 
   const enableTax = !!inputs.enableTaxCredit
   const taxRate = (inputs.taxCreditRatePercent ?? 0) / 100
@@ -560,6 +587,10 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   let taxBonusBonusThisYear = 0
   let taxBonusWealthBonusThisYear = 0
   let taxBonusPlusCostThisYear = 0
+  let customEntriesByIdThisYear: Record<string, number> = {}
+  let customEntriesByIdClientThisYear: Record<string, number> = {}
+  let customEntriesByIdInvestedThisYear: Record<string, number> = {}
+  let customEntriesByIdTaxBonusThisYear: Record<string, number> = {}
 
   const getTotalValue = () =>
     investedUnits * investedPrice +
@@ -651,6 +682,30 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   }
 
   const mgmtFeeIntervalDays = getFrequencyDays(managementFeeFrequency)
+
+  const applyCustomEntryImpact = (entryId: string, account: CustomEntryAccount, kind: CustomEntryKind, amount: number) => {
+    const safeAmount = Number.isFinite(amount) ? Math.max(0, amount) : 0
+    if (safeAmount <= 0) return
+    customEntriesByIdThisYear[entryId] = (customEntriesByIdThisYear[entryId] ?? 0) + safeAmount
+    if (account === "client") {
+      customEntriesByIdClientThisYear[entryId] = (customEntriesByIdClientThisYear[entryId] ?? 0) + safeAmount
+    } else if (account === "invested") {
+      customEntriesByIdInvestedThisYear[entryId] = (customEntriesByIdInvestedThisYear[entryId] ?? 0) + safeAmount
+    } else if (account === "taxBonus") {
+      customEntriesByIdTaxBonusThisYear[entryId] = (customEntriesByIdTaxBonusThisYear[entryId] ?? 0) + safeAmount
+    }
+
+    if (kind === "cost") {
+      if (account === "client") clientPlusCostThisYear += safeAmount
+      if (account === "invested") investedPlusCostThisYear += safeAmount
+      if (account === "taxBonus") taxBonusPlusCostThisYear += safeAmount
+      return
+    }
+
+    if (account === "client") clientBonusThisYear += safeAmount
+    if (account === "invested") investedBonusThisYear += safeAmount
+    if (account === "taxBonus") taxBonusBonusThisYear += safeAmount
+  }
 
   const monthsPerPayment = 12 / ppy
   const clientAccountEarnsYield = inputs.clientAccountEarnsYield === true
@@ -797,6 +852,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       let bonusOnContribution = 0
       let riskInsuranceCost = 0
       let extraordinaryAdminFeeCost = 0
+      let customContributionCostForEvent = 0
       let extraTaxEligiblePaymentPerEvent = 0
       let extraImmediateAccessPaymentPerEvent = 0
 
@@ -860,6 +916,35 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           bonusThisMonth += bonusOnContribution
         }
 
+        // Contribution-based custom costs must reduce the payment immediately,
+        // otherwise the deducted part could still earn yield during the year.
+        if (customEntries.length > 0) {
+          for (const entry of customEntries) {
+            if (!entry?.id) continue
+            if (entry.kind !== "cost") continue
+            const startYear = Math.max(1, Math.round(entry.startYear ?? 1))
+            const stopYear = Math.max(0, Math.round(entry.stopYear ?? 0))
+            if (currentYear < startYear) continue
+            if (stopYear > 0 && currentYear > stopYear) continue
+            const entryValueForYear = Math.max(0, Number(entry.valueByYear?.[currentYear] ?? entry.value ?? 0))
+            const frequencyPpy = periodsPerCustomEntryYear(entry.frequency)
+            const yearlyCostForEntry =
+              entry.valueType === "percent"
+                ? Math.max(0, yearlyPayment * (entryValueForYear / 100))
+                : Math.max(0, entryValueForYear * frequencyPpy)
+            if (yearlyCostForEntry <= 0 || ppy <= 0) continue
+            const intendedCostForEvent = yearlyCostForEntry / ppy
+            const remainingPaymentBudget = Math.max(
+              0,
+              paymentPerEvent - upfrontCost - riskInsuranceCost - adminFeeCost - customContributionCostForEvent,
+            )
+            const appliedCostForEvent = Math.min(intendedCostForEvent, remainingPaymentBudget)
+            if (appliedCostForEvent <= 0) continue
+            customContributionCostForEvent += appliedCostForEvent
+            applyCustomEntryImpact(entry.id, entry.account, "cost", appliedCostForEvent)
+          }
+        }
+
         if (enableTax && currentYear >= taxStart && (!taxEnd || currentYear <= taxEnd)) {
           const manualTotalForYear = taxCreditAmountByYear[currentYear]
           const manualLimitForYear = taxCreditLimitByYear[currentYear]
@@ -880,7 +965,8 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           }
         }
 
-        const netPayment = paymentPerEvent - upfrontCost - riskInsuranceCost - adminFeeCost + bonusOnContribution
+        const netPayment =
+          paymentPerEvent - upfrontCost - riskInsuranceCost - adminFeeCost - customContributionCostForEvent + bonusOnContribution
         if (netPayment > 0) {
           // SPLIT AT DEPOSIT TIME based on current year's invested share percentage
           const investedSharePercent = getInvestedSharePercent(currentYear) / 100
@@ -936,9 +1022,9 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       upfrontCostThisMonth += upfrontCost
       adminFeeCostThisMonth += adminFeeCost + extraordinaryAdminFeeCost
       riskInsuranceCostThisMonth += riskInsuranceCost
-      costThisMonth += upfrontCost + adminFeeCost + extraordinaryAdminFeeCost + riskInsuranceCost
-      totalCosts += upfrontCost + adminFeeCost + extraordinaryAdminFeeCost + riskInsuranceCost
-      costThisYear += upfrontCost + adminFeeCost + extraordinaryAdminFeeCost + riskInsuranceCost
+      costThisMonth += upfrontCost + adminFeeCost + extraordinaryAdminFeeCost + riskInsuranceCost + customContributionCostForEvent
+      totalCosts += upfrontCost + adminFeeCost + extraordinaryAdminFeeCost + riskInsuranceCost + customContributionCostForEvent
+      costThisYear += upfrontCost + adminFeeCost + extraordinaryAdminFeeCost + riskInsuranceCost + customContributionCostForEvent
       clientCostThisYear += adminFeeCost + extraordinaryAdminFeeCost
       totalRiskInsuranceCost += riskInsuranceCost
       riskInsuranceCostThisYear += riskInsuranceCost
@@ -1546,6 +1632,126 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         bonusThisMonth += bonusAmount
       }
 
+      if (!isPartialPeriod && customEntries.length > 0) {
+        const clientValueForCustom = clientUnits * clientPrice
+        const investedValueForCustom = investedUnits * investedPrice
+        const taxBonusValueForCustom = taxBonusUnits * taxBonusPrice
+        const totalValueForCustom = getTotalValue()
+        const useTotalAccountForCustom = inputs.isAccountSplitOpen !== true
+        const getSelectedAccountValue = (account: CustomEntryAccount) =>
+          account === "client"
+            ? clientValueForCustom
+            : account === "taxBonus"
+              ? taxBonusValueForCustom
+              : account === "invested"
+                ? investedValueForCustom
+                : totalValueForCustom
+
+        for (const entry of customEntries) {
+          if (!entry?.id) continue
+          if (entry.kind === "cost") continue
+          const startYear = Math.max(1, Math.round(entry.startYear ?? 1))
+          const stopYear = Math.max(0, Math.round(entry.stopYear ?? 0))
+          if (currentYear < startYear) continue
+          if (stopYear > 0 && currentYear > stopYear) continue
+
+          const frequencyPpy = periodsPerCustomEntryYear(entry.frequency)
+          let computedAmount = 0
+          const entryValueForYear = entry.valueByYear?.[currentYear] ?? entry.value
+          if (entry.valueType === "amount") {
+            computedAmount = Math.max(0, Number(entryValueForYear ?? 0)) * (frequencyPpy / 1)
+          } else {
+            const periodicRate = Math.max(0, Number(entryValueForYear ?? 0)) / 100
+            const yearlyPlannedPaymentForCustom = Math.max(0, inputs.yearlyPaymentsPlan[currentYear] ?? 0)
+            if (entry.kind === "cost") {
+              // Költség %-os egyedi oszlop: befizetés-arányos levonás.
+              // Így pl. 79% kezdeti + 21% egyedi költség esetén az éves befizetés 100%-a költségként jelenik meg.
+              computedAmount = Math.max(0, yearlyPlannedPaymentForCustom * periodicRate)
+            } else {
+              const costEffectiveRate = Math.min(0.9999, 1 - Math.pow(Math.max(0.0001, 1 - periodicRate), frequencyPpy))
+            const bonusEffectiveRate = Math.max(0, Math.pow(1 + periodicRate, frequencyPpy) - 1)
+              const effectiveRate = bonusEffectiveRate
+              const selectedAccountValue = getSelectedAccountValue(entry.account)
+              const effectiveBaseValue =
+                useTotalAccountForCustom || selectedAccountValue <= 0 ? totalValueForCustom : selectedAccountValue
+              const baseValue =
+                effectiveBaseValue
+              computedAmount = Math.max(0, baseValue * effectiveRate)
+            }
+          }
+          if (computedAmount <= 0) continue
+
+          if (entry.kind === "cost") {
+            const cappedCost = Math.min(computedAmount, totalValueForCustom)
+            if (cappedCost <= 0 || totalValueForCustom <= 0) continue
+
+            const selectedAccountValue = getSelectedAccountValue(entry.account)
+            const shouldApplyToTotalAccount =
+              useTotalAccountForCustom ||
+              entry.account === "main" ||
+              entry.account === "eseti" ||
+              selectedAccountValue <= 0
+
+            totalCosts += cappedCost
+            costThisYear += cappedCost
+            plusCostThisMonth += cappedCost
+            costThisMonth += cappedCost
+
+            if (shouldApplyToTotalAccount) {
+              const clientRatio = totalValueForCustom > 0 ? clientValueForCustom / totalValueForCustom : 0
+              const investedRatio = totalValueForCustom > 0 ? investedValueForCustom / totalValueForCustom : 0
+              const taxBonusRatio = totalValueForCustom > 0 ? taxBonusValueForCustom / totalValueForCustom : 0
+              const reductionFactor = Math.max(0, (totalValueForCustom - cappedCost) / totalValueForCustom)
+
+              clientCostThisYear += cappedCost * clientRatio
+              investedCostThisYear += cappedCost * investedRatio
+              taxBonusCostThisYear += cappedCost * taxBonusRatio
+
+              investedUnits *= reductionFactor
+              clientUnits *= reductionFactor
+              taxBonusUnits *= reductionFactor
+              taxEligibleExtraUnits *= reductionFactor
+              immediateAccessExtraUnits *= reductionFactor
+            } else {
+              const accountBase =
+                selectedAccountValue
+              const feeRatio = accountBase > 0 ? Math.min(1, cappedCost / accountBase) : 0
+              if (feeRatio <= 0) continue
+
+              if (entry.account === "client") {
+                clientCostThisYear += cappedCost
+                clientUnits *= 1 - feeRatio
+              } else if (entry.account === "taxBonus") {
+                taxBonusCostThisYear += cappedCost
+                taxBonusUnits *= 1 - feeRatio
+              } else {
+                investedCostThisYear += cappedCost
+                investedUnits *= 1 - feeRatio
+              }
+            }
+            applyCustomEntryImpact(entry.id, entry.account, "cost", cappedCost)
+            continue
+          }
+
+          // bonus
+          totalBonus += computedAmount
+          bonusThisMonth += computedAmount
+          if (
+            useTotalAccountForCustom ||
+            entry.account === "main" ||
+            entry.account === "eseti" ||
+            entry.account === "invested"
+          ) {
+            investedUnits += computedAmount / investedPrice
+          } else if (entry.account === "client") {
+            clientUnits += computedAmount / clientPrice
+          } else if (entry.account === "taxBonus") {
+            taxBonusUnits += computedAmount / taxBonusPrice
+          }
+          applyCustomEntryImpact(entry.id, entry.account, "bonus", computedAmount)
+        }
+      }
+
       const endingSurplusValue = investedUnits * investedPrice
       const endingClientValue = clientUnits * clientPrice
       const endingTaxBonusValue = taxBonusUnits * taxBonusPrice
@@ -1611,6 +1817,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
         endingTaxBonusValue: endingTaxBonusValue,
         endingTaxEligibleExtraValue: endingTaxEligibleExtraValue,
         endingImmediateExtraValue: endingImmediateExtraValue,
+        customEntriesById: { ...customEntriesByIdThisYear },
         surrenderValue: surrenderValue,
         surrenderCharge: surrenderCharge,
         client: {
@@ -1621,6 +1828,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           plusCostForYear: clientPlusCostThisYear,
           bonusForYear: clientBonusThisYear,
           wealthBonusForYear: clientWealthBonusThisYear,
+          customEntriesById: { ...customEntriesByIdClientThisYear },
         },
         invested: {
           endBalance: endingSurplusValue,
@@ -1630,6 +1838,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           plusCostForYear: investedPlusCostThisYear,
           bonusForYear: investedBonusThisYear,
           wealthBonusForYear: investedWealthBonusThisYear,
+          customEntriesById: { ...customEntriesByIdInvestedThisYear },
         },
         taxBonus: {
           endBalance: endingTaxBonusValue,
@@ -1639,6 +1848,7 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           plusCostForYear: taxBonusPlusCostThisYear,
           bonusForYear: taxBonusBonusThisYear,
           wealthBonusForYear: taxBonusWealthBonusThisYear,
+          customEntriesById: { ...customEntriesByIdTaxBonusThisYear },
         },
       })
 
@@ -1675,6 +1885,10 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       taxBonusBonusThisYear = 0
       taxBonusWealthBonusThisYear = 0
       taxBonusPlusCostThisYear = 0
+      customEntriesByIdThisYear = {}
+      customEntriesByIdClientThisYear = {}
+      customEntriesByIdInvestedThisYear = {}
+      customEntriesByIdTaxBonusThisYear = {}
     }
 
     if (isMonthEnd) {

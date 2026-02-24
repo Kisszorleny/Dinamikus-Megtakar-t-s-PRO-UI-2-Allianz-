@@ -1,21 +1,10 @@
 import { NextResponse } from "next/server"
+import { encodeSessionToken, getConfiguredCredentials } from "@/lib/auth-session"
 
 type LoginPayload = {
   username?: string
   code?: string
-}
-
-function getExpectedCredentials() {
-  const username =
-    process.env.LOGIN_USER ?? (process.env.NODE_ENV !== "production" ? "admin" : "")
-  const code =
-    process.env.LOGIN_CODE ?? (process.env.NODE_ENV !== "production" ? "1234" : "")
-
-  if (!username || !code) {
-    return null
-  }
-
-  return { username, code }
+  password?: string
 }
 
 export async function POST(request: Request) {
@@ -27,22 +16,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Hibás kérés." }, { status: 400 })
   }
 
-  const credentials = getExpectedCredentials()
-  if (!credentials) {
+  const credentials = getConfiguredCredentials()
+  if (credentials.length === 0) {
     return NextResponse.json(
-      { message: "A belépés nincs konfigurálva. Állítsd be a LOGIN_USER és LOGIN_CODE értékeit." },
+      {
+        message:
+          "A belépés nincs konfigurálva. Állítsd be a LOGIN_USER_1..9 és LOGIN_PASSWORD_1..9 értékeket.",
+      },
       { status: 500 },
     )
   }
 
-  if (
-    payload.username !== credentials.username ||
-    payload.code !== credentials.code
-  ) {
+  const providedCode = payload.password ?? payload.code
+  const matchedCredential = credentials.find(
+    (credential) =>
+      payload.username === credential.username &&
+      providedCode === credential.code,
+  )
+  if (!matchedCredential) {
     return NextResponse.json({ message: "Hibás felhasználónév vagy kód." }, { status: 401 })
   }
 
-  const token = Buffer.from(`${credentials.username}:${credentials.code}`, "utf8").toString("base64")
+  const token = encodeSessionToken(matchedCredential.username, matchedCredential.code)
   const response = NextResponse.json({ ok: true })
   response.cookies.set({
     name: "auth_session",

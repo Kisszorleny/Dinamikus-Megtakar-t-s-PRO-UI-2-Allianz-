@@ -65,17 +65,26 @@ const SUMMARY_ROW_INFO_KEY_BY_ROW: Partial<Record<RowKey, string>> = {
 }
 
 const MOBILE_SUMMARY_LAYOUT = {
-  toolbarGrid: "grid w-full items-end gap-3 rounded-lg border bg-card px-3 py-3 grid-cols-1 min-[560px]:grid-cols-2 lg:grid-cols-6",
+  toolbarGrid: "grid w-full items-end gap-3 rounded-lg border bg-card px-3 py-3 grid-cols-1 min-[560px]:grid-cols-2 lg:grid-cols-12",
   field: "grid gap-1 min-w-0",
-  button: "h-10 w-full min-[560px]:w-auto",
+  button: "min-h-10 h-auto w-full whitespace-normal break-words text-left leading-tight py-2 min-[560px]:w-auto lg:w-full lg:justify-center lg:text-center",
   input: "h-10 w-full",
-  helperText: "text-xs text-muted-foreground min-[560px]:col-span-2 lg:col-span-6",
+  helperText: "text-xs text-muted-foreground min-[560px]:col-span-2 lg:col-span-12",
 } as const
 
 export default function OsszesitesPage() {
   const router = useRouter()
   const { data: contextData, isHydrated, updateData } = useCalculatorData()
   const [activeColumnInfoKey, setActiveColumnInfoKey] = useState<string | null>(null)
+  const OFFER_UNTIL_STORAGE_KEY = "summary-emailOfferUntil"
+
+  const getDefaultOfferUntil = () => {
+    const pad2 = (n: number) => String(n).padStart(2, "0")
+    const now = new Date()
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    d.setDate(d.getDate() + 7)
+    return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`
+  }
 
   const [computedData, setComputedData] = useState<typeof contextData>(null)
   const [isComputing, setIsComputing] = useState(false)
@@ -93,15 +102,24 @@ export default function OsszesitesPage() {
   const [emailOfferUntil, setEmailOfferUntil] = useState(() => {
     // Avoid SSR/client timezone mismatch: compute only in browser.
     if (typeof window === "undefined") return ""
-
-    const pad2 = (n: number) => String(n).padStart(2, "0")
-    const now = new Date()
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    d.setDate(d.getDate() + 7)
-    return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`
+    const stored = localStorage.getItem(OFFER_UNTIL_STORAGE_KEY)
+    if (stored && /^\d{4}\.\d{2}\.\d{2}$/.test(stored)) {
+      return stored
+    }
+    return getDefaultOfferUntil()
   })
   const [emailCopyStatus, setEmailCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
   const [emailTegezo, setEmailTegezo] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const trimmed = emailOfferUntil.trim()
+    if (trimmed && /^\d{4}\.\d{2}\.\d{2}$/.test(trimmed)) {
+      localStorage.setItem(OFFER_UNTIL_STORAGE_KEY, trimmed)
+      return
+    }
+    localStorage.removeItem(OFFER_UNTIL_STORAGE_KEY)
+  }, [emailOfferUntil])
   const summaryPanelProductKey = useMemo(
     () =>
       resolveProductContextKey(computedData?.selectedProduct ?? contextData?.selectedProduct, {
@@ -1486,7 +1504,7 @@ export default function OsszesitesPage() {
           </Button>
 
           <div className={MOBILE_SUMMARY_LAYOUT.toolbarGrid}>
-            <div className={MOBILE_SUMMARY_LAYOUT.field}>
+            <div className={`${MOBILE_SUMMARY_LAYOUT.field} lg:col-span-3`}>
               <Label className="text-xs text-muted-foreground" htmlFor="emailClientName">
                 Név (megszólítás)
               </Label>
@@ -1498,16 +1516,16 @@ export default function OsszesitesPage() {
                 placeholder="pl. Viktor"
               />
             </div>
-            <div className={MOBILE_SUMMARY_LAYOUT.field}>
+            <div className={`${MOBILE_SUMMARY_LAYOUT.field} lg:col-span-4`}>
               <Label className="text-xs text-muted-foreground" htmlFor="emailOfferUntil">
                 Ajánlat érvényes (YYYY.MM.DD)
               </Label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Input
                   id="emailOfferUntil"
                   value={emailOfferUntil}
                   onChange={(e) => setEmailOfferUntil(e.target.value)}
-                  className={MOBILE_SUMMARY_LAYOUT.input}
+                  className={`${MOBILE_SUMMARY_LAYOUT.input} min-w-[11ch] flex-1`}
                   placeholder="2026.02.14"
                 />
                 {emailOfferUntilWeekday ? (
@@ -1515,10 +1533,7 @@ export default function OsszesitesPage() {
                 ) : null}
               </div>
             </div>
-            <div className={MOBILE_SUMMARY_LAYOUT.field}>
-              <Label className="text-xs text-muted-foreground" htmlFor="emailTegezo">
-                Tegező
-              </Label>
+            <div className={`${MOBILE_SUMMARY_LAYOUT.field} lg:col-span-2`}>
               <div className="flex items-center gap-2">
                 <Switch id="emailTegezo" checked={emailTegezo} onCheckedChange={setEmailTegezo} />
                 <span className="text-xs text-muted-foreground">{emailTegezo ? "Tegező" : "Magázó"}</span>
@@ -1526,7 +1541,7 @@ export default function OsszesitesPage() {
             </div>
             <Button
               variant="default"
-              className={MOBILE_SUMMARY_LAYOUT.button}
+              className={`${MOBILE_SUMMARY_LAYOUT.button} lg:col-span-6`}
               onClick={async () => {
                 setEmailCopyStatus("idle")
 
@@ -1552,7 +1567,7 @@ export default function OsszesitesPage() {
 
             <Button
               variant="secondary"
-              className={MOBILE_SUMMARY_LAYOUT.button}
+              className={`${MOBILE_SUMMARY_LAYOUT.button} lg:col-span-6`}
               onClick={async () => {
                 setEmailCopyStatus("idle")
 
@@ -1583,12 +1598,6 @@ export default function OsszesitesPage() {
             </div>
           </div>
         </div>
-
-        <Card className="mb-4">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-2xl">Összesítés</CardTitle>
-          </CardHeader>
-        </Card>
 
         {isExcelView ? (
           <Card>

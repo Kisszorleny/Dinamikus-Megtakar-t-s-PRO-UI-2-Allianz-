@@ -1,25 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server"
+import { getConfiguredCredentials, validateSessionToken } from "@/lib/auth-session"
 
 const PUBLIC_PATHS = ["/login", "/api/auth/login"]
 const PUBLIC_FILE = /\.(.*)$/
 
-function getExpectedToken() {
-  const user =
-    process.env.LOGIN_USER ?? (process.env.NODE_ENV !== "production" ? "admin" : "")
-  const code =
-    process.env.LOGIN_CODE ?? (process.env.NODE_ENV !== "production" ? "1234" : "")
-
-  if (!user || !code) {
-    return null
-  }
-
-  return btoa(`${user}:${code}`)
-}
-
 function hasValidSession(request: NextRequest) {
   const token = request.cookies.get("auth_session")?.value
-  const expected = getExpectedToken()
-  return Boolean(token && expected && token === expected)
+  if (!token) return false
+
+  const credentials = getConfiguredCredentials()
+  if (credentials.length === 0) return false
+
+  return Boolean(validateSessionToken(token, credentials))
 }
 
 export function middleware(request: NextRequest) {
