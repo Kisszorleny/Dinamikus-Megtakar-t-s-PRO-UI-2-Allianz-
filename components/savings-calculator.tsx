@@ -262,6 +262,193 @@ import {
   resolveGeneraliMylifeExtraPluszVariant,
   toGeneraliMylifeExtraPluszProductVariantId,
 } from "@/lib/engine/products/generali-mylife-extra-plusz-config"
+import {
+  getKnhHozamhalmozoVariantConfig,
+  KNH_HOZAMHALMOZO_MNB_CODE,
+  KNH_HOZAMHALMOZO_PRODUCT_CODE,
+  KNH_HOZAMHALMOZO_PRODUCT_VARIANT_HUF,
+  resolveKnhHozamhalmozoVariant,
+  toKnhHozamhalmozoProductVariantId,
+} from "@/lib/engine/products/knh-hozamhalmozo-config"
+import {
+  getKnhNyugdijbiztositas4VariantConfig,
+  KNH_NYUGDIJBIZTOSITAS4_MNB_CODE,
+  KNH_NYUGDIJBIZTOSITAS4_PRODUCT_CODE,
+  KNH_NYUGDIJBIZTOSITAS4_PRODUCT_VARIANT_HUF,
+  resolveKnhNyugdijbiztositas4Variant,
+  toKnhNyugdijbiztositas4ProductVariantId,
+} from "@/lib/engine/products/knh-nyugdijbiztositas4-config"
+import {
+  getMetlifeManhattanVariantConfig,
+  METLIFE_MANHATTAN_EUR_MNB_CODE,
+  METLIFE_MANHATTAN_HUF_MNB_CODE,
+  METLIFE_MANHATTAN_PRODUCT_CODE_EUR,
+  METLIFE_MANHATTAN_PRODUCT_CODE_HUF,
+  METLIFE_MANHATTAN_PRODUCT_VARIANT_EUR,
+  METLIFE_MANHATTAN_PRODUCT_VARIANT_HUF,
+  resolveMetlifeManhattanVariant,
+  toMetlifeManhattanProductVariantId,
+} from "@/lib/engine/products/metlife-manhattan-config"
+import {
+  getMetlifeNyugdijprogramVariantConfig,
+  METLIFE_NYUGDIJPROGRAM_EUR_MNB_CODE,
+  METLIFE_NYUGDIJPROGRAM_HUF_MNB_CODE,
+  METLIFE_NYUGDIJPROGRAM_PRODUCT_CODE_EUR,
+  METLIFE_NYUGDIJPROGRAM_PRODUCT_CODE_HUF,
+  METLIFE_NYUGDIJPROGRAM_PRODUCT_VARIANT_EUR,
+  METLIFE_NYUGDIJPROGRAM_PRODUCT_VARIANT_HUF,
+  resolveMetlifeNyugdijprogramVariant,
+  toMetlifeNyugdijprogramProductVariantId,
+} from "@/lib/engine/products/metlife-nyugdijprogram-config"
+import {
+  getPostaTrendVariantConfig,
+  POSTA_TREND_MNB_CODE,
+  POSTA_TREND_PRODUCT_CODE,
+  POSTA_TREND_PRODUCT_VARIANT_HUF,
+  resolvePostaTrendVariant,
+  toPostaTrendProductVariantId,
+} from "@/lib/engine/products/posta-trend-config"
+import {
+  getPostaTrendNyugdijVariantConfig,
+  POSTA_TREND_NYUGDIJ_MNB_CODE,
+  POSTA_TREND_NYUGDIJ_PRODUCT_CODE,
+  POSTA_TREND_NYUGDIJ_PRODUCT_VARIANT_HUF,
+  resolvePostaTrendNyugdijVariant,
+  toPostaTrendNyugdijProductVariantId,
+} from "@/lib/engine/products/posta-trend-nyugdij-config"
+import {
+  getNnEletkapu119VariantConfig,
+  NN_ELETKAPU_119_MNB_CODE,
+  NN_ELETKAPU_119_PRODUCT_CODE,
+  NN_ELETKAPU_119_PRODUCT_VARIANT_HUF,
+  resolveNnEletkapu119Variant,
+  toNnEletkapu119ProductVariantId,
+} from "@/lib/engine/products/nn-eletkapu-119-config"
+import {
+  getNnMotiva158VariantConfig,
+  NN_MOTIVA_168_MNB_CODE,
+  NN_MOTIVA_168_PRODUCT_CODE,
+  NN_MOTIVA_168_PRODUCT_VARIANT_EUR,
+  NN_MOTIVA_158_MNB_CODE,
+  NN_MOTIVA_158_PRODUCT_CODE,
+  NN_MOTIVA_158_PRODUCT_VARIANT_HUF,
+  resolveNnMotiva158VariantFromInputs,
+  toNnMotiva158ProductVariantId,
+} from "@/lib/engine/products/nn-motiva-158-config"
+import {
+  getNnVisio118VariantConfig,
+  NN_VISIO_118_MNB_CODE,
+  NN_VISIO_118_PRODUCT_CODE,
+  NN_VISIO_118_PRODUCT_VARIANT_HUF,
+  toNnVisio118ProductVariantId,
+} from "@/lib/engine/products/nn-visio-118-config"
+import {
+  getNnVista128VariantConfig,
+  NN_VISTA_128_MNB_CODE,
+  NN_VISTA_128_PRODUCT_CODE,
+  NN_VISTA_128_PRODUCT_VARIANT_EUR,
+  toNnVista128ProductVariantId,
+} from "@/lib/engine/products/nn-vista-128-config"
+import {
+  getSignalElorelatoUl001VariantConfig,
+  SIGNAL_ELORELATO_UL001_MNB_CODE,
+  SIGNAL_ELORELATO_UL001_PRODUCT_CODE,
+  SIGNAL_ELORELATO_UL001_PRODUCT_VARIANT_HUF,
+  toSignalElorelatoUl001ProductVariantId,
+  type SignalElorelatoUl001PaymentMethodProfile,
+  type SignalElorelatoUl001VakProfile,
+} from "@/lib/engine/products/signal-elorelato-ul001-config"
+import {
+  getSignalNyugdijTervPluszNy010VariantConfig,
+  SIGNAL_NYUGDIJ_TERV_PLUSZ_NY010_MNB_CODE,
+  SIGNAL_NYUGDIJ_TERV_PLUSZ_NY010_PRODUCT_CODE,
+  SIGNAL_NYUGDIJ_TERV_PLUSZ_NY010_PRODUCT_VARIANT_HUF,
+  toSignalNyugdijTervPluszNy010ProductVariantId,
+} from "@/lib/engine/products/signal-nyugdij-terv-plusz-ny010-config"
+import {
+  getSignalNyugdijprogramSn005VariantConfig,
+  SIGNAL_NYUGDIJPROGRAM_SN005_MNB_CODE,
+  SIGNAL_NYUGDIJPROGRAM_SN005_PRODUCT_CODE,
+  SIGNAL_NYUGDIJPROGRAM_SN005_PRODUCT_VARIANT_HUF,
+  toSignalNyugdijprogramSn005ProductVariantId,
+} from "@/lib/engine/products/signal-nyugdijprogram-sn005-config"
+import {
+  getSignalOngondoskodasiWl009VariantConfig,
+  SIGNAL_ONGONDOSKODASI_WL009_MNB_CODE,
+  SIGNAL_ONGONDOSKODASI_WL009_PRODUCT_CODE,
+  SIGNAL_ONGONDOSKODASI_WL009_PRODUCT_VARIANT_HUF,
+  toSignalOngondoskodasiWl009ProductVariantId,
+} from "@/lib/engine/products/signal-ongondoskodasi-wl009-config"
+import {
+  getUnionViennaAge505VariantConfig,
+  resolveUnionViennaAge505Variant,
+  toUnionViennaAge505ProductVariantId,
+  UNION_VIENNA_AGE_505_MNB_CODE,
+  UNION_VIENNA_AGE_505_PRODUCT_CODE_EUR,
+  UNION_VIENNA_AGE_505_PRODUCT_CODE_HUF,
+  UNION_VIENNA_AGE_505_PRODUCT_CODE_USD,
+  UNION_VIENNA_AGE_505_PRODUCT_VARIANT_EUR,
+  UNION_VIENNA_AGE_505_PRODUCT_VARIANT_HUF,
+  UNION_VIENNA_AGE_505_PRODUCT_VARIANT_USD,
+} from "@/lib/engine/products/union-vienna-age-505-config"
+import {
+  getUnionViennaPlan500VariantConfig,
+  resolveUnionViennaPlan500Variant,
+  toUnionViennaPlan500ProductVariantId,
+  UNION_VIENNA_PLAN_500_MNB_CODE,
+  UNION_VIENNA_PLAN_500_PRODUCT_CODE_EUR,
+  UNION_VIENNA_PLAN_500_PRODUCT_CODE_HUF,
+  UNION_VIENNA_PLAN_500_PRODUCT_CODE_USD,
+  UNION_VIENNA_PLAN_500_PRODUCT_VARIANT_EUR,
+  UNION_VIENNA_PLAN_500_PRODUCT_VARIANT_HUF,
+  UNION_VIENNA_PLAN_500_PRODUCT_VARIANT_USD,
+} from "@/lib/engine/products/union-vienna-plan-500-config"
+import {
+  getUnionViennaTimeVariantConfig,
+  resolveUnionViennaTimeVariant,
+  toUnionViennaTimeProductVariantId,
+  type UnionViennaTimeChannelProfile,
+  UNION_VIENNA_TIME_MNB_CODE_564,
+  UNION_VIENNA_TIME_MNB_CODE_584,
+  UNION_VIENNA_TIME_MNB_CODE_606,
+  UNION_VIENNA_TIME_PRODUCT_VARIANT_564,
+  UNION_VIENNA_TIME_PRODUCT_VARIANT_584,
+  UNION_VIENNA_TIME_PRODUCT_VARIANT_606,
+} from "@/lib/engine/products/union-vienna-time-config"
+import {
+  getUniqaEletcel275VariantConfig,
+  toUniqaEletcel275ProductVariantId,
+  UNIQA_ELETCEL_275_MNB_CODE,
+  UNIQA_ELETCEL_275_PRODUCT_CODE,
+  UNIQA_ELETCEL_275_PRODUCT_VARIANT_HUF,
+} from "@/lib/engine/products/uniqa-eletcel-275-config"
+import {
+  getUniqaPremiumLife190VariantConfig,
+  toUniqaPremiumLife190ProductVariantId,
+  UNIQA_PREMIUM_LIFE_190_MNB_CODE,
+  UNIQA_PREMIUM_LIFE_190_PRODUCT_CODE,
+  UNIQA_PREMIUM_LIFE_190_PRODUCT_VARIANT_HUF,
+} from "@/lib/engine/products/uniqa-premium-life-190-config"
+import {
+  getGroupamaNextVariantConfig,
+  resolveGroupamaNextVariant,
+  toGroupamaNextProductVariantId,
+  type GroupamaNextVariant,
+  GROUPAMA_NEXT_MNB_CODE,
+  GROUPAMA_NEXT_PRODUCT_CODE,
+  GROUPAMA_NEXT_PRODUCT_VARIANT_UL100_TRAD0,
+  GROUPAMA_NEXT_PRODUCT_VARIANT_UL75_TRAD25,
+  GROUPAMA_NEXT_PRODUCT_VARIANT_UL0_TRAD100,
+} from "@/lib/engine/products/groupama-next-config"
+import {
+  getGroupamaEasyVariantConfig,
+  resolveGroupamaEasyVariant,
+  toGroupamaEasyProductVariantId,
+  GROUPAMA_EASY_MNB_CODE,
+  GROUPAMA_EASY_PRODUCT_CODE,
+  GROUPAMA_EASY_PRODUCT_VARIANT_LIFE_HUF,
+  GROUPAMA_EASY_PRODUCT_VARIANT_LIFE_TAX_HUF,
+} from "@/lib/engine/products/groupama-easy-config"
 import { resolveProductContextKey } from "@/lib/column-explanations"
 
 type DurationUnit = "year" | "month" | "day"
@@ -1570,12 +1757,48 @@ export function SavingsCalculator() {
   const router = useRouter()
   const { updateData } = useCalculatorData()
   const { isMobile } = useMobile()
+  const [isLandscapeOrientation, setIsLandscapeOrientation] = useState(() => {
+    if (typeof window === "undefined") return false
+    return window.matchMedia("(orientation: landscape)").matches || window.innerWidth > window.innerHeight
+  })
 
   const isHydratingRef = useRef(true)
   const lastAppliedPresetKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     isHydratingRef.current = false
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const mediaQuery = window.matchMedia("(orientation: landscape)")
+    const updateOrientation = () => {
+      setIsLandscapeOrientation(mediaQuery.matches || window.innerWidth > window.innerHeight)
+    }
+
+    updateOrientation()
+    window.addEventListener("resize", updateOrientation)
+    window.addEventListener("orientationchange", updateOrientation)
+    window.visualViewport?.addEventListener("resize", updateOrientation)
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updateOrientation)
+    } else {
+      mediaQuery.addListener(updateOrientation)
+    }
+
+    return () => {
+      window.removeEventListener("resize", updateOrientation)
+      window.removeEventListener("orientationchange", updateOrientation)
+      window.visualViewport?.removeEventListener("resize", updateOrientation)
+
+      if (typeof mediaQuery.removeEventListener === "function") {
+        mediaQuery.removeEventListener("change", updateOrientation)
+      } else {
+        mediaQuery.removeListener(updateOrientation)
+      }
+    }
   }, [])
 
   const [yearlyViewMode, setYearlyViewMode] = useState<"total" | "client" | "invested" | "taxBonus">("total")
@@ -2720,6 +2943,21 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-isServicesCardOpen", String(isServicesCardOpen))
     }
   }, [isServicesCardOpen])
+
+  const [isCalendarRangeOpen, setIsCalendarRangeOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-isCalendarRangeOpen")
+      if (stored === null) return true
+      return stored === "true"
+    }
+    return true
+  })
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-isCalendarRangeOpen", String(isCalendarRangeOpen))
+    }
+  }, [isCalendarRangeOpen])
   const [selectedInsurer, setSelectedInsurer] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
       const stored = sessionStorage.getItem("calculator-selectedInsurer")
@@ -2747,6 +2985,14 @@ export function SavingsCalculator() {
     }
     return "allianz_bonusz_eletprogram"
   })
+  const [signalUl001PaymentMethodProfile, setSignalUl001PaymentMethodProfile] =
+    useState<SignalElorelatoUl001PaymentMethodProfile>("bank-transfer")
+  const [signalUl001VakProfile, setSignalUl001VakProfile] = useState<SignalElorelatoUl001VakProfile>("standard")
+  const [signalUl001LoyaltyBonusEnabled, setSignalUl001LoyaltyBonusEnabled] = useState(true)
+  const [union505LoyaltyBonusEligible, setUnion505LoyaltyBonusEligible] = useState(true)
+  const [unionViennaTimeChannelProfile, setUnionViennaTimeChannelProfile] =
+    useState<UnionViennaTimeChannelProfile>("standard")
+  const [groupamaNextAllocationProfile, setGroupamaNextAllocationProfile] = useState<GroupamaNextVariant>("ul100-trad0")
 
   const normalizedInsurer = (selectedInsurer ?? "").trim().toLowerCase()
   const isAllianzFundMode =
@@ -2777,18 +3023,57 @@ export function SavingsCalculator() {
     if (selectedProduct === "alfa_fortis") {
       return ["HUF", "EUR", "USD"]
     }
+    if (selectedProduct === "union_vienna_age_505") {
+      return ["HUF", "EUR", "USD"]
+    }
+    if (selectedProduct === "union_vienna_plan_500") {
+      return ["HUF", "EUR", "USD"]
+    }
+    if (selectedProduct === "union_vienna_time") {
+      return ["HUF"]
+    }
+    if (selectedProduct === "uniqa_eletcel_275") {
+      return ["HUF"]
+    }
+    if (selectedProduct === "uniqa_premium_life_190") {
+      return ["HUF"]
+    }
+    if (selectedProduct === "groupama_next") {
+      return ["HUF"]
+    }
+    if (selectedProduct === "groupama_easy") {
+      return ["HUF"]
+    }
     if (selectedProduct === "alfa_jade") return ["EUR", "USD"]
     if (selectedProduct === "alfa_jovokep") return ["HUF"]
     if (selectedProduct === "alfa_jovotervezo") return ["HUF"]
     if (selectedProduct === "alfa_relax_plusz") return ["HUF"]
+    if (selectedProduct === "nn_vista_128") return ["EUR"]
     if (
       selectedProduct === "generali_kabala" ||
       selectedProduct === "generali_mylife_extra_plusz" ||
-      selectedProduct === "cig_nyugdijkotvenye"
+      selectedProduct === "cig_nyugdijkotvenye" ||
+      selectedProduct === "knh_hozamhalmozo" ||
+      selectedProduct === "knh_nyugdijbiztositas4" ||
+      selectedProduct === "nn_eletkapu_119" ||
+      selectedProduct === "nn_visio_118" ||
+      selectedProduct === "signal_elorelato_ul001" ||
+      selectedProduct === "signal_nyugdij_terv_plusz_ny010" ||
+      selectedProduct === "signal_nyugdijprogram_sn005" ||
+      selectedProduct === "signal_ongondoskodasi_wl009" ||
+      selectedProduct === "uniqa_eletcel_275" ||
+      selectedProduct === "uniqa_premium_life_190" ||
+      selectedProduct === "groupama_next" ||
+      selectedProduct === "groupama_easy" ||
+      selectedProduct === "posta_trend" ||
+      selectedProduct === "posta_trend_nyugdij"
     ) {
       return ["HUF"]
     }
+    if (selectedProduct === "nn_motiva_158") return ["HUF", "EUR"]
     if (selectedProduct === "cig_esszenciae") return ["HUF", "EUR"]
+    if (selectedProduct === "metlife_manhattan") return ["HUF", "EUR"]
+    if (selectedProduct === "metlife_nyugdijprogram") return ["HUF", "EUR"]
     if (selectedProduct === "alfa_zen_pro") return ["HUF", "EUR", "USD"]
     if (selectedProduct === "alfa_premium_selection") return ["HUF", "EUR", "USD"]
     if (selectedProduct === "alfa_zen") return ["EUR", "USD"]
@@ -3437,19 +3722,413 @@ export function SavingsCalculator() {
           },
         ]
       case "Grupama":
-        return []
+        return [
+          {
+            value: "groupama_easy",
+            label: "Groupama Easy Életbiztosítás",
+            productType: "Életbiztosítás",
+            mnbCode: GROUPAMA_EASY_MNB_CODE,
+            productCode: GROUPAMA_EASY_PRODUCT_CODE,
+            variants: [
+              {
+                value: GROUPAMA_EASY_PRODUCT_VARIANT_LIFE_HUF,
+                label: "Easy Life (adójóváírás nélkül)",
+                productType: "Életbiztosítás",
+                mnbCode: GROUPAMA_EASY_MNB_CODE,
+                productCode: GROUPAMA_EASY_PRODUCT_CODE,
+              },
+              {
+                value: GROUPAMA_EASY_PRODUCT_VARIANT_LIFE_TAX_HUF,
+                label: "Easy Life (adójóváírással)",
+                productType: "Életbiztosítás",
+                mnbCode: GROUPAMA_EASY_MNB_CODE,
+                productCode: GROUPAMA_EASY_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "groupama_next",
+            label: "Groupama Next Életbiztosítás",
+            productType: "Életbiztosítás",
+            mnbCode: GROUPAMA_NEXT_MNB_CODE,
+            productCode: GROUPAMA_NEXT_PRODUCT_CODE,
+            variants: [
+              {
+                value: GROUPAMA_NEXT_PRODUCT_VARIANT_UL100_TRAD0,
+                label: "100% UL / 0% hagyományos",
+                productType: "Életbiztosítás",
+                mnbCode: GROUPAMA_NEXT_MNB_CODE,
+                productCode: GROUPAMA_NEXT_PRODUCT_CODE,
+              },
+              {
+                value: GROUPAMA_NEXT_PRODUCT_VARIANT_UL75_TRAD25,
+                label: "75% UL / 25% hagyományos",
+                productType: "Életbiztosítás",
+                mnbCode: GROUPAMA_NEXT_MNB_CODE,
+                productCode: GROUPAMA_NEXT_PRODUCT_CODE,
+              },
+              {
+                value: GROUPAMA_NEXT_PRODUCT_VARIANT_UL0_TRAD100,
+                label: "0% UL / 100% hagyományos",
+                productType: "Életbiztosítás",
+                mnbCode: GROUPAMA_NEXT_MNB_CODE,
+                productCode: GROUPAMA_NEXT_PRODUCT_CODE,
+              },
+            ],
+          },
+        ]
       case "KnH":
-        return []
+        return [
+          {
+            value: "knh_hozamhalmozo",
+            label: "K&H Hozamhalmozo 4",
+            productType: "Életbiztosítás",
+            mnbCode: KNH_HOZAMHALMOZO_MNB_CODE,
+            productCode: KNH_HOZAMHALMOZO_PRODUCT_CODE,
+            variants: [
+              {
+                value: KNH_HOZAMHALMOZO_PRODUCT_VARIANT_HUF,
+                label: "HUF",
+                productType: "Életbiztosítás",
+                mnbCode: KNH_HOZAMHALMOZO_MNB_CODE,
+                productCode: KNH_HOZAMHALMOZO_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "knh_nyugdijbiztositas4",
+            label: "K&H Nyugdijbiztositas 4",
+            productType: "Nyugdíjbiztosítás",
+            mnbCode: KNH_NYUGDIJBIZTOSITAS4_MNB_CODE,
+            productCode: KNH_NYUGDIJBIZTOSITAS4_PRODUCT_CODE,
+            variants: [
+              {
+                value: KNH_NYUGDIJBIZTOSITAS4_PRODUCT_VARIANT_HUF,
+                label: "HUF",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: KNH_NYUGDIJBIZTOSITAS4_MNB_CODE,
+                productCode: KNH_NYUGDIJBIZTOSITAS4_PRODUCT_CODE,
+              },
+            ],
+          },
+        ]
       case "Magyar Posta":
-        return []
+        return [
+          {
+            value: "posta_trend",
+            label: "Posta Trend",
+            productType: "Életbiztosítás",
+            mnbCode: POSTA_TREND_MNB_CODE,
+            productCode: POSTA_TREND_PRODUCT_CODE,
+            variants: [
+              {
+                value: POSTA_TREND_PRODUCT_VARIANT_HUF,
+                label: "HUF",
+                productType: "Életbiztosítás",
+                mnbCode: POSTA_TREND_MNB_CODE,
+                productCode: POSTA_TREND_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "posta_trend_nyugdij",
+            label: "Posta Trend Nyugdij",
+            productType: "Nyugdíjbiztosítás",
+            mnbCode: POSTA_TREND_NYUGDIJ_MNB_CODE,
+            productCode: POSTA_TREND_NYUGDIJ_PRODUCT_CODE,
+            variants: [
+              {
+                value: POSTA_TREND_NYUGDIJ_PRODUCT_VARIANT_HUF,
+                label: "HUF",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: POSTA_TREND_NYUGDIJ_MNB_CODE,
+                productCode: POSTA_TREND_NYUGDIJ_PRODUCT_CODE,
+              },
+            ],
+          },
+        ]
       case "MetLife":
-        return []
+        return [
+          {
+            value: "metlife_manhattan",
+            label: "MetLife Manhattan",
+            productType: "Életbiztosítás",
+            mnbCode: `${METLIFE_MANHATTAN_HUF_MNB_CODE} / ${METLIFE_MANHATTAN_EUR_MNB_CODE}`,
+            productCode: `${METLIFE_MANHATTAN_PRODUCT_CODE_HUF} / ${METLIFE_MANHATTAN_PRODUCT_CODE_EUR}`,
+            variants: [
+              {
+                value: METLIFE_MANHATTAN_PRODUCT_VARIANT_HUF,
+                label: "MET-689 (HUF)",
+                productType: "Életbiztosítás",
+                mnbCode: METLIFE_MANHATTAN_HUF_MNB_CODE,
+                productCode: METLIFE_MANHATTAN_PRODUCT_CODE_HUF,
+              },
+              {
+                value: METLIFE_MANHATTAN_PRODUCT_VARIANT_EUR,
+                label: "MET-789 (EUR)",
+                productType: "Életbiztosítás",
+                mnbCode: METLIFE_MANHATTAN_EUR_MNB_CODE,
+                productCode: METLIFE_MANHATTAN_PRODUCT_CODE_EUR,
+              },
+            ],
+          },
+          {
+            value: "metlife_nyugdijprogram",
+            label: "MetLife Nyugdijprogram",
+            productType: "Nyugdíjbiztosítás",
+            mnbCode: `${METLIFE_NYUGDIJPROGRAM_HUF_MNB_CODE} / ${METLIFE_NYUGDIJPROGRAM_EUR_MNB_CODE}`,
+            productCode: `${METLIFE_NYUGDIJPROGRAM_PRODUCT_CODE_HUF} / ${METLIFE_NYUGDIJPROGRAM_PRODUCT_CODE_EUR}`,
+            variants: [
+              {
+                value: METLIFE_NYUGDIJPROGRAM_PRODUCT_VARIANT_HUF,
+                label: "MET-688 (HUF)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: METLIFE_NYUGDIJPROGRAM_HUF_MNB_CODE,
+                productCode: METLIFE_NYUGDIJPROGRAM_PRODUCT_CODE_HUF,
+              },
+              {
+                value: METLIFE_NYUGDIJPROGRAM_PRODUCT_VARIANT_EUR,
+                label: "MET-788 (EUR)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: METLIFE_NYUGDIJPROGRAM_EUR_MNB_CODE,
+                productCode: METLIFE_NYUGDIJPROGRAM_PRODUCT_CODE_EUR,
+              },
+            ],
+          },
+        ]
       case "NN":
-        return []
+        return [
+          {
+            value: "nn_eletkapu_119",
+            label: "NN Életkapu 119",
+            productType: "Életbiztosítás",
+            mnbCode: NN_ELETKAPU_119_MNB_CODE,
+            productCode: NN_ELETKAPU_119_PRODUCT_CODE,
+            variants: [
+              {
+                value: NN_ELETKAPU_119_PRODUCT_VARIANT_HUF,
+                label: "119 (HUF)",
+                productType: "Életbiztosítás",
+                mnbCode: NN_ELETKAPU_119_MNB_CODE,
+                productCode: NN_ELETKAPU_119_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "nn_motiva_158",
+            label: "NN Motiva 158",
+            productType: "Nyugdíjbiztosítás",
+            mnbCode: `${NN_MOTIVA_158_MNB_CODE} / ${NN_MOTIVA_168_MNB_CODE}`,
+            productCode: `${NN_MOTIVA_158_PRODUCT_CODE} / ${NN_MOTIVA_168_PRODUCT_CODE}`,
+            variants: [
+              {
+                value: NN_MOTIVA_158_PRODUCT_VARIANT_HUF,
+                label: "158 (HUF)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: NN_MOTIVA_158_MNB_CODE,
+                productCode: NN_MOTIVA_158_PRODUCT_CODE,
+              },
+              {
+                value: NN_MOTIVA_168_PRODUCT_VARIANT_EUR,
+                label: "168 (EUR)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: NN_MOTIVA_168_MNB_CODE,
+                productCode: NN_MOTIVA_168_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "nn_visio_118",
+            label: "NN Visio 118",
+            productType: "Életbiztosítás",
+            mnbCode: NN_VISIO_118_MNB_CODE,
+            productCode: NN_VISIO_118_PRODUCT_CODE,
+            variants: [
+              {
+                value: NN_VISIO_118_PRODUCT_VARIANT_HUF,
+                label: "118 (HUF)",
+                productType: "Életbiztosítás",
+                mnbCode: NN_VISIO_118_MNB_CODE,
+                productCode: NN_VISIO_118_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "nn_vista_128",
+            label: "NN Vista 128",
+            productType: "Életbiztosítás",
+            mnbCode: NN_VISTA_128_MNB_CODE,
+            productCode: NN_VISTA_128_PRODUCT_CODE,
+            variants: [
+              {
+                value: NN_VISTA_128_PRODUCT_VARIANT_EUR,
+                label: "128 (EUR)",
+                productType: "Életbiztosítás",
+                mnbCode: NN_VISTA_128_MNB_CODE,
+                productCode: NN_VISTA_128_PRODUCT_CODE,
+              },
+            ],
+          },
+        ]
       case "Signal Iduna":
-        return []
+        return [
+          {
+            value: "signal_elorelato_ul001",
+            label: "Előrelátó Program",
+            productType: "Életbiztosítás",
+            mnbCode: SIGNAL_ELORELATO_UL001_MNB_CODE,
+            productCode: SIGNAL_ELORELATO_UL001_PRODUCT_CODE,
+            variants: [
+              {
+                value: SIGNAL_ELORELATO_UL001_PRODUCT_VARIANT_HUF,
+                label: "UL001 (HUF)",
+                productType: "Életbiztosítás",
+                mnbCode: SIGNAL_ELORELATO_UL001_MNB_CODE,
+                productCode: SIGNAL_ELORELATO_UL001_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "signal_nyugdij_terv_plusz_ny010",
+            label: "SIGNAL Nyugdíj terv Plusz",
+            productType: "Nyugdíjbiztosítás",
+            mnbCode: SIGNAL_NYUGDIJ_TERV_PLUSZ_NY010_MNB_CODE,
+            productCode: SIGNAL_NYUGDIJ_TERV_PLUSZ_NY010_PRODUCT_CODE,
+            variants: [
+              {
+                value: SIGNAL_NYUGDIJ_TERV_PLUSZ_NY010_PRODUCT_VARIANT_HUF,
+                label: "NY010 (HUF)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: SIGNAL_NYUGDIJ_TERV_PLUSZ_NY010_MNB_CODE,
+                productCode: SIGNAL_NYUGDIJ_TERV_PLUSZ_NY010_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "signal_nyugdijprogram_sn005",
+            label: "SIGNAL IDUNA Nyugdíjprogram",
+            productType: "Nyugdíjbiztosítás",
+            mnbCode: SIGNAL_NYUGDIJPROGRAM_SN005_MNB_CODE,
+            productCode: SIGNAL_NYUGDIJPROGRAM_SN005_PRODUCT_CODE,
+            variants: [
+              {
+                value: SIGNAL_NYUGDIJPROGRAM_SN005_PRODUCT_VARIANT_HUF,
+                label: "SN005 (HUF)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: SIGNAL_NYUGDIJPROGRAM_SN005_MNB_CODE,
+                productCode: SIGNAL_NYUGDIJPROGRAM_SN005_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "signal_ongondoskodasi_wl009",
+            label: "Öngondoskodási terv 2.0 Plusz",
+            productType: "Életbiztosítás",
+            mnbCode: SIGNAL_ONGONDOSKODASI_WL009_MNB_CODE,
+            productCode: SIGNAL_ONGONDOSKODASI_WL009_PRODUCT_CODE,
+            variants: [
+              {
+                value: SIGNAL_ONGONDOSKODASI_WL009_PRODUCT_VARIANT_HUF,
+                label: "WL009 (HUF)",
+                productType: "Életbiztosítás",
+                mnbCode: SIGNAL_ONGONDOSKODASI_WL009_MNB_CODE,
+                productCode: SIGNAL_ONGONDOSKODASI_WL009_PRODUCT_CODE,
+              },
+            ],
+          },
+        ]
       case "Union":
         return [
+          {
+            value: "union_vienna_age_505",
+            label: "UNION Vienna Age Nyugdíjbiztosítás",
+            productType: "Nyugdíjbiztosítás",
+            mnbCode: UNION_VIENNA_AGE_505_MNB_CODE,
+            productCode: `${UNION_VIENNA_AGE_505_PRODUCT_CODE_HUF} / ${UNION_VIENNA_AGE_505_PRODUCT_CODE_EUR} / ${UNION_VIENNA_AGE_505_PRODUCT_CODE_USD}`,
+            variants: [
+              {
+                value: UNION_VIENNA_AGE_505_PRODUCT_VARIANT_HUF,
+                label: "505 (HUF)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: UNION_VIENNA_AGE_505_MNB_CODE,
+                productCode: UNION_VIENNA_AGE_505_PRODUCT_CODE_HUF,
+              },
+              {
+                value: UNION_VIENNA_AGE_505_PRODUCT_VARIANT_EUR,
+                label: "505 (EUR)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: UNION_VIENNA_AGE_505_MNB_CODE,
+                productCode: UNION_VIENNA_AGE_505_PRODUCT_CODE_EUR,
+              },
+              {
+                value: UNION_VIENNA_AGE_505_PRODUCT_VARIANT_USD,
+                label: "505 (USD)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: UNION_VIENNA_AGE_505_MNB_CODE,
+                productCode: UNION_VIENNA_AGE_505_PRODUCT_CODE_USD,
+              },
+            ],
+          },
+          {
+            value: "union_vienna_plan_500",
+            label: "UNION Vienna Plan Életbiztosítás",
+            productType: "Életbiztosítás",
+            mnbCode: UNION_VIENNA_PLAN_500_MNB_CODE,
+            productCode: `${UNION_VIENNA_PLAN_500_PRODUCT_CODE_HUF} / ${UNION_VIENNA_PLAN_500_PRODUCT_CODE_EUR} / ${UNION_VIENNA_PLAN_500_PRODUCT_CODE_USD}`,
+            variants: [
+              {
+                value: UNION_VIENNA_PLAN_500_PRODUCT_VARIANT_HUF,
+                label: "500 (HUF)",
+                productType: "Életbiztosítás",
+                mnbCode: UNION_VIENNA_PLAN_500_MNB_CODE,
+                productCode: UNION_VIENNA_PLAN_500_PRODUCT_CODE_HUF,
+              },
+              {
+                value: UNION_VIENNA_PLAN_500_PRODUCT_VARIANT_EUR,
+                label: "500 (EUR)",
+                productType: "Életbiztosítás",
+                mnbCode: UNION_VIENNA_PLAN_500_MNB_CODE,
+                productCode: UNION_VIENNA_PLAN_500_PRODUCT_CODE_EUR,
+              },
+              {
+                value: UNION_VIENNA_PLAN_500_PRODUCT_VARIANT_USD,
+                label: "500 (USD)",
+                productType: "Életbiztosítás",
+                mnbCode: UNION_VIENNA_PLAN_500_MNB_CODE,
+                productCode: UNION_VIENNA_PLAN_500_PRODUCT_CODE_USD,
+              },
+            ],
+          },
+          {
+            value: "union_vienna_time",
+            label: "UNION Vienna Time Nyugdíjbiztosítás",
+            productType: "Nyugdíjbiztosítás",
+            mnbCode: `${UNION_VIENNA_TIME_MNB_CODE_564} / ${UNION_VIENNA_TIME_MNB_CODE_584} / ${UNION_VIENNA_TIME_MNB_CODE_606}`,
+            productCode: "564 / 584 / 606",
+            variants: [
+              {
+                value: UNION_VIENNA_TIME_PRODUCT_VARIANT_564,
+                label: "Erste 564 (HUF)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: UNION_VIENNA_TIME_MNB_CODE_564,
+                productCode: "564",
+              },
+              {
+                value: UNION_VIENNA_TIME_PRODUCT_VARIANT_584,
+                label: "Standard 584 (HUF)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: UNION_VIENNA_TIME_MNB_CODE_584,
+                productCode: "584",
+              },
+              {
+                value: UNION_VIENNA_TIME_PRODUCT_VARIANT_606,
+                label: "Select 606 (HUF)",
+                productType: "Nyugdíjbiztosítás",
+                mnbCode: UNION_VIENNA_TIME_MNB_CODE_606,
+                productCode: "606",
+              },
+            ],
+          },
           {
             value: "union_classic",
             label: "Classic",
@@ -3459,7 +4138,40 @@ export function SavingsCalculator() {
           },
         ]
       case "Uniqa":
-        return []
+        return [
+          {
+            value: "uniqa_eletcel_275",
+            label: "Életcél",
+            productType: "Életbiztosítás",
+            mnbCode: UNIQA_ELETCEL_275_MNB_CODE,
+            productCode: UNIQA_ELETCEL_275_PRODUCT_CODE,
+            variants: [
+              {
+                value: UNIQA_ELETCEL_275_PRODUCT_VARIANT_HUF,
+                label: "275 (HUF)",
+                productType: "Életbiztosítás",
+                mnbCode: UNIQA_ELETCEL_275_MNB_CODE,
+                productCode: UNIQA_ELETCEL_275_PRODUCT_CODE,
+              },
+            ],
+          },
+          {
+            value: "uniqa_premium_life_190",
+            label: "Premium Life",
+            productType: "Életbiztosítás",
+            mnbCode: UNIQA_PREMIUM_LIFE_190_MNB_CODE,
+            productCode: UNIQA_PREMIUM_LIFE_190_PRODUCT_CODE,
+            variants: [
+              {
+                value: UNIQA_PREMIUM_LIFE_190_PRODUCT_VARIANT_HUF,
+                label: "190 (HUF)",
+                productType: "Életbiztosítás",
+                mnbCode: UNIQA_PREMIUM_LIFE_190_MNB_CODE,
+                productCode: UNIQA_PREMIUM_LIFE_190_PRODUCT_CODE,
+              },
+            ],
+          },
+        ]
       default:
         return []
     }
@@ -3512,8 +4224,82 @@ export function SavingsCalculator() {
     if (selectedProduct === "cig_esszenciae") {
       return CIG_ESSZENCIAE_PRODUCT_CODE
     }
+    if (selectedProduct === "knh_hozamhalmozo") {
+      return getKnhHozamhalmozoVariantConfig().productCode
+    }
+    if (selectedProduct === "knh_nyugdijbiztositas4") {
+      return getKnhNyugdijbiztositas4VariantConfig().productCode
+    }
+    if (selectedProduct === "metlife_manhattan") {
+      return getMetlifeManhattanVariantConfig(undefined, inputs.currency).productCode
+    }
+    if (selectedProduct === "metlife_nyugdijprogram") {
+      return getMetlifeNyugdijprogramVariantConfig(undefined, inputs.currency).productCode
+    }
+    if (selectedProduct === "posta_trend") {
+      return getPostaTrendVariantConfig().productCode
+    }
+    if (selectedProduct === "posta_trend_nyugdij") {
+      return getPostaTrendNyugdijVariantConfig().productCode
+    }
+    if (selectedProduct === "nn_eletkapu_119") {
+      return getNnEletkapu119VariantConfig().productCode
+    }
+    if (selectedProduct === "nn_motiva_158") {
+      return getNnMotiva158VariantConfig(
+        undefined,
+        resolveNnMotiva158VariantFromInputs({ currency: inputs.currency }),
+      ).productCode
+    }
+    if (selectedProduct === "nn_visio_118") {
+      return getNnVisio118VariantConfig().productCode
+    }
+    if (selectedProduct === "nn_vista_128") {
+      return getNnVista128VariantConfig().productCode
+    }
+    if (selectedProduct === "signal_elorelato_ul001") {
+      return getSignalElorelatoUl001VariantConfig().productCode
+    }
+    if (selectedProduct === "signal_nyugdij_terv_plusz_ny010") {
+      return getSignalNyugdijTervPluszNy010VariantConfig().productCode
+    }
+    if (selectedProduct === "signal_nyugdijprogram_sn005") {
+      return getSignalNyugdijprogramSn005VariantConfig().productCode
+    }
+    if (selectedProduct === "signal_ongondoskodasi_wl009") {
+      return getSignalOngondoskodasiWl009VariantConfig().productCode
+    }
+    if (selectedProduct === "union_vienna_age_505") {
+      return getUnionViennaAge505VariantConfig(undefined, inputs.currency).productCode
+    }
+    if (selectedProduct === "union_vienna_plan_500") {
+      return getUnionViennaPlan500VariantConfig(undefined, inputs.currency).productCode
+    }
+    if (selectedProduct === "union_vienna_time") {
+      return getUnionViennaTimeVariantConfig(undefined, unionViennaTimeChannelProfile).productCode
+    }
+    if (selectedProduct === "uniqa_eletcel_275") {
+      return getUniqaEletcel275VariantConfig().productCode
+    }
+    if (selectedProduct === "uniqa_premium_life_190") {
+      return getUniqaPremiumLife190VariantConfig().productCode
+    }
+    if (selectedProduct === "groupama_next") {
+      return getGroupamaNextVariantConfig(toGroupamaNextProductVariantId(groupamaNextAllocationProfile)).productCode
+    }
+    if (selectedProduct === "groupama_easy") {
+      return getGroupamaEasyVariantConfig(undefined, inputs.enableTaxCredit).productCode
+    }
     return undefined
-  }, [selectedProduct, inputs.enableTaxCredit, fortisVariantConfig.code, inputs.currency])
+  }, [
+    selectedProduct,
+    inputs.enableTaxCredit,
+    fortisVariantConfig.code,
+    inputs.currency,
+    unionViennaTimeChannelProfile,
+    groupamaNextAllocationProfile,
+    inputs.enableTaxCredit,
+  ])
 
   const activeProductVariantMetadata = useMemo(() => {
     if (!selectedProductMetadata?.variants || selectedProductMetadata.variants.length === 0) return null
@@ -3620,8 +4406,193 @@ export function SavingsCalculator() {
         null
       )
     }
+    if (selectedProduct === "knh_hozamhalmozo") {
+      const wantedVariantValue = toKnhHozamhalmozoProductVariantId(resolveKnhHozamhalmozoVariant())
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "knh_nyugdijbiztositas4") {
+      const wantedVariantValue = toKnhNyugdijbiztositas4ProductVariantId(resolveKnhNyugdijbiztositas4Variant())
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "metlife_manhattan") {
+      const wantedVariantValue = toMetlifeManhattanProductVariantId(
+        resolveMetlifeManhattanVariant(undefined, inputs.currency),
+      )
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "metlife_nyugdijprogram") {
+      const wantedVariantValue = toMetlifeNyugdijprogramProductVariantId(
+        resolveMetlifeNyugdijprogramVariant(undefined, inputs.currency),
+      )
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "posta_trend") {
+      const wantedVariantValue = toPostaTrendProductVariantId(resolvePostaTrendVariant())
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "posta_trend_nyugdij") {
+      const wantedVariantValue = toPostaTrendNyugdijProductVariantId(resolvePostaTrendNyugdijVariant())
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "nn_eletkapu_119") {
+      const wantedVariantValue = toNnEletkapu119ProductVariantId(resolveNnEletkapu119Variant())
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "nn_motiva_158") {
+      const wantedVariantValue = toNnMotiva158ProductVariantId(
+        resolveNnMotiva158VariantFromInputs({ currency: inputs.currency }),
+      )
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "nn_visio_118") {
+      const wantedVariantValue = toNnVisio118ProductVariantId()
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "nn_vista_128") {
+      const wantedVariantValue = toNnVista128ProductVariantId()
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "signal_elorelato_ul001") {
+      const wantedVariantValue = toSignalElorelatoUl001ProductVariantId()
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "signal_nyugdij_terv_plusz_ny010") {
+      const wantedVariantValue = toSignalNyugdijTervPluszNy010ProductVariantId()
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "signal_nyugdijprogram_sn005") {
+      const wantedVariantValue = toSignalNyugdijprogramSn005ProductVariantId()
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "signal_ongondoskodasi_wl009") {
+      const wantedVariantValue = toSignalOngondoskodasiWl009ProductVariantId()
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "union_vienna_age_505") {
+      const wantedVariantValue = toUnionViennaAge505ProductVariantId(resolveUnionViennaAge505Variant(undefined, inputs.currency))
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "union_vienna_plan_500") {
+      const wantedVariantValue = toUnionViennaPlan500ProductVariantId(resolveUnionViennaPlan500Variant(undefined, inputs.currency))
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "union_vienna_time") {
+      const wantedVariantValue = toUnionViennaTimeProductVariantId(
+        resolveUnionViennaTimeVariant(undefined, unionViennaTimeChannelProfile),
+      )
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "uniqa_eletcel_275") {
+      const wantedVariantValue = toUniqaEletcel275ProductVariantId()
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "uniqa_premium_life_190") {
+      const wantedVariantValue = toUniqaPremiumLife190ProductVariantId()
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "groupama_next") {
+      const wantedVariantValue = toGroupamaNextProductVariantId(groupamaNextAllocationProfile)
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
+    if (selectedProduct === "groupama_easy") {
+      const wantedVariantValue = toGroupamaEasyProductVariantId(
+        resolveGroupamaEasyVariant(undefined, inputs.enableTaxCredit),
+      )
+      return (
+        selectedProductMetadata.variants.find((variant) => variant.value === wantedVariantValue) ??
+        selectedProductMetadata.variants[0] ??
+        null
+      )
+    }
     return selectedProductMetadata.variants[0] ?? null
-  }, [selectedProductMetadata, selectedProduct, inputs.enableTaxCredit, fortisVariantConfig.code, inputs.currency])
+  }, [
+    selectedProductMetadata,
+    selectedProduct,
+    inputs.enableTaxCredit,
+    fortisVariantConfig.code,
+    inputs.currency,
+    unionViennaTimeChannelProfile,
+  ])
 
   useEffect(() => {
     if (selectedProduct === "alfa_zen_eur") {
@@ -3688,6 +4659,71 @@ export function SavingsCalculator() {
     }
     if (productValue === "cig_esszenciae") {
       return "cig-esszenciae"
+    }
+    if (productValue === "knh_hozamhalmozo") {
+      return "knh-hozamhalmozo"
+    }
+    if (productValue === "knh_nyugdijbiztositas4") {
+      return "knh-nyugdijbiztositas4"
+    }
+    if (productValue === "metlife_manhattan") {
+      return "metlife-manhattan"
+    }
+    if (productValue === "metlife_nyugdijprogram") {
+      return "metlife-nyugdijprogram"
+    }
+    if (productValue === "posta_trend") {
+      return "posta-trend"
+    }
+    if (productValue === "posta_trend_nyugdij") {
+      return "posta-trend-nyugdij"
+    }
+    if (productValue === "nn_eletkapu_119") {
+      return "nn-eletkapu-119"
+    }
+    if (productValue === "nn_motiva_158") {
+      return "nn-motiva-158"
+    }
+    if (productValue === "nn_visio_118") {
+      return "nn-visio-118"
+    }
+    if (productValue === "nn_vista_128") {
+      return "nn-vista-128"
+    }
+    if (productValue === "signal_elorelato_ul001") {
+      return "signal-elorelato-ul001"
+    }
+    if (productValue === "signal_nyugdij_terv_plusz_ny010") {
+      return "signal-nyugdij-terv-plusz-ny010"
+    }
+    if (productValue === "signal_nyugdijprogram_sn005") {
+      return "signal-nyugdijprogram-sn005"
+    }
+    if (productValue === "signal_ongondoskodasi_wl009") {
+      return "signal-ongondoskodasi-wl009"
+    }
+    if (productValue === "union_vienna_age_505") {
+      return "union-vienna-age-505"
+    }
+    if (productValue === "union_vienna_plan_500") {
+      return "union-vienna-plan-500"
+    }
+    if (productValue === "union_vienna_time") {
+      if (unionViennaTimeChannelProfile === "erste") return "union-vienna-time-564"
+      if (unionViennaTimeChannelProfile === "select") return "union-vienna-time-606"
+      return "union-vienna-time-584"
+    }
+    if (productValue === "uniqa_eletcel_275") {
+      return "uniqa-eletcel-275"
+    }
+    if (productValue === "uniqa_premium_life_190") {
+      return "uniqa-premium-life-190"
+    }
+    if (productValue === "groupama_next") {
+      return "groupama-next"
+    }
+    if (productValue === "groupama_easy") {
+      return "groupama-easy"
     }
     if (insurer === "Allianz") {
       if (productValue === "allianz_eletprogram" || productValue === "allianz_bonusz_eletprogram") {
@@ -6070,8 +7106,92 @@ export function SavingsCalculator() {
     if (selectedProduct === "cig_esszenciae") {
       return toCigEsszenciaeProductVariantId(resolveCigEsszenciaeVariant(undefined, inputs.currency))
     }
+    if (selectedProduct === "knh_hozamhalmozo") {
+      return toKnhHozamhalmozoProductVariantId(resolveKnhHozamhalmozoVariant())
+    }
+    if (selectedProduct === "knh_nyugdijbiztositas4") {
+      return toKnhNyugdijbiztositas4ProductVariantId(resolveKnhNyugdijbiztositas4Variant())
+    }
+    if (selectedProduct === "metlife_manhattan") {
+      return toMetlifeManhattanProductVariantId(resolveMetlifeManhattanVariant(undefined, inputs.currency))
+    }
+    if (selectedProduct === "metlife_nyugdijprogram") {
+      return toMetlifeNyugdijprogramProductVariantId(resolveMetlifeNyugdijprogramVariant(undefined, inputs.currency))
+    }
+    if (selectedProduct === "posta_trend") {
+      return toPostaTrendProductVariantId(resolvePostaTrendVariant())
+    }
+    if (selectedProduct === "posta_trend_nyugdij") {
+      return toPostaTrendNyugdijProductVariantId(resolvePostaTrendNyugdijVariant())
+    }
+    if (selectedProduct === "nn_eletkapu_119") {
+      return toNnEletkapu119ProductVariantId(resolveNnEletkapu119Variant())
+    }
+    if (selectedProduct === "nn_motiva_158") {
+      return toNnMotiva158ProductVariantId(resolveNnMotiva158VariantFromInputs({ currency: inputs.currency }))
+    }
+    if (selectedProduct === "nn_visio_118") {
+      return toNnVisio118ProductVariantId()
+    }
+    if (selectedProduct === "nn_vista_128") {
+      return toNnVista128ProductVariantId()
+    }
+    if (selectedProduct === "signal_elorelato_ul001") {
+      return toSignalElorelatoUl001ProductVariantId({
+        paymentMethodProfile: signalUl001PaymentMethodProfile,
+        vakProfile: signalUl001VakProfile,
+        loyaltyBonusEnabled: signalUl001LoyaltyBonusEnabled,
+      })
+    }
+    if (selectedProduct === "signal_nyugdij_terv_plusz_ny010") {
+      return toSignalNyugdijTervPluszNy010ProductVariantId()
+    }
+    if (selectedProduct === "signal_nyugdijprogram_sn005") {
+      return toSignalNyugdijprogramSn005ProductVariantId()
+    }
+    if (selectedProduct === "signal_ongondoskodasi_wl009") {
+      return toSignalOngondoskodasiWl009ProductVariantId()
+    }
+    if (selectedProduct === "union_vienna_age_505") {
+      const variant = resolveUnionViennaAge505Variant(undefined, inputs.currency)
+      return toUnionViennaAge505ProductVariantId(
+        variant,
+        union505LoyaltyBonusEligible ? "eligible" : "blocked-after-partial-surrender",
+      )
+    }
+    if (selectedProduct === "union_vienna_plan_500") {
+      const variant = resolveUnionViennaPlan500Variant(undefined, inputs.currency)
+      return toUnionViennaPlan500ProductVariantId(variant)
+    }
+    if (selectedProduct === "union_vienna_time") {
+      const variant = resolveUnionViennaTimeVariant(undefined, unionViennaTimeChannelProfile)
+      return toUnionViennaTimeProductVariantId(variant)
+    }
+    if (selectedProduct === "uniqa_eletcel_275") {
+      return toUniqaEletcel275ProductVariantId()
+    }
+    if (selectedProduct === "uniqa_premium_life_190") {
+      return toUniqaPremiumLife190ProductVariantId()
+    }
+    if (selectedProduct === "groupama_next") {
+      return toGroupamaNextProductVariantId(resolveGroupamaNextVariant(groupamaNextAllocationProfile))
+    }
+    if (selectedProduct === "groupama_easy") {
+      return toGroupamaEasyProductVariantId(resolveGroupamaEasyVariant(undefined, inputs.enableTaxCredit))
+    }
     return selectedProduct ?? undefined
-  }, [selectedProduct, inputs.currency, inputs.enableTaxCredit])
+  }, [
+    selectedProduct,
+    inputs.currency,
+    inputs.enableTaxCredit,
+    signalUl001PaymentMethodProfile,
+    signalUl001VakProfile,
+    signalUl001LoyaltyBonusEnabled,
+    union505LoyaltyBonusEligible,
+    unionViennaTimeChannelProfile,
+    groupamaNextAllocationProfile,
+    inputs.enableTaxCredit,
+  ])
 
   const dailyInputs = useMemo<InputsDaily>(() => {
     const taxCreditLimits = Object.entries(taxCreditLimitByYear).reduce(
@@ -6288,7 +7408,7 @@ export function SavingsCalculator() {
   ])
   const productId = useMemo(
     () => mapSelectedProductToProductId(selectedProduct, selectedInsurer),
-    [selectedProduct, selectedInsurer],
+    [selectedProduct, selectedInsurer, unionViennaTimeChannelProfile],
   )
 
   const results = useMemo(
@@ -7549,6 +8669,7 @@ export function SavingsCalculator() {
   const isEsetiTaxEligibleView = yearlyAccountView === "eseti_tax_eligible"
   const isEsetiImmediateView = yearlyAccountView === "eseti_immediate_access"
   const isEsetiView = yearlyAccountView === "eseti" || isEsetiTaxEligibleView || isEsetiImmediateView
+  const shouldShowDesktopYearlyTable = !isMobile || isLandscapeOrientation
   const yearlyAccountSelectValue: YearlyAccountView =
     isPremiumSelectionNy06 && (isEsetiImmediateView || isEsetiTaxEligibleView) ? "eseti" : yearlyAccountView
   const settingsAccountView: "main" | "eseti" = isEsetiView ? "eseti" : "main"
@@ -8379,119 +9500,131 @@ export function SavingsCalculator() {
                     </div>
 
                     <div className={`pt-2 border-t ${isSettingsEseti ? "opacity-60" : ""}`}>
-                      <div className={MOBILE_LAYOUT.yearlySecondaryGrid}>
-                        <div className="space-y-1">
-                          <Label className={SETTINGS_UI.label} htmlFor="durationFromInput">
-                            Futamidő tól (ÉÉÉÉ.HH.NN)
-                          </Label>
-                          <div className="relative">
-                            <Input
-                              id="durationFromInput"
-                              type="text"
-                              inputMode="numeric"
-                              placeholder="2019.04.05 / 20190405"
-                              value={durationFromInput}
-                              onChange={(e) => {
-                                setDurationSource("dates")
-                                setDurationFromInput(e.target.value)
-                              }}
-                              onBlur={() => {
-                                setDurationSource("dates")
-                                const parsed = parseHuDateInput(durationFromInput)
-                                if (parsed) setDurationFromInput(formatHuDate(parsed))
-                              }}
-                              disabled={isSettingsEseti}
-                              className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field} pr-9`}
-                            />
-                            <Popover open={durationFromPickerOpen} onOpenChange={setDurationFromPickerOpen}>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  disabled={isSettingsEseti}
-                                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground"
-                                  aria-label="Dátum választása (tól)"
-                                >
-                                  <CalendarIcon className="h-4 w-4" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent align="end" className="w-auto p-0">
-                                <Calendar
-                                  mode="single"
-                                  selected={parsedDurationFrom ?? undefined}
-                                  defaultMonth={parsedDurationFrom ?? undefined}
-                                  onSelect={(date) => {
-                                    if (!date) return
+                      <Collapsible open={isCalendarRangeOpen} onOpenChange={setIsCalendarRangeOpen}>
+                        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md px-1 py-1 text-left hover:bg-muted/50 transition-colors">
+                          <span className={SETTINGS_UI.label}>Naptár szerinti számolás</span>
+                          <ChevronDown
+                            className={`h-4 w-4 text-muted-foreground transition-transform ${
+                              isCalendarRangeOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-2">
+                          <div className={MOBILE_LAYOUT.yearlySecondaryGrid}>
+                            <div className="space-y-1">
+                              <Label className={SETTINGS_UI.label} htmlFor="durationFromInput">
+                                Futamidő tól (ÉÉÉÉ.HH.NN)
+                              </Label>
+                              <div className="relative">
+                                <Input
+                                  id="durationFromInput"
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder="2019.04.05 / 20190405"
+                                  value={durationFromInput}
+                                  onChange={(e) => {
                                     setDurationSource("dates")
-                                    setDurationFromInput(formatHuDate(date))
-                                    setDurationFromPickerOpen(false)
+                                    setDurationFromInput(e.target.value)
                                   }}
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className={SETTINGS_UI.label} htmlFor="durationToInput">
-                            Futamidő ig (ÉÉÉÉ.HH.NN)
-                          </Label>
-                          <div className="relative">
-                            <Input
-                              id="durationToInput"
-                              type="text"
-                              inputMode="numeric"
-                              placeholder="2026.04.07 / 20260407"
-                              value={durationToInput}
-                              onChange={(e) => {
-                                setDurationSource("dates")
-                                setDurationToInput(e.target.value)
-                              }}
-                              onBlur={() => {
-                                setDurationSource("dates")
-                                const parsed = parseHuDateInput(durationToInput)
-                                if (parsed) setDurationToInput(formatHuDate(parsed))
-                              }}
-                              disabled={isSettingsEseti}
-                              className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field} pr-9`}
-                            />
-                            <Popover open={durationToPickerOpen} onOpenChange={setDurationToPickerOpen}>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  disabled={isSettingsEseti}
-                                  className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground"
-                                  aria-label="Dátum választása (ig)"
-                                >
-                                  <CalendarIcon className="h-4 w-4" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent align="end" className="w-auto p-0">
-                                <Calendar
-                                  mode="single"
-                                  selected={parsedDurationTo ?? undefined}
-                                  defaultMonth={parsedDurationTo ?? undefined}
-                                  onSelect={(date) => {
-                                    if (!date) return
+                                  onBlur={() => {
                                     setDurationSource("dates")
-                                    setDurationToInput(formatHuDate(date))
-                                    setDurationToPickerOpen(false)
+                                    const parsed = parseHuDateInput(durationFromInput)
+                                    if (parsed) setDurationFromInput(formatHuDate(parsed))
                                   }}
-                                  initialFocus
+                                  disabled={isSettingsEseti}
+                                  className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field} pr-9`}
                                 />
-                              </PopoverContent>
-                            </Popover>
+                                <Popover open={durationFromPickerOpen} onOpenChange={setDurationFromPickerOpen}>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      disabled={isSettingsEseti}
+                                      className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground"
+                                      aria-label="Dátum választása (tól)"
+                                    >
+                                      <CalendarIcon className="h-4 w-4" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent align="end" className="w-auto p-0">
+                                    <Calendar
+                                      mode="single"
+                                      selected={parsedDurationFrom ?? undefined}
+                                      defaultMonth={parsedDurationFrom ?? undefined}
+                                      onSelect={(date) => {
+                                        if (!date) return
+                                        setDurationSource("dates")
+                                        setDurationFromInput(formatHuDate(date))
+                                        setDurationFromPickerOpen(false)
+                                      }}
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className={SETTINGS_UI.label} htmlFor="durationToInput">
+                                Futamidő ig (ÉÉÉÉ.HH.NN)
+                              </Label>
+                              <div className="relative">
+                                <Input
+                                  id="durationToInput"
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder="2026.04.07 / 20260407"
+                                  value={durationToInput}
+                                  onChange={(e) => {
+                                    setDurationSource("dates")
+                                    setDurationToInput(e.target.value)
+                                  }}
+                                  onBlur={() => {
+                                    setDurationSource("dates")
+                                    const parsed = parseHuDateInput(durationToInput)
+                                    if (parsed) setDurationToInput(formatHuDate(parsed))
+                                  }}
+                                  disabled={isSettingsEseti}
+                                  className={`${MOBILE_LAYOUT.inputHeight} ${SETTINGS_UI.field} pr-9`}
+                                />
+                                <Popover open={durationToPickerOpen} onOpenChange={setDurationToPickerOpen}>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      disabled={isSettingsEseti}
+                                      className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground"
+                                      aria-label="Dátum választása (ig)"
+                                    >
+                                      <CalendarIcon className="h-4 w-4" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent align="end" className="w-auto p-0">
+                                    <Calendar
+                                      mode="single"
+                                      selected={parsedDurationTo ?? undefined}
+                                      defaultMonth={parsedDurationTo ?? undefined}
+                                      onSelect={(date) => {
+                                        if (!date) return
+                                        setDurationSource("dates")
+                                        setDurationToInput(formatHuDate(date))
+                                        setDurationToPickerOpen(false)
+                                      }}
+                                      initialFocus
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      {durationDateError ? (
-                        <p className="mt-2 text-xs text-destructive">{durationDateError}</p>
-                      ) : (
-                        <p className={SETTINGS_UI.helper}>A dátumtartomány automatikusan napokra állítja a futamidőt.</p>
-                      )}
+                          {durationDateError ? (
+                            <p className="mt-2 text-xs text-destructive">{durationDateError}</p>
+                          ) : (
+                            <p className={SETTINGS_UI.helper}>A dátumtartomány automatikusan napokra állítja a futamidőt.</p>
+                          )}
+                        </CollapsibleContent>
+                      </Collapsible>
                     </div>
                   </div>
 
@@ -9007,6 +10140,146 @@ export function SavingsCalculator() {
                                     Az Alfa Zen Pro termékváltozat automatikusan deviza alapján választódik:
                                     HUF=`NY-08`, EUR=`NY-14`, USD=`NY-24`.
                                   </p>
+                                ) : selectedProduct === "nn_motiva_158" ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    Az NN Motiva termékváltozat automatikusan deviza alapján választódik:
+                                    HUF=`158`, EUR=`168`.
+                                  </p>
+                                ) : selectedProduct === "union_vienna_time" ? (
+                                  <div className="space-y-2 text-xs text-muted-foreground">
+                                    <p>
+                                      A UNION Vienna Time terméknél a variáns csatorna-profil alapján választódik:
+                                      Erste=`564`, Standard=`584`, Select=`606` (V1-ben HUF-only).
+                                    </p>
+                                    <div className="space-y-1">
+                                      <Label className="text-xs">Csatorna profil</Label>
+                                      <Select
+                                        value={unionViennaTimeChannelProfile}
+                                        onValueChange={(value) =>
+                                          setUnionViennaTimeChannelProfile(value as UnionViennaTimeChannelProfile)
+                                        }
+                                      >
+                                        <SelectTrigger className="h-8">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="erste">Erste (564)</SelectItem>
+                                          <SelectItem value="standard">Standard (584)</SelectItem>
+                                          <SelectItem value="select">Select (606)</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                ) : selectedProduct === "uniqa_eletcel_275" ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    A UNIQA Életcél terméknél V1-ben fix 275 (HUF) variáns érhető el.
+                                  </p>
+                                ) : selectedProduct === "uniqa_premium_life_190" ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    A UNIQA Premium Life terméknél V1-ben fix 190 (HUF) variáns érhető el.
+                                  </p>
+                                ) : selectedProduct === "groupama_next" ? (
+                                  <div className="space-y-2 text-xs text-muted-foreground">
+                                    <p>
+                                      A Groupama Next terméknél V1-ben 3 fix termékrész-arány választható:
+                                      100/0, 75/25, 0/100 (UL/hagyományos).
+                                    </p>
+                                    <div className="space-y-1">
+                                      <Label className="text-xs">Termékrész arány</Label>
+                                      <Select
+                                        value={groupamaNextAllocationProfile}
+                                        onValueChange={(value) =>
+                                          setGroupamaNextAllocationProfile(value as GroupamaNextVariant)
+                                        }
+                                      >
+                                        <SelectTrigger className="h-8">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="ul100-trad0">100% UL / 0% hagyományos</SelectItem>
+                                          <SelectItem value="ul75-trad25">75% UL / 25% hagyományos</SelectItem>
+                                          <SelectItem value="ul0-trad100">0% UL / 100% hagyományos</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                ) : selectedProduct === "groupama_easy" ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    A Groupama Easy terméknél V1-ben HUF variáns érhető el, az adójóváírás külön kapcsolható.
+                                  </p>
+                                ) : selectedProduct === "union_vienna_age_505" ? (
+                                  <div className="space-y-2 text-xs text-muted-foreground">
+                                    <p>
+                                      A UNION Vienna Age 505 termékváltozat automatikusan deviza alapján választódik:
+                                      HUF/EUR/USD.
+                                    </p>
+                                    <div className="flex items-center justify-between gap-3 rounded border p-2">
+                                      <div>
+                                        <Label className="text-xs">Díjvisszatérítés jogosultság (10/15/20. év)</Label>
+                                        <p className="text-[11px] text-muted-foreground">
+                                          Ha részvisszavásárlás történt a folyamatos díjas számláról, kapcsold ki.
+                                        </p>
+                                      </div>
+                                      <Switch
+                                        checked={union505LoyaltyBonusEligible}
+                                        onCheckedChange={(checked) => setUnion505LoyaltyBonusEligible(checked)}
+                                      />
+                                    </div>
+                                  </div>
+                                ) : selectedProduct === "signal_elorelato_ul001" ? (
+                                  <div className="space-y-2 text-xs text-muted-foreground">
+                                    <p>A Signal UL001-hez bővített V1 profilválasztás aktív.</p>
+                                    <div className="grid gap-2 md:grid-cols-3">
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">Díjfizetési mód profil</Label>
+                                        <Select
+                                          value={signalUl001PaymentMethodProfile}
+                                          onValueChange={(value) =>
+                                            setSignalUl001PaymentMethodProfile(value as SignalElorelatoUl001PaymentMethodProfile)
+                                          }
+                                        >
+                                          <SelectTrigger className="h-8">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="bank-transfer">Átutalás</SelectItem>
+                                            <SelectItem value="direct-debit">Csoportos beszedés</SelectItem>
+                                            <SelectItem value="postal-check">Csekk</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">VAK profil</Label>
+                                        <Select
+                                          value={signalUl001VakProfile}
+                                          onValueChange={(value) => setSignalUl001VakProfile(value as SignalElorelatoUl001VakProfile)}
+                                        >
+                                          <SelectTrigger className="h-8">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="standard">Normál (2.00%)</SelectItem>
+                                            <SelectItem value="reduced-funds">Kivételes alapok (1.60%)</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">Lojalitási bónusz</Label>
+                                        <Select
+                                          value={signalUl001LoyaltyBonusEnabled ? "on" : "off"}
+                                          onValueChange={(value) => setSignalUl001LoyaltyBonusEnabled(value === "on")}
+                                        >
+                                          <SelectTrigger className="h-8">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="on">Bekapcsolva</SelectItem>
+                                            <SelectItem value="off">Kikapcsolva</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+                                  </div>
                                 ) : selectedProduct === "generali_kabala" ? (
                                   <div className="space-y-1 text-xs text-muted-foreground">
                                     <p>
@@ -10234,7 +11507,7 @@ export function SavingsCalculator() {
               </CardHeader>
               <CardContent className="pt-3">
                 {/* Mobile view */}
-                <div className={`md:hidden space-y-3 ${isYearlyMuted ? "opacity-60" : ""}`}>
+                <div className={`${shouldShowDesktopYearlyTable ? "hidden" : "space-y-3"} ${isYearlyMuted ? "opacity-60" : ""}`}>
                   {(adjustedResults?.yearlyBreakdown ?? []).slice(0, visibleYears).map((row, index) => (
                     <MobileYearCard
                       key={`${row.year}-${row.periodType ?? "year"}-${index}`}
@@ -10326,7 +11599,7 @@ export function SavingsCalculator() {
                 </div>
 
                 {/* Desktop table */}
-                <div className={`hidden md:block overflow-x-auto ${isYearlyMuted ? "opacity-60" : ""}`}>
+                <div className={`${shouldShowDesktopYearlyTable ? "block" : "hidden"} overflow-x-auto ${isYearlyMuted ? "opacity-60" : ""}`}>
                   <table className="w-full min-w-[1100px] text-sm yearly-breakdown-table yearly-breakdown-table--auto">
                     <colgroup>
                       <col style={{ width: "60px" }} />
