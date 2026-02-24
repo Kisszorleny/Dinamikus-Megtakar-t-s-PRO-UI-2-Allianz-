@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs"
 import path from "node:path"
+import os from "node:os"
 import { randomUUID } from "node:crypto"
 import type {
   CustomPreset,
@@ -16,28 +17,41 @@ type AuthContext = {
   isAdmin: boolean
 }
 
-const STORAGE_DIR = path.join(process.cwd(), ".runtime-data")
-const STORAGE_FILE = path.join(STORAGE_DIR, "custom-presets.json")
+const PRIMARY_STORAGE_DIR = path.join(process.cwd(), ".runtime-data")
+const PRIMARY_STORAGE_FILE = path.join(PRIMARY_STORAGE_DIR, "custom-presets.json")
+const FALLBACK_STORAGE_DIR = path.join(os.tmpdir(), "dm-pro-ui-runtime-data")
+const FALLBACK_STORAGE_FILE = path.join(FALLBACK_STORAGE_DIR, "custom-presets.json")
 
 let inMemoryCache: RepositoryState | null = null
 
 async function readState(): Promise<RepositoryState> {
   if (inMemoryCache) return inMemoryCache
-  try {
-    const raw = await fs.readFile(STORAGE_FILE, "utf8")
-    const parsed = JSON.parse(raw) as RepositoryState
-    inMemoryCache = { presets: Array.isArray(parsed?.presets) ? parsed.presets : [] }
-    return inMemoryCache
-  } catch {
-    inMemoryCache = { presets: [] }
-    return inMemoryCache
+  for (const storageFile of [PRIMARY_STORAGE_FILE, FALLBACK_STORAGE_FILE]) {
+    try {
+      const raw = await fs.readFile(storageFile, "utf8")
+      const parsed = JSON.parse(raw) as RepositoryState
+      inMemoryCache = { presets: Array.isArray(parsed?.presets) ? parsed.presets : [] }
+      return inMemoryCache
+    } catch {
+      // try next location
+    }
   }
+  inMemoryCache = { presets: [] }
+  return inMemoryCache
 }
 
 async function writeState(next: RepositoryState): Promise<void> {
   inMemoryCache = next
-  await fs.mkdir(STORAGE_DIR, { recursive: true })
-  await fs.writeFile(STORAGE_FILE, JSON.stringify(next, null, 2), "utf8")
+  try {
+    await fs.mkdir(PRIMARY_STORAGE_DIR, { recursive: true })
+    await fs.writeFile(PRIMARY_STORAGE_FILE, JSON.stringify(next, null, 2), "utf8")
+    return
+  } catch {
+    // In serverless environments (e.g. /var/task) fallback to temp storage.
+  }
+
+  await fs.mkdir(FALLBACK_STORAGE_DIR, { recursive: true })
+  await fs.writeFile(FALLBACK_STORAGE_FILE, JSON.stringify(next, null, 2), "utf8")
 }
 
 function canReadPreset(preset: CustomPreset, auth: AuthContext): boolean {
