@@ -32,6 +32,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ message: "Nincs jogosultság." }, { status: 401 })
+  }
+
   const loginUrl = new URL("/login", request.url)
   loginUrl.searchParams.set("from", pathname)
   return NextResponse.redirect(loginUrl)

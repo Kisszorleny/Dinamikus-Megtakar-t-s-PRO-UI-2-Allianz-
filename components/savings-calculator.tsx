@@ -2540,6 +2540,7 @@ export function SavingsCalculator() {
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>([])
   const [selectedCustomPresetId, setSelectedCustomPresetId] = useState<string>("")
   const [customPresetName, setCustomPresetName] = useState("")
+  const [customPresetError, setCustomPresetError] = useState("")
   
   // Load from sessionStorage after hydration
   useEffect(() => {
@@ -9025,15 +9026,25 @@ export function SavingsCalculator() {
 
   const loadCustomPresets = useCallback(async () => {
     try {
+      setCustomPresetError("")
       const query = selectedProduct ? `?productScope=${encodeURIComponent(selectedProduct)}` : ""
       const response = await fetch(`/api/custom-presets${query}`)
-      if (!response.ok) return
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        setCustomPresetError(payload?.message ?? "A sablonlista betöltése sikertelen.")
+        if (response.status === 401) {
+          router.replace("/login")
+          return
+        }
+        return
+      }
       const data = await response.json()
       setCustomPresets(Array.isArray(data?.presets) ? data.presets : [])
     } catch (error) {
       console.error("[v0] custom preset list error:", error)
+      setCustomPresetError("A sablonlista betöltése sikertelen.")
     }
-  }, [selectedProduct])
+  }, [selectedProduct, router])
 
   useEffect(() => {
     void loadCustomPresets()
@@ -9043,6 +9054,7 @@ export function SavingsCalculator() {
     const name = customPresetName.trim()
     if (!name || customEntryDefinitions.length === 0) return
     try {
+      setCustomPresetError("")
       const response = await fetch("/api/custom-presets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -9052,13 +9064,21 @@ export function SavingsCalculator() {
           entries: customEntryDefinitions,
         }),
       })
-      if (!response.ok) return
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        setCustomPresetError(payload?.message ?? "A sablon mentése sikertelen.")
+        if (response.status === 401) {
+          router.replace("/login")
+        }
+        return
+      }
       setCustomPresetName("")
       await loadCustomPresets()
     } catch (error) {
       console.error("[v0] custom preset save error:", error)
+      setCustomPresetError("A sablon mentése sikertelen.")
     }
-  }, [customPresetName, customEntryDefinitions, selectedProduct, loadCustomPresets])
+  }, [customPresetName, customEntryDefinitions, selectedProduct, loadCustomPresets, router])
 
   const applyCustomPreset = useCallback((preset: CustomPreset) => {
     const feeEntries = preset.entries.filter((entry) => entry.kind === "cost")
@@ -9124,29 +9144,47 @@ export function SavingsCalculator() {
   const updateCurrentCustomPreset = useCallback(async () => {
     if (!selectedCustomPresetId || customEntryDefinitions.length === 0) return
     try {
+      setCustomPresetError("")
       const response = await fetch(`/api/custom-presets/${selectedCustomPresetId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ entries: customEntryDefinitions, productScope: selectedProduct ?? null }),
       })
-      if (!response.ok) return
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        setCustomPresetError(payload?.message ?? "A sablon frissítése sikertelen.")
+        if (response.status === 401) {
+          router.replace("/login")
+        }
+        return
+      }
       await loadCustomPresets()
     } catch (error) {
       console.error("[v0] custom preset update error:", error)
+      setCustomPresetError("A sablon frissítése sikertelen.")
     }
-  }, [selectedCustomPresetId, customEntryDefinitions, selectedProduct, loadCustomPresets])
+  }, [selectedCustomPresetId, customEntryDefinitions, selectedProduct, loadCustomPresets, router])
 
   const deleteCurrentCustomPreset = useCallback(async () => {
     if (!selectedCustomPresetId) return
     try {
+      setCustomPresetError("")
       const response = await fetch(`/api/custom-presets/${selectedCustomPresetId}`, { method: "DELETE" })
-      if (!response.ok) return
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        setCustomPresetError(payload?.message ?? "A sablon törlése sikertelen.")
+        if (response.status === 401) {
+          router.replace("/login")
+        }
+        return
+      }
       setSelectedCustomPresetId("")
       await loadCustomPresets()
     } catch (error) {
       console.error("[v0] custom preset delete error:", error)
+      setCustomPresetError("A sablon törlése sikertelen.")
     }
-  }, [selectedCustomPresetId, loadCustomPresets])
+  }, [selectedCustomPresetId, loadCustomPresets, router])
 
   const getYearlyHeaderInfoHandlers = (key: string) => ({
     onMouseEnter: () => setActiveYearlyColumnInfoKey(key),
@@ -10921,6 +10959,9 @@ export function SavingsCalculator() {
                         </Button>
                       </div>
                     </div>
+                    {customPresetError ? (
+                      <p className="md:col-span-3 text-sm text-destructive">{customPresetError}</p>
+                    ) : null}
                   </div>
                   {/* Management Fees Section */}
                   <div className="space-y-3">
