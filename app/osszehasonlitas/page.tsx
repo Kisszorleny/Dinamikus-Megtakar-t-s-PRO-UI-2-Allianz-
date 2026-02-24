@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { ArrowLeft } from "lucide-react"
 import { convertForDisplay, formatMoney } from "@/lib/currency-conversion"
 import { buildYearlyPlan } from "@/lib/plan"
@@ -336,8 +337,25 @@ const getAllProductsForComparison = (): Array<{ insurer: string; product: Produc
   return allProducts
 }
 
+const normalizeSearchText = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+
 export default function OsszehasonlitasPage() {
   const router = useRouter()
+  const [productSearch, setProductSearch] = useState("")
+  const allProductsForComparison = useMemo(() => getAllProductsForComparison(), [])
+  const filteredProductsForComparison = useMemo(() => {
+    const normalizedQuery = normalizeSearchText(productSearch)
+    if (!normalizedQuery) return allProductsForComparison
+    return allProductsForComparison.filter(({ insurer, product }) => {
+      const haystack = normalizeSearchText(`${insurer} ${product.label}`)
+      return haystack.includes(normalizedQuery)
+    })
+  }, [allProductsForComparison, productSearch])
 
   const [selectedProductsForComparison, setSelectedProductsForComparison] = useState<string[]>(() => {
     if (typeof window !== "undefined") {
@@ -362,7 +380,7 @@ export default function OsszehasonlitasPage() {
   // Save selectedProductsForComparison to sessionStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const validKeys = new Set(getAllProductsForComparison().map(({ insurer, product }) => `${insurer}-${product.value}`))
+      const validKeys = new Set(allProductsForComparison.map(({ insurer, product }) => `${insurer}-${product.value}`))
       const sanitized = selectedProductsForComparison
         .map((key) => key.replace("-alfa_zen_eur", "-alfa_zen"))
         .filter((key) => validKeys.has(key))
@@ -371,7 +389,7 @@ export default function OsszehasonlitasPage() {
         setSelectedProductsForComparison(sanitized)
       }
     }
-  }, [selectedProductsForComparison])
+  }, [selectedProductsForComparison, allProductsForComparison])
 
   // Load data from sessionStorage
   const [inputs, setInputs] = useState<any>(null)
@@ -923,8 +941,14 @@ export default function OsszehasonlitasPage() {
             {/* Product Selector */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Válasszon termékeket az összehasonlításhoz</Label>
+              <Input
+                value={productSearch}
+                onChange={(event) => setProductSearch(event.target.value)}
+                placeholder="Keresés terméknévre vagy biztosítóra..."
+                className="h-9"
+              />
               <div className="space-y-2 max-h-64 overflow-y-auto border rounded-md p-3">
-                {getAllProductsForComparison().map(({ insurer, product }) => {
+                {filteredProductsForComparison.map(({ insurer, product }) => {
                   const productKey = `${insurer}-${product.value}`
                   return (
                     <div key={productKey} className="flex items-center space-x-2">
@@ -948,6 +972,9 @@ export default function OsszehasonlitasPage() {
                     </div>
                   )
                 })}
+                {filteredProductsForComparison.length === 0 && (
+                  <p className="text-sm text-muted-foreground py-2">Nincs találat a keresésre.</p>
+                )}
               </div>
             </div>
 

@@ -41,13 +41,10 @@ async function writeState(next: RepositoryState): Promise<void> {
 }
 
 function canReadPreset(preset: CustomPreset, auth: AuthContext): boolean {
-  if (auth.isAdmin) return true
-  if (preset.ownerId === auth.userId) return true
-  return preset.ownerRole === "admin"
+  return preset.ownerId === auth.userId
 }
 
 function canWritePreset(preset: CustomPreset, auth: AuthContext): boolean {
-  if (auth.isAdmin) return true
   return preset.ownerId === auth.userId
 }
 

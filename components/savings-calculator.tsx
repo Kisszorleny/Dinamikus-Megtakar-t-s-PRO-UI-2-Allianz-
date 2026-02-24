@@ -26,6 +26,7 @@ import {
   FileText,
   Upload,
   Trash2,
+  LogOut,
 } from "lucide-react"
 import { calculate } from "@/lib/engine/calculate"
 import { ALFA_EXCLUSIVE_PLUS_MIN_EXTRAORDINARY_PAYMENT } from "@/lib/engine/products/alfa-exclusive-plus-config"
@@ -1795,6 +1796,7 @@ export function SavingsCalculator() {
   const router = useRouter()
   const { updateData } = useCalculatorData()
   const { isMobile } = useMobile()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isLandscapeOrientation, setIsLandscapeOrientation] = useState(() => {
     if (typeof window === "undefined") return false
     return window.matchMedia("(orientation: landscape)").matches || window.innerWidth > window.innerHeight
@@ -2569,6 +2571,18 @@ export function SavingsCalculator() {
       }
     }
   }, [])
+
+  const handleLogout = useCallback(async () => {
+    if (isLoggingOut) return
+    setIsLoggingOut(true)
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+    } finally {
+      router.replace("/login")
+      router.refresh()
+      setIsLoggingOut(false)
+    }
+  }, [isLoggingOut, router])
 
   // Save bonuses to sessionStorage
   useEffect(() => {
@@ -3554,6 +3568,9 @@ export function SavingsCalculator() {
   const [appliedPresetLabel, setAppliedPresetLabel] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState<string>("settings")
   const [editingFields, setEditingFields] = useState<Record<string, boolean | undefined>>({})
+  const [settingsAnnualIndexDraft, setSettingsAnnualIndexDraft] = useState<string | null>(null)
+  const [settingsDurationDraft, setSettingsDurationDraft] = useState<string | null>(null)
+  const [settingsAnnualYieldDraft, setSettingsAnnualYieldDraft] = useState<string | null>(null)
   const [assetCostInputByYear, setAssetCostInputByYear] = useState<Record<number, string>>({})
   const [accountMaintenanceInputByYear, setAccountMaintenanceInputByYear] = useState<Record<number, string>>({})
   const [adminFeeInputByYear, setAdminFeeInputByYear] = useState<Record<number, string>>({})
@@ -4918,6 +4935,13 @@ export function SavingsCalculator() {
 
   const setFieldEditing = (field: string, isEditing: boolean) => {
     setEditingFields((prev) => ({ ...prev, [field]: isEditing }))
+  }
+
+  const parseLocalizedDecimal = (rawValue: string) => {
+    const normalized = rawValue.replace(",", ".").trim()
+    if (!normalized) return null
+    const parsed = Number(normalized)
+    return Number.isFinite(parsed) ? parsed : null
   }
 
   const loadFxRate = async (currency: "EUR" | "USD" = "EUR") => {
@@ -9369,6 +9393,16 @@ export function SavingsCalculator() {
                   <SelectItem value="calendar">Naptár</SelectItem>
                 </SelectContent>
               </Select>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="h-9 px-3"
+              >
+                <LogOut className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">{isLoggingOut ? "Kilépés..." : "Kijelentkezés"}</span>
+              </Button>
             </div>
           </div>
 
@@ -9568,17 +9602,40 @@ export function SavingsCalculator() {
                         </Label>
                         <Input
                           id="annualIndex"
-                          type="number"
+                          type="text"
+                          inputMode="decimal"
                           onWheel={(e) => e.currentTarget.blur()}
                           disabled={isSettingsEseti}
-                          value={isSettingsEseti ? esetiBaseInputs.annualIndexPercent : inputs.annualIndexPercent}
+                          value={
+                            settingsAnnualIndexDraft ??
+                            String(isSettingsEseti ? esetiBaseInputs.annualIndexPercent : inputs.annualIndexPercent)
+                          }
+                          onFocus={() =>
+                            setSettingsAnnualIndexDraft(
+                              String(isSettingsEseti ? esetiBaseInputs.annualIndexPercent : inputs.annualIndexPercent),
+                            )
+                          }
                           onChange={(e) => {
-                            const nextValue = Number(e.target.value)
+                            const nextRaw = e.target.value
+                            setSettingsAnnualIndexDraft(nextRaw)
+                            const nextValue = parseLocalizedDecimal(nextRaw)
+                            if (nextValue === null) return
                             if (isSettingsEseti) {
                               setEsetiBaseInputs((prev) => ({ ...prev, annualIndexPercent: nextValue }))
                             } else {
                               setInputs({ ...inputs, annualIndexPercent: nextValue })
                             }
+                          }}
+                          onBlur={() => {
+                            const fallback = isSettingsEseti ? esetiBaseInputs.annualIndexPercent : inputs.annualIndexPercent
+                            const parsed = parseLocalizedDecimal(settingsAnnualIndexDraft ?? "")
+                            const nextValue = parsed ?? fallback
+                            if (isSettingsEseti) {
+                              setEsetiBaseInputs((prev) => ({ ...prev, annualIndexPercent: nextValue }))
+                            } else {
+                              setInputs((prev) => ({ ...prev, annualIndexPercent: nextValue }))
+                            }
+                            setSettingsAnnualIndexDraft(null)
                           }}
                           min={0}
                           max={100}
@@ -9593,17 +9650,38 @@ export function SavingsCalculator() {
                       <div className={MOBILE_LAYOUT.settingsField}>
                         <Label className={SETTINGS_UI.label}>Futamidő</Label>
                         <Input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           onWheel={(e) => e.currentTarget.blur()}
-                          value={settingsDurationValue}
+                          value={settingsDurationDraft ?? String(settingsDurationValue)}
+                          onFocus={() => setSettingsDurationDraft(String(settingsDurationValue))}
                           onChange={(e) => {
-                            const parsed = Number(e.target.value)
+                            const nextRaw = e.target.value
+                            setSettingsDurationDraft(nextRaw)
+                            const normalized = nextRaw.trim()
+                            if (!normalized || !/^\d+$/.test(normalized)) return
+                            const parsed = Number(normalized)
                             if (isSettingsEseti) {
                               setEsetiDurationValue(Math.min(parsed, settingsDurationMax))
                             } else {
                               setDurationSource("value")
                               setDurationValue(parsed)
                             }
+                          }}
+                          onBlur={() => {
+                            const normalized = (settingsDurationDraft ?? "").trim()
+                            const parsed = /^\d+$/.test(normalized) ? Number(normalized) : Number.NaN
+                            const fallback = settingsDurationValue
+                            const nextValue = Number.isFinite(parsed)
+                              ? Math.min(Math.max(1, Math.round(parsed)), settingsDurationMax)
+                              : fallback
+                            if (isSettingsEseti) {
+                              setEsetiDurationValue(nextValue)
+                            } else {
+                              setDurationSource("value")
+                              setDurationValue(nextValue)
+                            }
+                            setSettingsDurationDraft(null)
                           }}
                           min={1}
                           max={settingsDurationMax}
@@ -9783,11 +9861,23 @@ export function SavingsCalculator() {
                         ) : (
                           <Input
                             id="annualYield"
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             onWheel={(e) => e.currentTarget.blur()}
-                            value={isSettingsEseti ? esetiBaseInputs.annualYieldPercent : inputs.annualYieldPercent}
+                            value={
+                              settingsAnnualYieldDraft ??
+                              String(isSettingsEseti ? esetiBaseInputs.annualYieldPercent : inputs.annualYieldPercent)
+                            }
+                            onFocus={() =>
+                              setSettingsAnnualYieldDraft(
+                                String(isSettingsEseti ? esetiBaseInputs.annualYieldPercent : inputs.annualYieldPercent),
+                              )
+                            }
                             onChange={(e) => {
-                              const nextValue = Number(e.target.value)
+                              const nextRaw = e.target.value
+                              setSettingsAnnualYieldDraft(nextRaw)
+                              const nextValue = parseLocalizedDecimal(nextRaw)
+                              if (nextValue === null) return
                               if (isSettingsEseti) {
                                 setEsetiBaseInputs((prev) => ({ ...prev, annualYieldPercent: nextValue }))
                               } else {
@@ -9795,6 +9885,19 @@ export function SavingsCalculator() {
                                 setManualYieldPercent(nextValue)
                                 setInputs({ ...inputs, annualYieldPercent: nextValue })
                               }
+                            }}
+                            onBlur={() => {
+                              const fallback = isSettingsEseti ? esetiBaseInputs.annualYieldPercent : inputs.annualYieldPercent
+                              const parsed = parseLocalizedDecimal(settingsAnnualYieldDraft ?? "")
+                              const nextValue = parsed ?? fallback
+                              if (isSettingsEseti) {
+                                setEsetiBaseInputs((prev) => ({ ...prev, annualYieldPercent: nextValue }))
+                              } else {
+                                setYieldSourceMode("manual")
+                                setManualYieldPercent(nextValue)
+                                setInputs((prev) => ({ ...prev, annualYieldPercent: nextValue }))
+                              }
+                              setSettingsAnnualYieldDraft(null)
                             }}
                             min={0}
                             max={100}
