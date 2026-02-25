@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { getConfiguredCredentials, validateSessionToken } from "@/lib/auth-session"
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/auth/logout"]
+const PUBLIC_EXACT_PATHS = ["/"]
+const PUBLIC_PREFIX_PATHS = ["/login", "/urlap", "/api/auth/login", "/api/auth/logout", "/api/leads"]
 const PUBLIC_FILE = /\.(.*)$/
 
 function hasValidSession(request: NextRequest) {
@@ -21,9 +22,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
+  if (PUBLIC_EXACT_PATHS.includes(pathname) || PUBLIC_PREFIX_PATHS.some((path) => pathname.startsWith(path))) {
     if (pathname === "/login" && hasValidSession(request)) {
-      return NextResponse.redirect(new URL("/", request.url))
+      return NextResponse.redirect(new URL("/kalkulator", request.url))
     }
     return NextResponse.next()
   }
