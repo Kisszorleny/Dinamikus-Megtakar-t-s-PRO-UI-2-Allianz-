@@ -1,5 +1,12 @@
 "use client"
 
+import {
+  ALLIANZ_BONUSZ_ELETPROGRAM_MNB_CODE_EUR,
+  ALLIANZ_BONUSZ_ELETPROGRAM_MNB_CODE_HUF,
+  ALLIANZ_ELETPROGRAM_MNB_CODE_EUR,
+  ALLIANZ_ELETPROGRAM_MNB_CODE_HUF,
+} from "@/lib/engine/products/allianz-eletprogram"
+import { CIG_NYUGDIJKOTVENYE_MNB_CODE } from "@/lib/engine/products/cig-nyugdijkotvenye-config"
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -14,6 +21,7 @@ import { calculate, type InputsDaily, type ProductId } from "@/lib/engine"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { ColumnHoverInfoPanel } from "@/components/column-hover-info-panel"
 import { resolveProductContextKey } from "@/lib/column-explanations"
+import { getAllProductsForInsurers, getAvailableProductsForInsurerFromCatalog } from "@/lib/product-catalog/ui"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts"
 
 type Currency = "HUF" | "EUR" | "USD"
@@ -32,7 +40,27 @@ interface ProductMetadata {
   }[]
 }
 
+const USE_PRODUCT_CATALOG = process.env.NEXT_PUBLIC_USE_PRODUCT_CATALOG === "1"
+
 const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
+  if (USE_PRODUCT_CATALOG) {
+    const catalogProducts = getAvailableProductsForInsurerFromCatalog(insurer)
+    if (catalogProducts.length > 0) {
+      return catalogProducts.map((product) => ({
+        value: product.value,
+        label: product.label,
+        productType: product.productType,
+        mnbCode: product.mnbCode,
+        productCode: product.productCode,
+        variants: product.variants?.map((variant) => ({
+          label: variant.label,
+          productType: variant.productType,
+          mnbCode: variant.mnbCode,
+          productCode: variant.productCode,
+        })),
+      }))
+    }
+  }
   switch (insurer) {
     case "Alfa":
       return [
@@ -131,14 +159,14 @@ const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
           value: "allianz_eletprogram",
           label: "Allianz Életprogram",
           productType: "Életbiztosítás",
-          mnbCode: "12345",
+          mnbCode: `${ALLIANZ_ELETPROGRAM_MNB_CODE_HUF} / ${ALLIANZ_ELETPROGRAM_MNB_CODE_EUR}`,
           productCode: "AL-01",
         },
         {
           value: "allianz_bonusz_eletprogram",
           label: "Allianz Bónusz Életprogram",
           productType: "Életbiztosítás",
-          mnbCode: "12346",
+          mnbCode: `${ALLIANZ_BONUSZ_ELETPROGRAM_MNB_CODE_HUF} / ${ALLIANZ_BONUSZ_ELETPROGRAM_MNB_CODE_EUR}`,
           productCode: "AL-02",
         },
       ]
@@ -155,7 +183,7 @@ const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
           value: "cig_nyugdijkotvenye",
           label: "CIG Pannonia NyugdijkotvenyE",
           productType: "Nyugdíjbiztosítás",
-          mnbCode: "NyugdijkotvenyE",
+          mnbCode: CIG_NYUGDIJKOTVENYE_MNB_CODE,
           productCode: "NyugdijkotvenyE",
         },
       ]
@@ -165,11 +193,11 @@ const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
           value: "generali_kabala",
           label: "Generali Kabala",
           productType: "Életbiztosítás / Nyugdíjbiztosítás",
-          mnbCode: "TODO",
+          mnbCode: "U91",
           productCode: "U91",
           variants: [
-            { label: "U91 Élet", productType: "Életbiztosítás", mnbCode: "TODO", productCode: "U91" },
-            { label: "U91 Nyugdíj", productType: "Nyugdíjbiztosítás", mnbCode: "TODO", productCode: "U91" },
+            { label: "U91 Élet", productType: "Életbiztosítás", mnbCode: "U91", productCode: "U91" },
+            { label: "U91 Nyugdíj", productType: "Nyugdíjbiztosítás", mnbCode: "U91", productCode: "U91" },
           ],
         },
         {
@@ -190,23 +218,23 @@ const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
           value: "groupama_easy",
           label: "Groupama Easy Életbiztosítás",
           productType: "Életbiztosítás",
-          mnbCode: "EASY",
+          mnbCode: "GB730",
           productCode: "EASY",
           variants: [
-            { label: "Easy Life (adójóváírás nélkül)", productType: "Életbiztosítás", mnbCode: "EASY", productCode: "EASY" },
-            { label: "Easy Life (adójóváírással)", productType: "Életbiztosítás", mnbCode: "EASY", productCode: "EASY" },
+            { label: "Easy Life (adójóváírás nélkül)", productType: "Életbiztosítás", mnbCode: "GB730", productCode: "EASY" },
+            { label: "Easy Life (adójóváírással)", productType: "Életbiztosítás", mnbCode: "GB730", productCode: "EASY" },
           ],
         },
         {
           value: "groupama_next",
           label: "Groupama Next Életbiztosítás",
           productType: "Életbiztosítás",
-          mnbCode: "NEXT",
+          mnbCode: "GB733",
           productCode: "NEXT",
           variants: [
-            { label: "100% UL / 0% hagyományos", productType: "Életbiztosítás", mnbCode: "NEXT", productCode: "NEXT" },
-            { label: "75% UL / 25% hagyományos", productType: "Életbiztosítás", mnbCode: "NEXT", productCode: "NEXT" },
-            { label: "0% UL / 100% hagyományos", productType: "Életbiztosítás", mnbCode: "NEXT", productCode: "NEXT" },
+            { label: "100% UL / 0% hagyományos", productType: "Életbiztosítás", mnbCode: "GB733", productCode: "NEXT" },
+            { label: "75% UL / 25% hagyományos", productType: "Életbiztosítás", mnbCode: "GB733", productCode: "NEXT" },
+            { label: "0% UL / 100% hagyományos", productType: "Életbiztosítás", mnbCode: "GB733", productCode: "NEXT" },
           ],
         },
       ]
@@ -324,9 +352,30 @@ const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
 }
 
 const getAllProductsForComparison = (): Array<{ insurer: string; product: ProductMetadata }> => {
-  const allProducts: Array<{ insurer: string; product: ProductMetadata }> = []
   const insurers = ["Alfa", "Allianz", "CIG Pannonia", "Generali", "Grupama", "KnH", "Magyar Posta", "MetLife", "NN", "Signal Iduna", "Union", "Uniqa"]
-  
+  if (USE_PRODUCT_CATALOG) {
+    const products = getAllProductsForInsurers(insurers)
+    if (products.length > 0) {
+      return products.map((product) => ({
+        insurer: product.insurer ?? "",
+        product: {
+          value: product.value,
+          label: product.label,
+          productType: product.productType,
+          mnbCode: product.mnbCode,
+          productCode: product.productCode,
+          variants: product.variants?.map((variant) => ({
+            label: variant.label,
+            productType: variant.productType,
+            mnbCode: variant.mnbCode,
+            productCode: variant.productCode,
+          })),
+        },
+      }))
+    }
+  }
+  const allProducts: Array<{ insurer: string; product: ProductMetadata }> = []
+
   insurers.forEach((insurer) => {
     const products = getAvailableProductsForInsurer(insurer)
     products.forEach((product) => {
@@ -917,7 +966,7 @@ export default function OsszehasonlitasPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => router.push("/")}
+                onClick={() => router.push("/kalkulator")}
                 className="h-9 px-3"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />

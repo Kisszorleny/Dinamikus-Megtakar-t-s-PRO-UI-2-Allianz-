@@ -2,7 +2,7 @@ import type { InputsDaily } from "../calculate-results-daily"
 
 export type KnhHozamhalmozoVariant = "huf"
 
-export const KNH_HOZAMHALMOZO_MNB_CODE = "K&H-HOZAMHALMOZO-4" as const
+export const KNH_HOZAMHALMOZO_MNB_CODE = "113" as const
 export const KNH_HOZAMHALMOZO_PRODUCT_CODE = "KH-HHZ4" as const
 export const KNH_HOZAMHALMOZO_PRODUCT_VARIANT_HUF = "knh_hozamhalmozo_huf" as const
 

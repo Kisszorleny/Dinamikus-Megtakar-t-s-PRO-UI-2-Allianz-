@@ -182,6 +182,12 @@ import {
   toAlfaZenProductVariantId,
 } from "@/lib/engine/products/alfa-zen-config"
 import {
+  ALLIANZ_BONUSZ_ELETPROGRAM_MNB_CODE_EUR,
+  ALLIANZ_BONUSZ_ELETPROGRAM_MNB_CODE_HUF,
+  ALLIANZ_ELETPROGRAM_MNB_CODE_EUR,
+  ALLIANZ_ELETPROGRAM_MNB_CODE_HUF,
+} from "@/lib/engine/products/allianz-eletprogram"
+import {
   buildCigEsszenciaeBonusAmountByYear,
   buildCigEsszenciaeBonusPercentByYear,
   buildCigEsszenciaeInitialCostByYear,
@@ -211,6 +217,7 @@ import {
   CIG_NYUGDIJKOTVENYE_MIN_EXTRAORDINARY_PAYMENT,
   CIG_NYUGDIJKOTVENYE_MIN_REGULAR_WITHDRAWAL_MONTHLY,
   CIG_NYUGDIJKOTVENYE_PAID_UP_MAINTENANCE_MONTHLY_AMOUNT,
+  CIG_NYUGDIJKOTVENYE_MNB_CODE,
   CIG_NYUGDIJKOTVENYE_PRODUCT_CODE,
   CIG_NYUGDIJKOTVENYE_PRODUCT_VARIANT,
   CIG_NYUGDIJKOTVENYE_TAX_CREDIT_RATE_PERCENT,
@@ -451,6 +458,7 @@ import {
   GROUPAMA_EASY_PRODUCT_VARIANT_LIFE_HUF,
   GROUPAMA_EASY_PRODUCT_VARIANT_LIFE_TAX_HUF,
 } from "@/lib/engine/products/groupama-easy-config"
+import { getAllProductsForInsurers, getAvailableProductsForInsurerFromCatalog } from "@/lib/product-catalog/ui"
 import { resolveProductContextKey } from "@/lib/column-explanations"
 
 type DurationUnit = "year" | "month" | "day"
@@ -496,22 +504,6 @@ type ProductPresetBaseline = {
   bonusOnContributionPercentByYear: Record<number, number>
   refundInitialCostBonusPercentByYear: Record<number, number>
   bonusPercentByYear: Record<number, number>
-}
-
-type ExtraServiceFrequency = "daily" | "monthly" | "quarterly" | "semi-annual" | "annual"
-type ExtraServiceType = "amount" | "percent"
-
-interface ExtraService {
-  id: string
-  name: string
-  type: ExtraServiceType
-  value: number
-  frequency: ExtraServiceFrequency
-}
-
-interface YieldMonitoringService {
-  enabled: boolean
-  fundCount: number
 }
 
 type FundSeriesPoint = {
@@ -596,6 +588,8 @@ interface ManagementFee {
   value: number
   valueByYear?: Record<number, number>
   account: "client" | "invested" | "taxBonus" | "main" | "eseti"
+  dayOfMonth?: number
+  month?: number
 }
 
 interface Bonus {
@@ -605,6 +599,10 @@ interface Bonus {
   label?: string
   valueByYear?: Record<number, number>
   account: "client" | "invested" | "taxBonus" | "main" | "eseti"
+  frequency?: ManagementFeeFrequency
+  dayOfMonth?: number
+  month?: number
+  baseMode?: "contribution" | "asset" | "costRefundAll" | "costRefundCustom"
 }
 
 type CustomEntryKind = "cost" | "bonus"
@@ -622,6 +620,9 @@ type CustomEntryDefinition = {
   frequency?: ManagementFeeFrequency
   startYear?: number
   stopYear?: number
+  dayOfMonth?: number
+  month?: number
+  baseMode?: "contribution" | "asset" | "costRefundAll" | "costRefundCustom"
 }
 
 // Added product metadata types
@@ -632,6 +633,7 @@ interface ProductMetadata {
   mnbCode: string
   productCode: string
   variants?: ProductVariantMetadata[]
+  insurer?: string
 }
 
 interface ProductVariantMetadata {
@@ -641,6 +643,8 @@ interface ProductVariantMetadata {
   mnbCode: string
   productCode: string
 }
+
+const USE_PRODUCT_CATALOG = process.env.NEXT_PUBLIC_USE_PRODUCT_CATALOG === "1"
 
 // Added taxBonus view mode to YearRow type
 type YearRow = {
@@ -848,6 +852,7 @@ const buildCumulativeByYear = (yearlyBreakdown: Array<any> = []) => {
     taxCreditForYear: 0,
     withdrawalForYear: 0,
     riskInsuranceCostForYear: 0,
+    allianzYieldWatcherCostForYear: 0,
     client: {
       interestForYear: 0,
       costForYear: 0,
@@ -890,6 +895,8 @@ const buildCumulativeByYear = (yearlyBreakdown: Array<any> = []) => {
       taxCreditForYear: acc.taxCreditForYear + (row.taxCreditForYear ?? 0),
       withdrawalForYear: acc.withdrawalForYear + (row.withdrawalForYear ?? 0),
       riskInsuranceCostForYear: acc.riskInsuranceCostForYear + (row.riskInsuranceCostForYear ?? 0),
+      allianzYieldWatcherCostForYear:
+        acc.allianzYieldWatcherCostForYear + (row.allianzYieldWatcherCostForYear ?? 0),
       client: {
         interestForYear: acc.client.interestForYear + (row.client?.interestForYear ?? 0),
         costForYear: acc.client.costForYear + (row.client?.costForYear ?? 0),
@@ -2518,6 +2525,46 @@ export function SavingsCalculator() {
     }
     return {}
   })
+  const [allianzAdminFeeAmountByYear, setAllianzAdminFeeAmountByYear] = useState<Record<number, number>>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-allianzAdminFeeAmountByYear")
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          if (parsed && typeof parsed === "object") {
+            return Object.fromEntries(
+              Object.entries(parsed)
+                .map(([year, value]) => [Number(year), Number(value)])
+                .filter(([year, value]) => Number.isFinite(year) && Number.isFinite(value)),
+            ) as Record<number, number>
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return {}
+  })
+  const [allianzYieldWatcherCostByYear, setAllianzYieldWatcherCostByYear] = useState<Record<number, number>>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("calculator-allianzYieldWatcherCostByYear")
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          if (parsed && typeof parsed === "object") {
+            return Object.fromEntries(
+              Object.entries(parsed)
+                .map(([year, value]) => [Number(year), Number(value)])
+                .filter(([year, value]) => Number.isFinite(year) && Number.isFinite(value)),
+            ) as Record<number, number>
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return {}
+  })
 
   const [plusCostByYear, setPlusCostByYear] = useState<Record<number, number>>(() => {
     if (typeof window !== "undefined") {
@@ -2554,6 +2601,13 @@ export function SavingsCalculator() {
               .filter(Boolean)
               .map((bonus: any, index: number) => ({
                 ...bonus,
+                baseMode:
+                  bonus?.baseMode === "contribution" ||
+                  bonus?.baseMode === "asset" ||
+                  bonus?.baseMode === "costRefundAll" ||
+                  bonus?.baseMode === "costRefundCustom"
+                    ? bonus.baseMode
+                    : undefined,
                 account:
                   bonus?.account === "client" ||
                   bonus?.account === "invested" ||
@@ -2598,6 +2652,7 @@ export function SavingsCalculator() {
       valueType: "percent",
       value: 0,
       account: customAccountOptions[0]?.value ?? "main",
+      frequency: "éves",
     }
     setBonuses([...bonuses, newBonus])
     if (appliedPresetLabel) setAppliedPresetLabel(null)
@@ -2741,7 +2796,8 @@ export function SavingsCalculator() {
                   fee?.frequency === "havi" ||
                   fee?.frequency === "negyedéves" ||
                   fee?.frequency === "féléves" ||
-                  fee?.frequency === "éves"
+                  fee?.frequency === "éves" ||
+                  fee?.frequency === "fizetési_gyakoriság"
                     ? fee.frequency
                     : "éves",
                 valueType:
@@ -2763,6 +2819,14 @@ export function SavingsCalculator() {
                   fee?.account === "eseti"
                     ? fee.account
                     : "main",
+                dayOfMonth:
+                  fee?.dayOfMonth != null && fee.dayOfMonth >= 1 && fee.dayOfMonth <= 31
+                    ? Math.round(Number(fee.dayOfMonth))
+                    : undefined,
+                month:
+                  fee?.month != null && fee.month >= 1 && fee.month <= 12
+                    ? Math.round(Number(fee.month))
+                    : undefined,
               }))
             const isLegacyDefaultOnly =
               normalized.length === 1 &&
@@ -2835,18 +2899,23 @@ export function SavingsCalculator() {
       frequency: fee.frequency,
       startYear: 1,
       stopYear: 0,
+      dayOfMonth: fee.dayOfMonth,
+      month: fee.month,
     }))
     const bonusEntries: CustomEntryDefinition[] = bonuses.map((bonus, index) => ({
       id: bonus.id,
-      label: `Egyedi bónusz ${index + 1}`,
+      label: bonus.label?.trim() || `Egyedi bónusz ${index + 1}`,
       kind: "bonus",
       valueType: bonus.valueType,
       value: bonus.value,
       valueByYear: bonus.valueByYear ?? {},
       account: bonus.account,
-      frequency: "éves",
+      frequency: bonus.frequency ?? "éves",
       startYear: 1,
       stopYear: 0,
+      dayOfMonth: bonus.dayOfMonth,
+      month: bonus.month,
+      baseMode: bonus.baseMode,
     }))
     return [...feeEntries, ...bonusEntries]
   }, [managementFees, bonuses])
@@ -3065,21 +3134,6 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-isPresetCardOpen", String(isPresetCardOpen))
     }
   }, [isPresetCardOpen])
-
-  const [isCustomCostsCardOpen, setIsCustomCostsCardOpen] = useState(() => {
-    if (typeof window !== "undefined") {
-      const stored = sessionStorage.getItem("calculator-isCustomCostsCardOpen")
-      return stored === "true"
-    }
-    return false
-  })
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("calculator-isCustomCostsCardOpen", String(isCustomCostsCardOpen))
-    }
-  }, [isCustomCostsCardOpen])
-
 
   const [isServicesCardOpen, setIsServicesCardOpen] = useState(() => {
     if (typeof window !== "undefined") {
@@ -3580,6 +3634,21 @@ export function SavingsCalculator() {
   const [acquisitionCostInputByYear, setAcquisitionCostInputByYear] = useState<Record<number, string>>({})
 
   const getAvailableProductsForInsurer = (insurer: string): ProductMetadata[] => {
+    if (USE_PRODUCT_CATALOG) {
+      const catalogProducts = getAvailableProductsForInsurerFromCatalog(insurer)
+      if (catalogProducts.length > 0) {
+        return catalogProducts.map((product) => ({
+          ...product,
+          variants: product.variants?.map((variant, index) => ({
+            value: variant.value ?? `${product.value}__variant_${index + 1}`,
+            label: variant.label ?? `${product.label} (${variant.productType})`,
+            productType: variant.productType,
+            mnbCode: variant.mnbCode,
+            productCode: variant.productCode,
+          })),
+        }))
+      }
+    }
     switch (insurer) {
       case "Alfa":
         return [
@@ -3819,14 +3888,14 @@ export function SavingsCalculator() {
             value: "allianz_eletprogram",
             label: "Allianz Életprogram",
             productType: "Életbiztosítás",
-            mnbCode: "12345",
+            mnbCode: `${ALLIANZ_ELETPROGRAM_MNB_CODE_HUF} / ${ALLIANZ_ELETPROGRAM_MNB_CODE_EUR}`,
             productCode: "AL-01",
           },
           {
             value: "allianz_bonusz_eletprogram",
             label: "Allianz Bónusz Életprogram",
             productType: "Életbiztosítás",
-            mnbCode: "12346",
+            mnbCode: `${ALLIANZ_BONUSZ_ELETPROGRAM_MNB_CODE_HUF} / ${ALLIANZ_BONUSZ_ELETPROGRAM_MNB_CODE_EUR}`,
             productCode: "AL-02",
           },
         ]
@@ -3859,14 +3928,14 @@ export function SavingsCalculator() {
             value: "cig_nyugdijkotvenye",
             label: "CIG Pannonia NyugdijkotvenyE",
             productType: "Nyugdíjbiztosítás",
-            mnbCode: CIG_NYUGDIJKOTVENYE_PRODUCT_CODE,
+            mnbCode: CIG_NYUGDIJKOTVENYE_MNB_CODE,
             productCode: CIG_NYUGDIJKOTVENYE_PRODUCT_CODE,
             variants: [
               {
                 value: CIG_NYUGDIJKOTVENYE_PRODUCT_VARIANT,
                 label: `${CIG_NYUGDIJKOTVENYE_PRODUCT_CODE} (Nyugdíjbiztosítás)`,
                 productType: "Nyugdíjbiztosítás",
-                mnbCode: CIG_NYUGDIJKOTVENYE_PRODUCT_CODE,
+                mnbCode: CIG_NYUGDIJKOTVENYE_MNB_CODE,
                 productCode: CIG_NYUGDIJKOTVENYE_PRODUCT_CODE,
               },
             ],
@@ -4372,20 +4441,68 @@ export function SavingsCalculator() {
             ],
           },
         ]
+      case "Egyedi":
+        return []
       default:
         return []
     }
   }
 
+  const INSURERS_FOR_EGYEDI = [
+    "Alfa",
+    "Allianz",
+    "CIG Pannonia",
+    "Generali",
+    "Grupama",
+    "KnH",
+    "Magyar Posta",
+    "MetLife",
+    "NN",
+    "Signal Iduna",
+    "Union",
+    "Uniqa",
+  ] as const
+
+  const getAllProductsForEgyedi = useMemo((): ProductMetadata[] => {
+    if (USE_PRODUCT_CATALOG) {
+      const catalogProducts = getAllProductsForInsurers(INSURERS_FOR_EGYEDI)
+      if (catalogProducts.length > 0) {
+        return catalogProducts.map((product) => ({
+          ...product,
+          variants: product.variants?.map((variant, index) => ({
+            value: variant.value ?? `${product.value}__variant_${index + 1}`,
+            label: variant.label ?? `${product.label} (${variant.productType})`,
+            productType: variant.productType,
+            mnbCode: variant.mnbCode,
+            productCode: variant.productCode,
+          })),
+        }))
+      }
+    }
+    const result: ProductMetadata[] = []
+    for (const insurer of INSURERS_FOR_EGYEDI) {
+      const products = getAvailableProductsForInsurer(insurer)
+      for (const p of products) {
+        result.push({ ...p, insurer })
+      }
+    }
+    return result
+  }, [])
+
   const getAvailableProducts = () => {
     if (!selectedInsurer) return []
+    if (selectedInsurer === "Egyedi") return getAllProductsForEgyedi
     return getAvailableProductsForInsurer(selectedInsurer)
   }
 
   const selectedProductMetadata = useMemo(() => {
-    if (!selectedInsurer || !selectedProduct) return null
+    if (!selectedProduct) return null
+    if (selectedInsurer === "Egyedi") {
+      return getAllProductsForEgyedi.find((p) => p.value === selectedProduct) ?? null
+    }
+    if (!selectedInsurer) return null
     return getAvailableProductsForInsurer(selectedInsurer).find((p) => p.value === selectedProduct) ?? null
-  }, [selectedInsurer, selectedProduct])
+  }, [selectedInsurer, selectedProduct, getAllProductsForEgyedi])
 
   const effectiveSelectedProductVariantCode = useMemo(() => {
     if (selectedProduct === "alfa_exclusive_plus") {
@@ -4803,6 +4920,13 @@ export function SavingsCalculator() {
       if (selectedProduct !== null) setSelectedProduct(null)
       return
     }
+    if (selectedInsurer === "Egyedi") {
+      if (!selectedProduct) return
+      const isValid = getAllProductsForEgyedi.some((p) => p.value === selectedProduct)
+      if (isValid) return
+      setSelectedProduct(null)
+      return
+    }
     const products = getAvailableProductsForInsurer(selectedInsurer)
     if (products.length === 0) {
       if (selectedProduct !== null) setSelectedProduct(null)
@@ -4816,7 +4940,7 @@ export function SavingsCalculator() {
     if (nextDefault !== selectedProduct) {
       setSelectedProduct(nextDefault)
     }
-  }, [selectedInsurer, selectedProduct])
+  }, [selectedInsurer, selectedProduct, getAllProductsForEgyedi])
 
   const mapSelectedProductToProductId = (productValue: string | null, insurer: string | null): ProductId => {
     // Product mapping must primarily follow selected product value.
@@ -4963,10 +5087,20 @@ export function SavingsCalculator() {
   const relevantFxRate = inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate
 
   const applyPreset = useCallback(() => {
-    const products = selectedInsurer ? getAvailableProductsForInsurer(selectedInsurer) : []
+    let products: ProductMetadata[]
+    let baseInsurer: string | null
+    if (selectedInsurer === "Egyedi" && selectedProduct) {
+      const withInsurer = getAllProductsForEgyedi.find((p) => p.value === selectedProduct)
+      if (!withInsurer?.insurer) return
+      baseInsurer = withInsurer.insurer
+      products = getAvailableProductsForInsurer(baseInsurer)
+    } else {
+      baseInsurer = selectedInsurer
+      products = selectedInsurer ? getAvailableProductsForInsurer(selectedInsurer) : []
+    }
     const selected = products.find((p) => p.value === selectedProduct)
-    if (selectedInsurer && selectedProduct && selected) {
-      setAppliedPresetLabel(`${selectedInsurer} - ${selected.label}`)
+    if (baseInsurer && selectedProduct && selected) {
+      setAppliedPresetLabel(`${baseInsurer} - ${selected.label}`)
 
       if (selectedProduct === "alfa_exclusive_plus") {
         const isTr08Variant = effectiveSelectedProductVariantCode === "TR-08"
@@ -6397,6 +6531,7 @@ export function SavingsCalculator() {
     effectiveFortisVariant,
     effectiveSelectedProductVariantCode,
     fortisVariantConfig,
+    getAllProductsForEgyedi,
     inputs.currency,
     inputs.enableTaxCredit,
     relevantFxRate,
@@ -6716,6 +6851,16 @@ export function SavingsCalculator() {
       sessionStorage.setItem("calculator-adminFeePercentByYear", JSON.stringify(adminFeePercentByYear))
     }
   }, [adminFeePercentByYear])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-allianzAdminFeeAmountByYear", JSON.stringify(allianzAdminFeeAmountByYear))
+    }
+  }, [allianzAdminFeeAmountByYear])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("calculator-allianzYieldWatcherCostByYear", JSON.stringify(allianzYieldWatcherCostByYear))
+    }
+  }, [allianzYieldWatcherCostByYear])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -7229,6 +7374,43 @@ export function SavingsCalculator() {
   const [riskInsuranceStartYear, setRiskInsuranceStartYear] = useState(1)
   const [riskInsuranceEndYear, setRiskInsuranceEndYear] = useState<number | undefined>(undefined)
   const [riskInsuranceAnnualIndexPercent, setRiskInsuranceAnnualIndexPercent] = useState(0)
+  const [isAdditionalServicesOpen, setIsAdditionalServicesOpen] = useState(true)
+  const [allianzYieldWatcherEnabled, setAllianzYieldWatcherEnabled] = useState(false)
+  const [allianzYieldWatcherFundCount, setAllianzYieldWatcherFundCount] = useState(1)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const storedOpen = sessionStorage.getItem("calculator-isAdditionalServicesOpen")
+    if (storedOpen !== null) {
+      setIsAdditionalServicesOpen(storedOpen === "true")
+    }
+    const storedEnabled = sessionStorage.getItem("calculator-allianzYieldWatcherEnabled")
+    if (storedEnabled !== null) {
+      setAllianzYieldWatcherEnabled(storedEnabled === "true")
+    }
+    const storedFundCount = sessionStorage.getItem("calculator-allianzYieldWatcherFundCount")
+    if (storedFundCount !== null) {
+      const parsed = Number(storedFundCount)
+      if (Number.isFinite(parsed) && parsed > 0) {
+        setAllianzYieldWatcherFundCount(Math.round(parsed))
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    sessionStorage.setItem("calculator-isAdditionalServicesOpen", String(isAdditionalServicesOpen))
+  }, [isAdditionalServicesOpen])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    sessionStorage.setItem("calculator-allianzYieldWatcherEnabled", String(allianzYieldWatcherEnabled))
+  }, [allianzYieldWatcherEnabled])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    sessionStorage.setItem("calculator-allianzYieldWatcherFundCount", String(allianzYieldWatcherFundCount))
+  }, [allianzYieldWatcherFundCount])
 
   const isFundDataReady =
     yieldSourceMode === "fund" &&
@@ -7478,6 +7660,13 @@ export function SavingsCalculator() {
       taxCreditAmountByYear: taxCreditAmountByYear,
       taxCreditYieldPercent: inputs.taxCreditYieldPercent,
       taxCreditCalendarPostingEnabled: inputs.taxCreditCalendarPostingEnabled,
+      allianzYieldWatcherEnabled: isAllianzEletprogramView ? allianzYieldWatcherEnabled : false,
+      allianzYieldWatcherFundCount: isAllianzEletprogramView ? allianzYieldWatcherFundCount : 1,
+      allianzYieldWatcherCostByYear: isAllianzEletprogramView ? allianzYieldWatcherCostByYear : undefined,
+      adminFeeMonthlyAmountByYear:
+        selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram"
+          ? allianzAdminFeeAmountByYear
+          : undefined,
       productVariant: engineProductVariant,
       selectedFundId,
       calculationMode: inputs.calculationMode,
@@ -7551,6 +7740,10 @@ export function SavingsCalculator() {
     inputs.taxCreditEndYear,
     inputs.taxCreditYieldPercent,
     inputs.taxCreditCalendarPostingEnabled,
+    isAllianzEletprogramView,
+    allianzYieldWatcherEnabled,
+    allianzYieldWatcherFundCount,
+    allianzYieldWatcherCostByYear,
     inputs.paidUpMaintenanceFeeMonthlyAmount,
     inputs.paidUpMaintenanceFeeStartMonth,
     inputs.insuredEntryAge,
@@ -7587,6 +7780,7 @@ export function SavingsCalculator() {
     isRedemptionOpen, // Added to dependency array
     assetCostPercentByYear,
     adminFeePercentByYear,
+    allianzAdminFeeAmountByYear,
     accountMaintenancePercentByYear,
     plusCostByYear, // Added dependency
     bonusPercentByYear, // Added bonusPercentByYear dependency
@@ -7615,15 +7809,32 @@ export function SavingsCalculator() {
     yieldSourceMode,
     // Removed: surplusToExtraFeeDefaultPercent
   ])
-  const productId = useMemo(
-    () => mapSelectedProductToProductId(selectedProduct, selectedInsurer),
-    [selectedProduct, selectedInsurer, unionViennaTimeChannelProfile],
-  )
+  const productId = useMemo(() => {
+    const insurerForProduct =
+      selectedInsurer === "Egyedi" && selectedProduct
+        ? (getAllProductsForEgyedi.find((p) => p.value === selectedProduct)?.insurer ?? null)
+        : selectedInsurer
+    return mapSelectedProductToProductId(selectedProduct, insurerForProduct)
+  }, [selectedProduct, selectedInsurer, getAllProductsForEgyedi, unionViennaTimeChannelProfile])
 
   const results = useMemo(
     () => calculate(productId, dailyInputs),
     [productId, dailyInputs],
   )
+  const allianzYieldWatcherMaxByYear = useMemo(() => {
+    if (!isAllianzEletprogramView || !allianzYieldWatcherEnabled) return {}
+    const baselineResults = calculate(productId, {
+      ...dailyInputs,
+      allianzYieldWatcherEnabled: false,
+      allianzYieldWatcherCostByYear: undefined,
+    })
+    const out: Record<number, number> = {}
+    for (const row of baselineResults.yearlyBreakdown ?? []) {
+      if (!row) continue
+      out[row.year] = Math.max(0, (row.yearlyPayment ?? 0) - Math.max(0, row.costForYear ?? 0))
+    }
+    return out
+  }, [isAllianzEletprogramView, allianzYieldWatcherEnabled, productId, dailyInputs])
   const mainTaxCreditByYear = useMemo(() => {
     const map: Record<number, number> = {}
     for (const row of results.yearlyBreakdown ?? []) {
@@ -8403,6 +8614,7 @@ export function SavingsCalculator() {
   }
 
   const clearAllModifications = () => {
+    setAllianzYieldWatcherCostByYear({})
     if (isEsetiView) {
       if (yearlyAccountView === "eseti_tax_eligible") {
         setEsetiIndexByYearTaxEligible({})
@@ -8448,6 +8660,8 @@ export function SavingsCalculator() {
     setAssetCostPercentByYear({ ...productPresetBaseline.assetCostPercentByYear })
     setAccountMaintenancePercentByYear({ ...productPresetBaseline.accountMaintenancePercentByYear })
     setAdminFeePercentByYear({ ...productPresetBaseline.adminFeePercentByYear })
+    setAllianzAdminFeeAmountByYear({})
+    setAllianzYieldWatcherCostByYear({})
     setBonusOnContributionPercentByYear({ ...productPresetBaseline.bonusOnContributionPercentByYear })
     setRefundInitialCostBonusPercentByYear({ ...productPresetBaseline.refundInitialCostBonusPercentByYear })
     setPlusCostByYear({})
@@ -8541,29 +8755,28 @@ export function SavingsCalculator() {
     }
   }
 
-  // Extra Services Cost Calculation
-  const [extraServices, setExtraServices] = useState<ExtraService[]>([])
-  const [yieldMonitoring, setYieldMonitoring] = useState<YieldMonitoringService>({ enabled: false, fundCount: 1 })
-
-  // TODO: Replace with real extra services cost calculation
-  // Static placeholder values - NO calculations
-  const extraServicesCostsByYear = useMemo(() => {
-    // Static placeholder costs - no calculations
-    const costsByYear: Record<number, number> = {}
-    for (let year = 1; year <= totalYearsForPlan; year++) {
-      // Static placeholder value - just counts services, doesn't calculate
-      let yearCost = extraServices.length * 2000 // Static placeholder per service
-      if (yieldMonitoring.enabled && yieldMonitoring.fundCount > 1) {
-        yearCost += 3000 // Static placeholder for yield monitoring
-      }
-      costsByYear[year] = yearCost
-    }
-    return costsByYear
-  }, [extraServices, yieldMonitoring, totalYearsForPlan])
-
-  const totalExtraServicesCost = useMemo(() => {
-    return Object.values(extraServicesCostsByYear).reduce((sum, cost) => sum + cost, 0)
-  }, [extraServicesCostsByYear])
+  const isAllianzProductSelected =
+    selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram"
+  const showAllianzYieldWatcherColumn = isAllianzProductSelected && allianzYieldWatcherEnabled
+  const riskInsuranceTypeOptions = isAllianzProductSelected
+    ? [
+        { value: "baleseti_halal", label: "Baleseti halál" },
+        { value: "baleseti_rokkantsag", label: "Baleseti rokkantság" },
+        { value: "baleseti_mutet", label: "Baleseti Műtét" },
+        { value: "babavaro", label: "Babaváró" },
+        { value: "genetika_plusz", label: "Genetika+" },
+        { value: "rokkantsagi_ellatas", label: "Rokkantsági ellátás" },
+        { value: "eletbiztositas", label: "Életbiztosítás" },
+        { value: "kritikus_betegseg", label: "Kritikus betegség" },
+        { value: "korhazi_napi_terites", label: "Kórházi napi térítés" },
+        { value: "rakdiagnosztika", label: "Rákdiagnosztika" },
+        { value: "szabadon_beirhato", label: "Szabadon beírható" },
+      ]
+    : [
+        { value: "type1", label: "Típus 1" },
+        { value: "type2", label: "Típus 2" },
+        { value: "type3", label: "Típus 3" },
+      ]
 
   const adjustedResults = useMemo(() => {
     if (yearlyAccountView === "summary") {
@@ -8631,8 +8844,10 @@ export function SavingsCalculator() {
     showAssetFeeColumn ||
     isAllianzEletprogramView
   const showPlusCostColumn = useMemo(
-    () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "plus") > 0),
-    [adjustedResults?.yearlyBreakdown, getViewMetric],
+    () =>
+      !isAllianzEletprogramView &&
+      (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "plus") > 0),
+    [adjustedResults?.yearlyBreakdown, getViewMetric, isAllianzEletprogramView],
   )
   const showAcquisitionColumn = useMemo(
     () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "acquisition") > 0),
@@ -8644,6 +8859,7 @@ export function SavingsCalculator() {
   )
   const effectiveShowBonusColumns = showBonusColumns
   const shouldShowWealthBonusPercentColumn =
+    !!selectedProduct &&
     selectedProduct !== "allianz_bonusz_eletprogram" &&
     selectedProduct !== "alfa_fortis" &&
     selectedProduct !== "alfa_jade" &&
@@ -8668,29 +8884,6 @@ export function SavingsCalculator() {
     }
     return out
   }, [selectedProduct, kabalaLoyaltyBonusByYear, totalYearsForPlan])
-
-  const addExtraService = () => {
-    const newService: ExtraService = {
-      id: `service-${Date.now()}`,
-      name: "Egyedi költség",
-      type: "amount",
-      value: 0,
-      frequency: "monthly",
-    }
-    setExtraServices([...extraServices, newService])
-  }
-
-  const removeExtraService = (id: string) => {
-    setExtraServices(extraServices.filter((s) => s.id !== id))
-  }
-
-  const updateExtraService = (id: string, updates: Partial<ExtraService>) => {
-    setExtraServices(extraServices.map((s) => (s.id === id ? { ...s, ...updates } : s)))
-  }
-
-  const addYieldMonitoringService = () => {
-    setYieldMonitoring({ enabled: true, fundCount: 1 })
-  }
 
   const updateAssetCostPercent = (year: number, value: number) => {
     setAssetCostPercentByYear((prev) => {
@@ -8727,6 +8920,32 @@ export function SavingsCalculator() {
     setAdminFeePercentByYear((prev) => {
       const updated = { ...prev }
       if (Math.abs(value - defaultPercent) < 1e-9) {
+        delete updated[year]
+      } else {
+        updated[year] = value
+      }
+      return updated
+    })
+    if (appliedPresetLabel) setAppliedPresetLabel(null)
+  }
+  const updateAllianzAdminFeeAmount = (year: number, value: number) => {
+    const defaultAmount = inputs.currency === "EUR" ? 3.3 * 12 : 990 * 12
+    setAllianzAdminFeeAmountByYear((prev) => {
+      const updated = { ...prev }
+      if (Math.abs(value - defaultAmount) < 1e-9) {
+        delete updated[year]
+      } else {
+        updated[year] = value
+      }
+      return updated
+    })
+    if (appliedPresetLabel) setAppliedPresetLabel(null)
+  }
+  const updateAllianzYieldWatcherCost = (year: number, value: number) => {
+    const defaultAmount = Math.max(0, results.yearlyBreakdown?.[year - 1]?.allianzYieldWatcherCostForYear ?? 0)
+    setAllianzYieldWatcherCostByYear((prev) => {
+      const updated = { ...prev }
+      if (Math.abs(value - defaultAmount) < 1e-9) {
         delete updated[year]
       } else {
         updated[year] = value
@@ -8959,12 +9178,17 @@ export function SavingsCalculator() {
         kind: entry.kind,
         account: entry.account,
         frequency: entry.frequency,
+        dayOfMonth: entry.dayOfMonth,
+        month: entry.month,
         valueType: entry.valueType,
         value: entry.value,
         valueByYear: entry.valueByYear ?? {},
         startYear: entry.startYear,
         stopYear: entry.stopYear,
-        title: entry.label,
+        title:
+          entry.valueType === "percent"
+            ? `${entry.label} (%)`
+            : entry.label,
         infoKey: `custom-entry:${entry.id}`,
         className:
           entry.kind === "cost"
@@ -8982,6 +9206,8 @@ export function SavingsCalculator() {
     () => customYearlyColumns.filter((column) => column.kind === "bonus"),
     [customYearlyColumns],
   )
+  const effectiveShowBonusBreakdown =
+    showBonusBreakdown && (!!selectedProduct || customBonusYearlyColumns.length > 0)
   const customColumnExplanations = useMemo(() => {
     const accountLabelByKey: Record<CustomEntryAccount, string> = {
       client: "Ügyfélérték",
@@ -8994,6 +9220,7 @@ export function SavingsCalculator() {
       napi: "napi",
       havi: "havi",
       negyedéves: "negyedéves",
+      fizetési_gyakoriság: "fizetési gyakoriságonként",
       féléves: "féléves",
       éves: "éves",
     }
@@ -9002,8 +9229,15 @@ export function SavingsCalculator() {
       customYearlyColumns.map((column) => {
         const infoKey = column.infoKey
         const typeLabel = column.kind === "cost" ? "Egyedi költség" : "Egyedi bónusz"
-        const frequency =
+        const baseFrequency =
           (column.frequency && frequencyLabelByKey[column.frequency]) || frequencyLabelByKey["éves"]
+        const daySuffix =
+          column.dayOfMonth != null && column.dayOfMonth >= 1
+            ? column.month != null && column.month >= 1 && column.month <= 12
+              ? `, ${["jan", "feb", "márc", "ápr", "máj", "jún", "júl", "aug", "szept", "okt", "nov", "dec"][column.month - 1]} ${column.dayOfMonth}.`
+              : `, ${column.dayOfMonth}. nap`
+            : ""
+        const frequency = baseFrequency + daySuffix
         const valueLabel =
           column.valueType === "percent"
             ? `${column.value.toLocaleString("hu-HU", { maximumFractionDigits: 4 })}% (alapérték, évenként felülírható)`
@@ -9100,6 +9334,8 @@ export function SavingsCalculator() {
                   )
                 : {},
             account: normalizeCustomAccountForEditor(entry.account),
+            dayOfMonth: entry.dayOfMonth,
+            month: entry.month,
           }))
         : [
             {
@@ -9116,8 +9352,13 @@ export function SavingsCalculator() {
     setBonuses(
       bonusEntries.map((entry, index) => ({
         id: entry.id || `bonus-${Date.now()}-${index}`,
+        label: (entry.label || "").trim() || `Egyedi bónusz ${index + 1}`,
         valueType: entry.valueType,
         value: Number(entry.value ?? 0),
+        baseMode:
+          entry.baseMode === "contribution" || entry.baseMode === "asset" || entry.baseMode === "costRefundAll" || entry.baseMode === "costRefundCustom"
+            ? entry.baseMode
+            : undefined,
         valueByYear:
           entry.valueByYear && typeof entry.valueByYear === "object"
             ? Object.fromEntries(
@@ -9127,9 +9368,60 @@ export function SavingsCalculator() {
               )
             : {},
         account: normalizeCustomAccountForEditor(entry.account),
+        frequency: (entry.frequency as ManagementFeeFrequency) ?? "éves",
+        dayOfMonth: entry.dayOfMonth,
+        month: entry.month,
       })),
     )
   }, [normalizeCustomAccountForEditor])
+
+  const resetToCostFreeBase = useCallback(() => {
+    setSelectedInsurer("Egyedi")
+    setSelectedProduct(null)
+    setAssetCostPercentByYear({})
+    setPlusCostByYear({})
+    setBonusPercentByYear({})
+    setManagementFees([])
+    setBonuses([])
+    setRedemptionFeeByYear({})
+    setRedemptionFeeDefaultPercent(0)
+    setAccountMaintenancePercentByYear({})
+    setAdminFeePercentByYear({})
+    setBonusOnContributionPercentByYear({})
+    setRefundInitialCostBonusPercentByYear({})
+    setSelectedCustomPresetId("")
+    setAppliedPresetLabel(null)
+    setIsAccountSplitOpen(false)
+    setIsRedemptionOpen(false)
+    setIsTaxBonusSeparateAccount(false)
+    setProductPresetBaseline({
+      initialCostByYear: {},
+      initialCostDefaultPercent: 0,
+      assetBasedFeePercent: 0,
+      assetCostPercentByYear: {},
+      accountMaintenanceMonthlyPercent: 0,
+      accountMaintenancePercentByYear: {},
+      adminFeePercentOfPayment: 0,
+      adminFeePercentByYear: {},
+      bonusOnContributionPercentByYear: {},
+      refundInitialCostBonusPercentByYear: {},
+      bonusPercentByYear: {},
+    })
+    setInputs((prev) => ({
+      ...prev,
+      initialCostByYear: {},
+      initialCostDefaultPercent: 0,
+      yearlyManagementFeePercent: 0,
+      yearlyFixedManagementFeeAmount: 0,
+      managementFeeValue: 0,
+      assetBasedFeePercent: 0,
+      bonusMode: "none",
+      bonusOnContributionPercent: 0,
+      bonusPercent: 0,
+      bonusStartYear: 1,
+      bonusStopYear: 0,
+    }))
+  }, [])
 
   const onSelectCustomPreset = useCallback(
     (presetId: string) => {
@@ -9341,6 +9633,7 @@ export function SavingsCalculator() {
     hasRefundInitialCostBonusOverrides ||
     Object.keys(investedShareByYear).length > 0 ||
     Object.keys(redemptionFeeByYear).length > 0 ||
+    Object.keys(allianzYieldWatcherCostByYear).length > 0 ||
     hasInitialCostOverrides
   const hasActiveEsetiOverrides =
     Object.keys(activeEsetiIndexByYear).length > 0 ||
@@ -9787,8 +10080,8 @@ export function SavingsCalculator() {
                                 type="button"
                                 variant={yieldSourceMode === "fund" ? "secondary" : "ghost"}
                                 size="sm"
-                                className="h-6 px-2 text-xs"
-                                disabled={!canUseFundYield}
+                                className="h-6 px-2 text-xs text-muted-foreground disabled:opacity-100"
+                                disabled
                                 onClick={() => setYieldSourceMode("fund")}
                               >
                                 MNB
@@ -9797,7 +10090,8 @@ export function SavingsCalculator() {
                                 type="button"
                                 variant={yieldSourceMode === "ocr" ? "secondary" : "ghost"}
                                 size="sm"
-                                className="h-6 px-2 text-xs"
+                                className="h-6 px-2 text-xs text-muted-foreground disabled:opacity-100"
+                                disabled
                                 onClick={() => {
                                   setYieldSourceMode("ocr")
                                   if (parsedChartSeries) {
@@ -10601,7 +10895,15 @@ export function SavingsCalculator() {
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div className="space-y-2">
                             <Label htmlFor="preset-insurer">Biztosító</Label>
-                            <Select value={selectedInsurer ?? undefined} onValueChange={(value) => setSelectedInsurer(value)}>
+                            <Select
+                              value={selectedInsurer ?? undefined}
+                              onValueChange={(value) => {
+                                setSelectedInsurer(value)
+                                if (value === "Egyedi") {
+                                  setIsPresetCardOpen(true)
+                                }
+                              }}
+                            >
                               <SelectTrigger id="preset-insurer">
                                 <SelectValue placeholder="Válassz biztosítót" />
                               </SelectTrigger>
@@ -10618,6 +10920,7 @@ export function SavingsCalculator() {
                                 <SelectItem value="Signal Iduna">Signal Iduna</SelectItem>
                                 <SelectItem value="Union">Union</SelectItem>
                                 <SelectItem value="Uniqa">Uniqa</SelectItem>
+                                <SelectItem value="Egyedi">Egyedi</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -10625,20 +10928,25 @@ export function SavingsCalculator() {
                           <div className="space-y-2">
                             <Label htmlFor="preset-product">Termék</Label>
                             <Select
-                              value={selectedProduct ?? undefined}
-                              onValueChange={(value) => setSelectedProduct(value)}
+                              value={selectedProduct ?? (selectedInsurer === "Egyedi" ? "__none__" : undefined)}
+                              onValueChange={(value) => setSelectedProduct(value === "__none__" ? null : value)}
                               disabled={!selectedInsurer || getAvailableProducts().length === 0}
                             >
                               <SelectTrigger id="preset-product">
-                                <SelectValue placeholder="Válassz terméket" />
+                                <SelectValue placeholder={selectedInsurer === "Egyedi" ? "Válassz alapterméket (opcionális)" : "Válassz terméket"} />
                               </SelectTrigger>
                               <SelectContent>
+                                {selectedInsurer === "Egyedi" && (
+                                  <SelectItem value="__none__">
+                                    <span className="text-muted-foreground">— Nincs alaptermék (tiszta egyedi) —</span>
+                                  </SelectItem>
+                                )}
                                 {getAvailableProducts().map((product) => (
                                   <SelectItem key={product.value} value={product.value}>
-                                    {product.label}
+                                    {product.insurer ? `${product.insurer} – ${product.label}` : product.label}
                                   </SelectItem>
                                 ))}
-                                {getAvailableProducts().length === 0 && (
+                                {getAvailableProducts().length === 0 && selectedInsurer !== "Egyedi" && (
                                   <SelectItem value="none" disabled>
                                     Nincs elérhető termék
                                   </SelectItem>
@@ -10879,317 +11187,492 @@ export function SavingsCalculator() {
                           </>
                         )}
                     </div>
+
+                    {selectedInsurer === "Egyedi" && (
+                    <div className="mt-4 border-t pt-4">
+                      <CardHeader className="px-0 pt-0">
+                        <CardTitle>Egyedi költségek és bónuszok</CardTitle>
+                      </CardHeader>
+                          <div className="space-y-6 pt-4">
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="border-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40"
+                                onClick={resetToCostFreeBase}
+                              >
+                                <Calculator className="mr-2 h-4 w-4" />
+                                Költség nélküli indulás
+                              </Button>
+                              <p className="text-xs text-muted-foreground self-center">
+                                Hozamos alap, termék nélkül. Innen adhatsz hozzá költségeket és bónuszokat.
+                              </p>
+                            </div>
+                            <div className="grid gap-2 md:grid-cols-[1fr_auto_auto] items-end p-3 rounded-lg border">
+                              <div className="space-y-1">
+                                <Label htmlFor="custom-preset-name">Sablon neve</Label>
+                                <Input
+                                  id="custom-preset-name"
+                                  value={customPresetName}
+                                  onChange={(e) => setCustomPresetName(e.target.value)}
+                                  placeholder="Pl. Kiemelt költség/bónusz mix"
+                                  className="h-10"
+                                />
+                              </div>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                className="h-10"
+                                onClick={() => void saveCurrentCustomPreset()}
+                                disabled={!customPresetName.trim() || customEntryDefinitions.length === 0}
+                              >
+                                Mentés sablonként
+                              </Button>
+                              <Button type="button" variant="outline" className="h-10" onClick={() => void loadCustomPresets()}>
+                                Lista frissítése
+                              </Button>
+                              <div className="space-y-1 md:col-span-3">
+                                <Label htmlFor="custom-preset-select">Betöltés listából</Label>
+                                <div className="flex flex-col gap-2 md:flex-row">
+                                  <Select value={selectedCustomPresetId} onValueChange={onSelectCustomPreset}>
+                                    <SelectTrigger id="custom-preset-select" className="h-10 w-full md:max-w-md">
+                                      <SelectValue placeholder="Válassz mentett sablont" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {customPresets.map((preset) => (
+                                        <SelectItem key={preset.id} value={preset.id}>
+                                          {preset.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-10"
+                                    onClick={() => void updateCurrentCustomPreset()}
+                                    disabled={!selectedCustomPresetId || customEntryDefinitions.length === 0}
+                                  >
+                                    Sablon frissítése
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    className="h-10"
+                                    onClick={() => void deleteCurrentCustomPreset()}
+                                    disabled={!selectedCustomPresetId}
+                                  >
+                                    Sablon törlése
+                                  </Button>
+                                </div>
+                              </div>
+                              {customPresetError ? (
+                                <p className="md:col-span-3 text-sm text-destructive">{customPresetError}</p>
+                              ) : null}
+                            </div>
+                            {/* Management Fees Section */}
+                            <div className="space-y-3">
+                              <h3 className="font-semibold text-base border-b pb-2">Egyedi költségek</h3>
+                              <div className="space-y-3">
+                                {managementFees.map((fee, index) => (
+                                  <div key={fee.id} className="space-y-2">
+                                    <div className="flex items-start gap-2">
+                                      <div className="flex-1 space-y-2">
+                                        <Label className="text-sm flex items-center gap-1 flex-wrap">
+                                          <span>Rendszeres</span>
+                                          <Select
+                                            value={fee.frequency}
+                                            onValueChange={(value: ManagementFeeFrequency) => {
+                                              updateManagementFee(fee.id, { frequency: value })
+                                            }}
+                                          >
+                                            <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="napi">napi</SelectItem>
+                                              <SelectItem value="havi">havi</SelectItem>
+                                              <SelectItem value="negyedéves">negyedéves</SelectItem>
+                                              <SelectItem value="féléves">féléves</SelectItem>
+                                              <SelectItem value="éves">éves</SelectItem>
+                                              <SelectItem value="fizetési_gyakoriság">fizetési gyakoriságonként</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                          <span>költség (</span>
+                                          <Select
+                                            value={fee.valueType}
+                                            onValueChange={(value: ManagementFeeValueType) => {
+                                              updateManagementFee(fee.id, { valueType: value })
+                                            }}
+                                          >
+                                            <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="percent">%</SelectItem>
+                                              <SelectItem value="amount">{results.currency}</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                          <span>)</span>
+                                          {customAccountOptions.length > 0 && (
+                                            <>
+                                              <span> rész</span>
+                                              <Select
+                                                value={normalizeCustomAccountForEditor(fee.account)}
+                                                onValueChange={(value: CustomEntryAccount) => {
+                                                  updateManagementFee(fee.id, { account: normalizeCustomAccountForEditor(value) })
+                                                }}
+                                              >
+                                                <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  {customAccountOptions.map((option) => (
+                                                    <SelectItem key={option.value} value={option.value}>
+                                                      {option.label}
+                                                    </SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                            </>
+                                          )}
+                                        </Label>
+                                        <Input
+                                          type="text"
+                                          value={fee.label}
+                                          onChange={(e) => updateManagementFee(fee.id, { label: e.target.value })}
+                                          placeholder={`Egyedi költség ${index + 1} neve`}
+                                          className="h-9"
+                                        />
+                                        <Input
+                                          type="text"
+                                          inputMode="numeric"
+                                          value={
+                                            editingFields[`managementFee-${fee.id}`]
+                                              ? String(fee.value)
+                                              : formatNumber(fee.value)
+                                          }
+                                          onFocus={() => setFieldEditing(`managementFee-${fee.id}`, true)}
+                                          onBlur={() => setFieldEditing(`managementFee-${fee.id}`, false)}
+                                          onChange={(e) => {
+                                            const parsed = parseNumber(e.target.value)
+                                            if (!isNaN(parsed)) {
+                                              if (fee.valueType !== "percent") {
+                                                updateManagementFee(fee.id, { value: parsed })
+                                                return
+                                              }
+                                              const selectedAccount = normalizeCustomAccountForEditor(fee.account)
+                                              const otherPercentCostsOnSameAccount = managementFees.reduce((sum, otherFee) => {
+                                                if (otherFee.id === fee.id) return sum
+                                                if (otherFee.valueType !== "percent") return sum
+                                                if (normalizeCustomAccountForEditor(otherFee.account) !== selectedAccount) return sum
+                                                return sum + Math.max(0, otherFee.value ?? 0)
+                                              }, 0)
+                                              const acquisitionPercentForAccount =
+                                                selectedAccount === "main" || selectedAccount === "eseti"
+                                                  ? Math.max(0, inputs.initialCostDefaultPercent ?? 0)
+                                                  : 0
+                                              const maxAllowedForThisEntry = Math.max(
+                                                0,
+                                                100 - acquisitionPercentForAccount - otherPercentCostsOnSameAccount,
+                                              )
+                                              updateManagementFee(fee.id, { value: Math.min(parsed, maxAllowedForThisEntry) })
+                                            }
+                                          }}
+                                          min={0}
+                                          className="h-11"
+                                        />
+                                        <div className="flex items-center gap-2">
+                                          <Label className="text-xs text-muted-foreground">Nap:</Label>
+                                          <Popover>
+                                            <PopoverTrigger asChild>
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-8 w-[140px] justify-start text-left font-normal"
+                                              >
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {fee.dayOfMonth != null && fee.dayOfMonth >= 1
+                                                  ? (fee.month != null && fee.month >= 1 && fee.month <= 12
+                                                      ? [
+                                                          "jan", "feb", "már", "ápr", "máj", "jún",
+                                                          "júl", "aug", "sze", "okt", "nov", "dec",
+                                                        ][fee.month - 1] + " "
+                                                      : "") + `${fee.dayOfMonth}.`
+                                                  : "Válassz napot"}
+                                              </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent align="start" className="w-auto p-0">
+                                              <Calendar
+                                                mode="single"
+                                                formatters={{
+                                                  formatCaption: (date) =>
+                                                    date.toLocaleString("hu-HU", { month: "long" }),
+                                                }}
+                                                selected={
+                                                  fee.dayOfMonth != null && fee.dayOfMonth >= 1
+                                                    ? new Date(2000, (fee.month ?? 1) - 1, fee.dayOfMonth)
+                                                    : undefined
+                                                }
+                                                defaultMonth={
+                                                  fee.dayOfMonth != null && fee.dayOfMonth >= 1
+                                                    ? new Date(2000, (fee.month ?? 1) - 1, fee.dayOfMonth)
+                                                    : new Date(2000, 0, 15)
+                                                }
+                                                onSelect={(date) => {
+                                                  if (!date) return
+                                                  updateManagementFee(fee.id, {
+                                                    dayOfMonth: date.getDate(),
+                                                    month: date.getMonth() + 1,
+                                                  })
+                                                }}
+                                              />
+                                              {(fee.dayOfMonth ?? 0) >= 1 && (
+                                                <div className="p-2 border-t">
+                                                  <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="w-full"
+                                                    onClick={() =>
+                                                      updateManagementFee(fee.id, { dayOfMonth: undefined, month: undefined })
+                                                    }
+                                                  >
+                                                    Törlés
+                                                  </Button>
+                                                </div>
+                                              )}
+                                            </PopoverContent>
+                                          </Popover>
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeManagementFee(fee.id)}
+                                        className="mt-8 text-muted-foreground hover:text-foreground p-2"
+                                        title="Törlés"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={addManagementFee}
+                                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground py-2"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                  <span>Költség hozzáadása</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Bonuses Section */}
+                            <div className="space-y-3 pt-4 border-t">
+                              <h3 className="font-semibold text-base border-b pb-2">Bónuszok</h3>
+                              <div className="space-y-3">
+                                {bonuses.map((bonus, index) => (
+                                  <div key={bonus.id} className="space-y-2">
+                                    <div className="flex items-start gap-2">
+                                      <div className="flex-1 space-y-2">
+                                        <Label className="text-sm flex items-center gap-1 flex-wrap">
+                                          <span>Bónusz</span>
+                                          <Select
+                                            value={bonus.frequency ?? "éves"}
+                                            onValueChange={(value: ManagementFeeFrequency) => {
+                                              updateBonus(bonus.id, { frequency: value })
+                                            }}
+                                          >
+                                            <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="napi">napi</SelectItem>
+                                              <SelectItem value="havi">havi</SelectItem>
+                                              <SelectItem value="negyedéves">negyedéves</SelectItem>
+                                              <SelectItem value="féléves">féléves</SelectItem>
+                                              <SelectItem value="éves">éves</SelectItem>
+                                              <SelectItem value="fizetési_gyakoriság">fizetési gyakoriságonként</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                          <span>(</span>
+                                          <Select
+                                            value={bonus.valueType}
+                                            onValueChange={(value: "percent" | "amount") => {
+                                              updateBonus(bonus.id, { valueType: value })
+                                            }}
+                                          >
+                                            <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="percent">%</SelectItem>
+                                              <SelectItem value="amount">{results.currency}</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                          <span>)</span>
+                                          <span> alapja:</span>
+                                          <Select
+                                            value={bonus.baseMode ?? "asset"}
+                                            onValueChange={(value: "contribution" | "asset" | "costRefundAll" | "costRefundCustom") => {
+                                              updateBonus(bonus.id, { baseMode: value })
+                                            }}
+                                          >
+                                            <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="contribution">Befizetett összeg</SelectItem>
+                                              <SelectItem value="asset">Bentlévő vagyon</SelectItem>
+                                              <SelectItem value="costRefundAll">Költség visszatérítés (minden)</SelectItem>
+                                              <SelectItem value="costRefundCustom">Költség visszatérítés (egyedi)</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                          {customAccountOptions.length > 0 && (bonus.baseMode === "asset" || !bonus.baseMode) && (
+                                            <>
+                                              <span> rész</span>
+                                              <Select
+                                                value={normalizeCustomAccountForEditor(bonus.account)}
+                                                onValueChange={(value: CustomEntryAccount) => {
+                                                  updateBonus(bonus.id, { account: normalizeCustomAccountForEditor(value) })
+                                                }}
+                                              >
+                                                <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  {customAccountOptions.map((option) => (
+                                                    <SelectItem key={option.value} value={option.value}>
+                                                      {option.label}
+                                                    </SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                            </>
+                                          )}
+                                        </Label>
+                                        <Input
+                                          type="text"
+                                          value={bonus.label ?? ""}
+                                          onChange={(e) => updateBonus(bonus.id, { label: e.target.value })}
+                                          placeholder={`Egyedi bónusz ${index + 1} neve`}
+                                          className="h-9"
+                                        />
+                                        <Input
+                                          type="text"
+                                          inputMode="numeric"
+                                          value={
+                                            editingFields[`bonus-${bonus.id}`]
+                                              ? String(bonus.value)
+                                              : formatNumber(bonus.value)
+                                          }
+                                          onFocus={() => setFieldEditing(`bonus-${bonus.id}`, true)}
+                                          onBlur={() => setFieldEditing(`bonus-${bonus.id}`, false)}
+                                          onChange={(e) => {
+                                            const parsed = parseNumber(e.target.value)
+                                            if (!isNaN(parsed)) {
+                                              updateBonus(bonus.id, { value: parsed })
+                                            }
+                                          }}
+                                          min={0}
+                                          className="h-11"
+                                        />
+                                        <div className="flex items-center gap-2">
+                                          <Label className="text-xs text-muted-foreground">Nap:</Label>
+                                          <Popover>
+                                            <PopoverTrigger asChild>
+                                              <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-8 w-[140px] justify-start text-left font-normal"
+                                              >
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {bonus.dayOfMonth != null && bonus.dayOfMonth >= 1
+                                                  ? (bonus.month != null && bonus.month >= 1 && bonus.month <= 12
+                                                      ? [
+                                                          "jan", "feb", "már", "ápr", "máj", "jún",
+                                                          "júl", "aug", "sze", "okt", "nov", "dec",
+                                                        ][bonus.month - 1] + " "
+                                                      : "") + `${bonus.dayOfMonth}.`
+                                                  : "Válassz napot"}
+                                              </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent align="start" className="w-auto p-0">
+                                              <Calendar
+                                                mode="single"
+                                                formatters={{
+                                                  formatCaption: (date) =>
+                                                    date.toLocaleString("hu-HU", { month: "long" }),
+                                                }}
+                                                selected={
+                                                  bonus.dayOfMonth != null && bonus.dayOfMonth >= 1
+                                                    ? new Date(2000, (bonus.month ?? 1) - 1, bonus.dayOfMonth)
+                                                    : undefined
+                                                }
+                                                defaultMonth={
+                                                  bonus.dayOfMonth != null && bonus.dayOfMonth >= 1
+                                                    ? new Date(2000, (bonus.month ?? 1) - 1, bonus.dayOfMonth)
+                                                    : new Date(2000, 0, 15)
+                                                }
+                                                onSelect={(date) => {
+                                                  if (!date) return
+                                                  updateBonus(bonus.id, {
+                                                    dayOfMonth: date.getDate(),
+                                                    month: date.getMonth() + 1,
+                                                  })
+                                                }}
+                                              />
+                                              {(bonus.dayOfMonth ?? 0) >= 1 && (
+                                                <div className="p-2 border-t">
+                                                  <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="w-full"
+                                                    onClick={() =>
+                                                      updateBonus(bonus.id, { dayOfMonth: undefined, month: undefined })
+                                                    }
+                                                  >
+                                                    Törlés
+                                                  </Button>
+                                                </div>
+                                              )}
+                                            </PopoverContent>
+                                          </Popover>
+                                        </div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeBonus(bonus.id)}
+                                        className="mt-8 text-muted-foreground hover:text-foreground p-2"
+                                        title="Törlés"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={addBonus}
+                                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground py-2"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                  <span>Bónusz hozzáadása</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                    </div>
+                    )}
                 </CardContent>
                   </CollapsibleContent>
                 </Collapsible>
               </Card>
 
-              {/* New card for custom costs and bonuses */}
-              <Card className="w-full p-4 md:p-6">
-                <Collapsible open={isCustomCostsCardOpen} onOpenChange={setIsCustomCostsCardOpen}>
-                  <CollapsibleTrigger asChild>
-                    <CardHeader className="px-0 pt-0 cursor-pointer hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <CardTitle>Egyedi költségek és bónuszok</CardTitle>
-                        <ChevronDown
-                          className={`h-5 w-5 text-muted-foreground transition-transform ${
-                            isCustomCostsCardOpen ? "transform rotate-180" : ""
-                          }`}
-                        />
-                      </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <CardContent className="px-0 pb-0 space-y-6">
-                  <div className="grid gap-2 md:grid-cols-[1fr_auto_auto] items-end p-3 rounded-lg border">
-                    <div className="space-y-1">
-                      <Label htmlFor="custom-preset-name">Sablon neve</Label>
-                      <Input
-                        id="custom-preset-name"
-                        value={customPresetName}
-                        onChange={(e) => setCustomPresetName(e.target.value)}
-                        placeholder="Pl. Kiemelt költség/bónusz mix"
-                        className="h-10"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="h-10"
-                      onClick={() => void saveCurrentCustomPreset()}
-                      disabled={!customPresetName.trim() || customEntryDefinitions.length === 0}
-                    >
-                      Mentés sablonként
-                    </Button>
-                    <Button type="button" variant="outline" className="h-10" onClick={() => void loadCustomPresets()}>
-                      Lista frissítése
-                    </Button>
-                    <div className="space-y-1 md:col-span-3">
-                      <Label htmlFor="custom-preset-select">Betöltés listából</Label>
-                      <div className="flex flex-col gap-2 md:flex-row">
-                        <Select value={selectedCustomPresetId} onValueChange={onSelectCustomPreset}>
-                          <SelectTrigger id="custom-preset-select" className="h-10 w-full md:max-w-md">
-                            <SelectValue placeholder="Válassz mentett sablont" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {customPresets.map((preset) => (
-                              <SelectItem key={preset.id} value={preset.id}>
-                                {preset.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-10"
-                          onClick={() => void updateCurrentCustomPreset()}
-                          disabled={!selectedCustomPresetId || customEntryDefinitions.length === 0}
-                        >
-                          Sablon frissítése
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          className="h-10"
-                          onClick={() => void deleteCurrentCustomPreset()}
-                          disabled={!selectedCustomPresetId}
-                        >
-                          Sablon törlése
-                        </Button>
-                      </div>
-                    </div>
-                    {customPresetError ? (
-                      <p className="md:col-span-3 text-sm text-destructive">{customPresetError}</p>
-                    ) : null}
-                  </div>
-                  {/* Management Fees Section */}
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-base border-b pb-2">Egyedi költségek</h3>
-                    <div className="space-y-3">
-                      {managementFees.map((fee, index) => (
-                        <div key={fee.id} className="space-y-2">
-                          <div className="flex items-start gap-2">
-                            <div className="flex-1 space-y-2">
-                              <Label className="text-sm flex items-center gap-1 flex-wrap">
-                                <span>Rendszeres</span>
-                                <Select
-                                  value={fee.frequency}
-                                  onValueChange={(value: ManagementFeeFrequency) => {
-                                    updateManagementFee(fee.id, { frequency: value })
-                                  }}
-                                >
-                                  <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="napi">napi</SelectItem>
-                                    <SelectItem value="havi">havi</SelectItem>
-                                    <SelectItem value="negyedéves">negyedéves</SelectItem>
-                                    <SelectItem value="féléves">féléves</SelectItem>
-                                    <SelectItem value="éves">éves</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <span>költség (</span>
-                                <Select
-                                  value={fee.valueType}
-                                  onValueChange={(value: ManagementFeeValueType) => {
-                                    updateManagementFee(fee.id, { valueType: value })
-                                  }}
-                                >
-                                  <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="percent">%</SelectItem>
-                                    <SelectItem value="amount">{results.currency}</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <span>)</span>
-                                {customAccountOptions.length > 0 && (
-                                  <>
-                                    <span> rész</span>
-                                    <Select
-                                      value={normalizeCustomAccountForEditor(fee.account)}
-                                      onValueChange={(value: CustomEntryAccount) => {
-                                        updateManagementFee(fee.id, { account: normalizeCustomAccountForEditor(value) })
-                                      }}
-                                    >
-                                      <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {customAccountOptions.map((option) => (
-                                          <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </>
-                                )}
-                              </Label>
-                              <Input
-                                type="text"
-                                value={fee.label}
-                                onChange={(e) => updateManagementFee(fee.id, { label: e.target.value })}
-                                placeholder={`Egyedi költség ${index + 1} neve`}
-                                className="h-9"
-                              />
-                              <Input
-                                type="text"
-                                inputMode="numeric"
-                                value={
-                                  editingFields[`managementFee-${fee.id}`]
-                                    ? String(fee.value)
-                                    : formatNumber(fee.value)
-                                }
-                                onFocus={() => setFieldEditing(`managementFee-${fee.id}`, true)}
-                                onBlur={() => setFieldEditing(`managementFee-${fee.id}`, false)}
-                                onChange={(e) => {
-                                  const parsed = parseNumber(e.target.value)
-                                  if (!isNaN(parsed)) {
-                                    if (fee.valueType !== "percent") {
-                                      updateManagementFee(fee.id, { value: parsed })
-                                      return
-                                    }
-                                    const selectedAccount = normalizeCustomAccountForEditor(fee.account)
-                                    const otherPercentCostsOnSameAccount = managementFees.reduce((sum, otherFee) => {
-                                      if (otherFee.id === fee.id) return sum
-                                      if (otherFee.valueType !== "percent") return sum
-                                      if (normalizeCustomAccountForEditor(otherFee.account) !== selectedAccount) return sum
-                                      return sum + Math.max(0, otherFee.value ?? 0)
-                                    }, 0)
-                                    const acquisitionPercentForAccount =
-                                      selectedAccount === "main" || selectedAccount === "eseti"
-                                        ? Math.max(0, inputs.initialCostDefaultPercent ?? 0)
-                                        : 0
-                                    const maxAllowedForThisEntry = Math.max(
-                                      0,
-                                      100 - acquisitionPercentForAccount - otherPercentCostsOnSameAccount,
-                                    )
-                                    updateManagementFee(fee.id, { value: Math.min(parsed, maxAllowedForThisEntry) })
-                                  }
-                                }}
-                                min={0}
-                                className="h-11"
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => removeManagementFee(fee.id)}
-                              className="mt-8 text-muted-foreground hover:text-foreground p-2"
-                              title="Törlés"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={addManagementFee}
-                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground py-2"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span>Költség hozzáadása</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Bonuses Section */}
-                  <div className="space-y-3 pt-4 border-t">
-                    <h3 className="font-semibold text-base border-b pb-2">Bónuszok</h3>
-                    <div className="space-y-3">
-                      {bonuses.map((bonus, index) => (
-                        <div key={bonus.id} className="space-y-2">
-                          <div className="flex items-start gap-2">
-                            <div className="flex-1 space-y-2">
-                              <Label className="text-sm flex items-center gap-1 flex-wrap">
-                                <span>Bónusz (</span>
-                                <Select
-                                  value={bonus.valueType}
-                                  onValueChange={(value: "percent" | "amount") => {
-                                    updateBonus(bonus.id, { valueType: value })
-                                  }}
-                                >
-                                  <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="percent">%</SelectItem>
-                                    <SelectItem value="amount">{results.currency}</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <span>)</span>
-                                {customAccountOptions.length > 0 && (
-                                  <>
-                                    <span> rész</span>
-                                    <Select
-                                      value={normalizeCustomAccountForEditor(bonus.account)}
-                                      onValueChange={(value: CustomEntryAccount) => {
-                                        updateBonus(bonus.id, { account: normalizeCustomAccountForEditor(value) })
-                                      }}
-                                    >
-                                      <SelectTrigger className="h-6 w-auto px-2 py-0 text-sm font-normal inline-flex border-dashed">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {customAccountOptions.map((option) => (
-                                          <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </>
-                                )}
-                              </Label>
-                              <Input
-                                type="text"
-                                inputMode="numeric"
-                                value={
-                                  editingFields[`bonus-${bonus.id}`]
-                                    ? String(bonus.value)
-                                    : formatNumber(bonus.value)
-                                }
-                                onFocus={() => setFieldEditing(`bonus-${bonus.id}`, true)}
-                                onBlur={() => setFieldEditing(`bonus-${bonus.id}`, false)}
-                                onChange={(e) => {
-                                  const parsed = parseNumber(e.target.value)
-                                  if (!isNaN(parsed)) {
-                                    updateBonus(bonus.id, { value: parsed })
-                                  }
-                                }}
-                                min={0}
-                                className="h-11"
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => removeBonus(bonus.id)}
-                              className="mt-8 text-muted-foreground hover:text-foreground p-2"
-                              title="Törlés"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={addBonus}
-                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground py-2"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span>Bónusz hozzáadása</span>
-                      </button>
-                    </div>
-                  </div>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Collapsible>
-              </Card>
             </div>
           </div>
 
@@ -11230,9 +11713,11 @@ export function SavingsCalculator() {
                                 <SelectValue placeholder="Válassz biztosítási típust" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="type1">Típus 1</SelectItem>
-                                <SelectItem value="type2">Típus 2</SelectItem>
-                                <SelectItem value="type3">Típus 3</SelectItem>
+                                {riskInsuranceTypeOptions.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
@@ -11298,95 +11783,69 @@ export function SavingsCalculator() {
 
                     {/* Additional Services Section */}
                     <div className="space-y-4 pt-4 border-t">
-                      <h3 className="text-base font-semibold">Kiegészítő szolgáltatások</h3>
-                      
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Előre definiált szolgáltatás hozzáadása</Label>
-                        <div className="space-y-2">
-                          <label className="flex items-center gap-3 cursor-pointer">
-                            <Checkbox
-                              checked={yieldMonitoring.enabled}
-                              onCheckedChange={(checked) => {
-                                setYieldMonitoring({ ...yieldMonitoring, enabled: checked === true })
-                              }}
-                              className="w-5 h-5"
+                      <Collapsible open={isAdditionalServicesOpen} onOpenChange={setIsAdditionalServicesOpen}>
+                        <CollapsibleTrigger asChild>
+                          <div className="flex cursor-pointer items-center justify-between rounded-md p-1 hover:bg-muted/50 transition-colors">
+                            <h3 className="text-base font-semibold">Kiegészítő szolgáltatások</h3>
+                            <ChevronDown
+                              className={`h-4 w-4 text-muted-foreground transition-transform ${
+                                isAdditionalServicesOpen ? "transform rotate-180" : ""
+                              }`}
                             />
-                            <span className="text-sm">Hozamfigyelő szolgáltatás</span>
-                          </label>
-                          
-                          {yieldMonitoring.enabled && (
-                            <div className="ml-8 space-y-2">
-                              <Label className="text-sm font-medium">Hozamfigyelő szolgáltatás szabályai:</Label>
-                              <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside ml-2">
-                                <li>1 eszközalap ingyenes (további eszközalapokra lehet díj)</li>
-                                <li>
-                                  EUR: ingyenes 1.500 €/év befizetés felett vagy 40.000 € egyenleg felett, különben 0,5 €/hó/eszközalap
-                                </li>
-                                <li>
-                                  HUF: ingyenes 180.000 Ft/év befizetés felett vagy 2.000.000 Ft egyenleg felett, különben 100 Ft/hó/eszközalap
-                                </li>
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                          </div>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <div className="space-y-3 pt-2">
+                            {isAllianzProductSelected ? (
+                              <>
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                  <Checkbox
+                                    checked={allianzYieldWatcherEnabled}
+                                    onCheckedChange={(checked) => setAllianzYieldWatcherEnabled(checked === true)}
+                                    className="w-5 h-5"
+                                  />
+                                  <span className="text-sm font-medium">Hozamfigyelő szolgáltatás</span>
+                                </label>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          // TODO: Add custom cost functionality
-                        }}
-                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground py-2"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span>Egyedi költség hozzáadása</span>
-                      </button>
+                                {allianzYieldWatcherEnabled ? (
+                                  <div className="ml-8 space-y-2">
+                                    <Label htmlFor="allianz-yield-watcher-fund-count">Hány eszközalapra alkalmazzuk?</Label>
+                                    <Input
+                                      id="allianz-yield-watcher-fund-count"
+                                      type="number"
+                                      inputMode="numeric"
+                                      value={allianzYieldWatcherFundCount}
+                                      onChange={(event) => {
+                                        const parsed = Number(event.target.value)
+                                        setAllianzYieldWatcherFundCount(
+                                          Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : 1,
+                                        )
+                                      }}
+                                      min={1}
+                                      className="max-w-[220px]"
+                                    />
+                                    <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                                      <li>1 eszközalapra ingyenes.</li>
+                                      <li>Évi 180 000 Ft rendszeres díj felett ingyenes.</li>
+                                      <li>2 000 000 Ft aktuális egységszámla-érték felett ingyenes.</li>
+                                      <li>Minden más esetben 100 Ft / hó / eszközalap.</li>
+                                    </ul>
+                                  </div>
+                                ) : null}
+                              </>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                Ennél a terméknél nincs elérhető kiegészítő szolgáltatás.
+                              </p>
+                            )}
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
                     </div>
                   </CardContent>
                 </CollapsibleContent>
               </Collapsible>
             </Card>
-
-            {totalExtraServicesCost > 0 && (
-              <Card className="border-purple-200 dark:border-purple-800">
-                <Collapsible open={isServicesCardOpen} onOpenChange={setIsServicesCardOpen}>
-                  <CollapsibleTrigger asChild>
-                    <CardHeader className="pb-3 cursor-pointer hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <span className="text-purple-600 dark:text-purple-400">Kiegészítő szolgáltatások</span>
-                  </CardTitle>
-                        <ChevronDown
-                          className={`h-5 w-5 text-muted-foreground transition-transform ${
-                            isServicesCardOpen ? "transform rotate-180" : ""
-                          }`}
-                        />
-                      </div>
-                </CardHeader>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                <CardContent>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-sm text-muted-foreground">Összes költség:</span>
-                      <span className="text-2xl font-bold text-purple-600 dark:text-purple-400 tabular-nums">
-                        {formatCurrency(totalExtraServicesCost)}
-                      </span>
-                    </div>
-                    {yieldMonitoring.enabled && (
-                      <p className="text-xs text-muted-foreground">
-                        Hozamfigyelő: {yieldMonitoring.fundCount} eszközalap
-                      </p>
-                    )}
-                    {extraServices.length > 0 && (
-                      <p className="text-xs text-muted-foreground">{extraServices.length} egyedi költség</p>
-                    )}
-                  </div>
-                </CardContent>
-                  </CollapsibleContent>
-                </Collapsible>
-              </Card>
-            )}
           </div>
 
           <div id="yearly" className="lg:col-span-3 space-y-4 scroll-mt-28">
@@ -11426,9 +11885,11 @@ export function SavingsCalculator() {
                                 <SelectValue placeholder="Válassz biztosítási típust" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="type1">Típus 1</SelectItem>
-                                <SelectItem value="type2">Típus 2</SelectItem>
-                                <SelectItem value="type3">Típus 3</SelectItem>
+                                {riskInsuranceTypeOptions.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
@@ -11493,6 +11954,67 @@ export function SavingsCalculator() {
                           </div>
                         </>
                       )}
+                    </div>
+
+                    <div className="space-y-4 pt-4 border-t">
+                      <Collapsible open={isAdditionalServicesOpen} onOpenChange={setIsAdditionalServicesOpen}>
+                        <CollapsibleTrigger asChild>
+                          <div className="flex cursor-pointer items-center justify-between rounded-md p-1 hover:bg-muted/50 transition-colors">
+                            <h3 className="text-base font-semibold">Kiegészítő szolgáltatások</h3>
+                            <ChevronDown
+                              className={`h-4 w-4 text-muted-foreground transition-transform ${
+                                isAdditionalServicesOpen ? "transform rotate-180" : ""
+                              }`}
+                            />
+                          </div>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <div className="space-y-3 pt-2">
+                            {isAllianzProductSelected ? (
+                              <>
+                                <label className="flex items-center gap-3 cursor-pointer">
+                                  <Checkbox
+                                    checked={allianzYieldWatcherEnabled}
+                                    onCheckedChange={(checked) => setAllianzYieldWatcherEnabled(checked === true)}
+                                    className="w-5 h-5"
+                                  />
+                                  <span className="text-sm font-medium">Hozamfigyelő szolgáltatás</span>
+                                </label>
+
+                                {allianzYieldWatcherEnabled ? (
+                                  <div className="ml-8 space-y-2">
+                                    <Label htmlFor="allianz-yield-watcher-fund-count-yearly">Hány eszközalapra alkalmazzuk?</Label>
+                                    <Input
+                                      id="allianz-yield-watcher-fund-count-yearly"
+                                      type="number"
+                                      inputMode="numeric"
+                                      value={allianzYieldWatcherFundCount}
+                                      onChange={(event) => {
+                                        const parsed = Number(event.target.value)
+                                        setAllianzYieldWatcherFundCount(
+                                          Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : 1,
+                                        )
+                                      }}
+                                      min={1}
+                                      className="max-w-[220px]"
+                                    />
+                                    <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                                      <li>1 eszközalapra ingyenes.</li>
+                                      <li>Évi 180 000 Ft rendszeres díj felett ingyenes.</li>
+                                      <li>2 000 000 Ft aktuális egységszámla-érték felett ingyenes.</li>
+                                      <li>Minden más esetben 100 Ft / hó / eszközalap.</li>
+                                    </ul>
+                                  </div>
+                                ) : null}
+                              </>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                Ennél a terméknél nincs elérhető kiegészítő szolgáltatás.
+                              </p>
+                            )}
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
                     </div>
                   </CardContent>
                 </CollapsibleContent>
@@ -12113,21 +12635,21 @@ export function SavingsCalculator() {
                         ))}
                       <col style={{ width: "100px" }} />
                       {effectiveShowBonusColumns &&
-                        showBonusBreakdown &&
+                        effectiveShowBonusBreakdown &&
                         customBonusYearlyColumns.map((column) => (
                           <col key={column.id} style={{ width: column.width }} />
                         ))}
                       {effectiveShowBonusColumns &&
-                        showBonusBreakdown &&
+                        effectiveShowBonusBreakdown &&
                         shouldShowWealthBonusPercentColumn && (
                         <col style={{ width: "120px" }} />
                       )}
-                      {effectiveShowBonusColumns && showBonusBreakdown && <col style={{ width: "120px" }} />}
-                      {effectiveShowBonusColumns && showBonusBreakdown && selectedProduct === "generali_kabala" && (
+                      {effectiveShowBonusColumns && effectiveShowBonusBreakdown && selectedProduct && <col style={{ width: "120px" }} />}
+                      {effectiveShowBonusColumns && effectiveShowBonusBreakdown && selectedProduct === "generali_kabala" && (
                         <col style={{ width: "120px" }} />
                       )}
                       {enableRiskInsurance && <col style={{ width: "100px" }} />}
-                      {totalExtraServicesCost > 0 && <col style={{ width: "100px" }} />}
+                      {showAllianzYieldWatcherColumn && <col style={{ width: "120px" }} />}
                       {shouldShowTaxCreditInYearlyTable && <col style={{ width: "110px" }} />}
                       <col style={{ width: "110px" }} />
                       {isAlfaExclusivePlus && !isEsetiView && <col style={{ width: "120px" }} />}
@@ -12258,7 +12780,7 @@ export function SavingsCalculator() {
                           </th>
                         )}
                         {effectiveShowBonusColumns &&
-                          showBonusBreakdown &&
+                          effectiveShowBonusBreakdown &&
                           customBonusYearlyColumns.map((column) => (
                             <th
                               key={column.id}
@@ -12269,13 +12791,13 @@ export function SavingsCalculator() {
                             </th>
                           ))}
                         {effectiveShowBonusColumns &&
-                          showBonusBreakdown &&
+                          effectiveShowBonusBreakdown &&
                           shouldShowWealthBonusPercentColumn && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap text-emerald-600" {...getYearlyHeaderInfoHandlers("wealthBonusPercent")}>
                             Vagyon bónusz (%)
                           </th>
                         )}
-                        {effectiveShowBonusColumns && showBonusBreakdown && (
+                        {effectiveShowBonusColumns && effectiveShowBonusBreakdown && selectedProduct && (
                           <th
                             className="py-3 px-3 text-right font-medium whitespace-nowrap text-emerald-600"
                             {...getYearlyHeaderInfoHandlers(selectedProduct === "alfa_fortis" ? "bonus" : "bonusAmount")}
@@ -12289,7 +12811,7 @@ export function SavingsCalculator() {
                                 : "Bónusz (Ft)"}
                           </th>
                         )}
-                        {effectiveShowBonusColumns && showBonusBreakdown && selectedProduct === "generali_kabala" && (
+                        {effectiveShowBonusColumns && effectiveShowBonusBreakdown && selectedProduct === "generali_kabala" && (
                           <th
                             className="py-3 px-3 text-right font-medium whitespace-nowrap text-emerald-600"
                             {...getYearlyHeaderInfoHandlers("bonusAmount")}
@@ -12301,9 +12823,10 @@ export function SavingsCalculator() {
                         {enableRiskInsurance && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap" {...getYearlyHeaderInfoHandlers("riskFee")}>Kock.bizt.</th>
                         )}
-                        {/* Display extra services cost column if totalExtraServicesCost > 0 */}
-                        {totalExtraServicesCost > 0 && (
-                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap">Extrák</th>
+                        {showAllianzYieldWatcherColumn && (
+                          <th className="py-3 px-3 text-right font-medium whitespace-nowrap" {...getYearlyHeaderInfoHandlers("allianzYieldWatcher")}>
+                            Hozamfigyelő
+                          </th>
                         )}
                         {shouldShowTaxCreditInYearlyTable && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28" {...getYearlyHeaderInfoHandlers("taxCredit")}>Adójóv.</th>
@@ -12377,6 +12900,16 @@ export function SavingsCalculator() {
                         const sourceYearRow = row
                         const sourceCumulativeRow = sourceCumulativeByYear[row.year] ?? sourceYearRow
                         const sourceRow = yearlyAggregationMode === "sum" ? sourceCumulativeRow : sourceYearRow
+                        const allianzYieldWatcherMaxForYearCalc = Math.max(
+                          0,
+                          allianzYieldWatcherMaxByYear[row.year] ?? 0,
+                        )
+                        const allianzYieldWatcherMaxForYearDisplay = convertForDisplay(
+                          allianzYieldWatcherMaxForYearCalc,
+                          results.currency,
+                          displayCurrency,
+                          inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
+                        )
                         const baselineAdminFeePercent =
                           productPresetBaseline.adminFeePercentByYear[row.year] ?? productPresetBaseline.adminFeePercentOfPayment
                         const isAlfaExclusivePlusEsetiView = selectedProduct === "alfa_exclusive_plus" && isEsetiView
@@ -12393,6 +12926,9 @@ export function SavingsCalculator() {
                         const isAllianzEsetiView =
                           isEsetiView &&
                           (selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram")
+                        const isAllianzMainView =
+                          !isEsetiView &&
+                          (selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram")
                         const isExclusivePlusSplitView = isAlfaExclusivePlus && isAccountSplitOpen
                         const assetPercentDefaultForView =
                           isExclusivePlusSplitView && effectiveYearlyViewMode === "invested"
@@ -12405,6 +12941,7 @@ export function SavingsCalculator() {
                         const baselineAssetCostPercent =
                           assetPercentDefaultForView
                         const adminFeeDisplay = isEsetiView ? 0 : (sourceRow.adminCostForYear ?? 0)
+                        const allianzAdminFeeDefaultAmount = (inputs.currency === "EUR" ? 3.3 : 990) * 12
                         const adminFeePercentDisplay = isEsetiView
                           ? 0
                           : (adminFeePercentByYear[row.year] ??
@@ -12424,6 +12961,9 @@ export function SavingsCalculator() {
                                     : selectedProduct === "generali_kabala"
                                       ? 0
                                     : 0))
+                        const adminFeeAmountDisplay = isAllianzMainView
+                          ? (allianzAdminFeeAmountByYear[row.year] ?? allianzAdminFeeDefaultAmount)
+                          : adminFeeDisplay
                         const adminFeePercentDefault = baselineAdminFeePercent
                         const isAdminFeePercentModified = Math.abs(adminFeePercentDisplay - adminFeePercentDefault) > 1e-9
                         const accountMaintenanceDisplay = isAlfaExclusivePlusEsetiView
@@ -12707,7 +13247,7 @@ export function SavingsCalculator() {
                               </div>
                             </td>
                             {showCostBreakdown && showAdminCostColumn && (
-                              (selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade" || selectedProduct === "alfa_jovokep" || selectedProduct === "alfa_jovotervezo" || selectedProduct === "alfa_premium_selection" || selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur" || selectedProduct === "alfa_zen_pro" || selectedProduct === "generali_kabala") ? (
+                              (selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade" || selectedProduct === "alfa_jovokep" || selectedProduct === "alfa_jovotervezo" || selectedProduct === "alfa_premium_selection" || selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur" || selectedProduct === "alfa_zen_pro" || selectedProduct === "generali_kabala" || selectedProduct === "allianz_eletprogram" || selectedProduct === "allianz_bonusz_eletprogram") ? (
                                 <td className="py-2 px-3 text-right align-top">
                                   <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                     <Input
@@ -12717,15 +13257,19 @@ export function SavingsCalculator() {
                                       value={
                                         editingFields[`adminFee-${row.year}`]
                                           ? adminFeeInputByYear[row.year] ?? ""
-                                          : adminFeePercentDisplay
-                                              .toLocaleString("hu-HU", { maximumFractionDigits: 2 })
-                                              .replace(/\u00A0/g, " ")
+                                          : isAllianzMainView
+                                            ? formatNumber(Math.round(adminFeeAmountDisplay))
+                                            : adminFeePercentDisplay
+                                                .toLocaleString("hu-HU", { maximumFractionDigits: 2 })
+                                                .replace(/\u00A0/g, " ")
                                       }
                                       onFocus={() => {
                                         setFieldEditing(`adminFee-${row.year}`, true)
                                         setAdminFeeInputByYear((prev) => ({
                                           ...prev,
-                                          [row.year]: String(adminFeePercentDisplay),
+                                          [row.year]: String(
+                                            isAllianzMainView ? Math.round(adminFeeAmountDisplay) : adminFeePercentDisplay,
+                                          ),
                                         }))
                                       }}
                                       onBlur={() => {
@@ -12740,18 +13284,22 @@ export function SavingsCalculator() {
                                         const raw = e.target.value
                                         setAdminFeeInputByYear((prev) => ({ ...prev, [row.year]: raw }))
                                         const val = parseNumber(raw)
-                                        if (!isNaN(val) && val >= 0 && val <= 100) {
+                                        if (isAllianzMainView) {
+                                          if (!isNaN(val) && val >= 0) {
+                                            updateAllianzAdminFeeAmount(row.year, val)
+                                          }
+                                        } else if (!isNaN(val) && val >= 0 && val <= 100) {
                                           updateAdminFeePercent(row.year, val)
                                         }
                                       }}
                                       min={0}
-                                      max={100}
-                                      step={0.1}
+                                      max={isAllianzMainView ? undefined : 100}
+                                      step={isAllianzMainView ? 1 : 0.1}
                                       className={`w-20 h-8 text-right tabular-nums text-red-600 ${isAdminFeePercentModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
                                     />
                                     <p className="text-xs text-muted-foreground tabular-nums">
                                       {formatValue(
-                                        applyRealValueForYear(isEsetiView ? 0 : adminFeeDisplay),
+                                        applyRealValueForYear(isEsetiView ? 0 : adminFeeAmountDisplay),
                                         displayCurrency,
                                       )}
                                     </p>
@@ -12761,7 +13309,7 @@ export function SavingsCalculator() {
                                 <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap align-top text-red-600">
                                   <div className="flex items-center justify-end min-h-[44px]">
                                     {formatValue(
-                                      applyRealValueForYear(isEsetiView ? 0 : adminFeeDisplay),
+                                      applyRealValueForYear(isEsetiView ? 0 : adminFeeAmountDisplay),
                                       displayCurrency,
                                     )}
                                   </div>
@@ -13085,7 +13633,9 @@ export function SavingsCalculator() {
                                                       ? 4
                                                       : fee.frequency === "féléves"
                                                         ? 2
-                                                        : 1
+                                                        : fee.frequency === "fizetési_gyakoriság"
+                                                          ? (inputs.frequency === "havi" ? 12 : inputs.frequency === "negyedéves" ? 4 : inputs.frequency === "féléves" ? 2 : 1)
+                                                          : 1
                                               return sum + amountValue * frequencyMultiplier
                                             }, 0)
                                             const nonCustomContributionCostsForYear = Math.max(
@@ -13135,7 +13685,7 @@ export function SavingsCalculator() {
                                 </div>
                               </td>
                             )}
-                            {effectiveShowBonusColumns && showBonusBreakdown && customBonusYearlyColumns.map((column) => {
+                            {effectiveShowBonusColumns && effectiveShowBonusBreakdown && customBonusYearlyColumns.map((column) => {
                               const rawCustomValue = resolveCustomEntryYearValue(sourceRow, effectiveYearlyViewMode, column.entryId)
                               const customEntry = customEntryDefinitions.find((entry) => entry.id === column.entryId)
                               const isCustomPercent = customEntry?.valueType === "percent"
@@ -13213,7 +13763,9 @@ export function SavingsCalculator() {
                                                       ? 4
                                                       : fee.frequency === "féléves"
                                                         ? 2
-                                                        : 1
+                                                        : fee.frequency === "fizetési_gyakoriság"
+                                                          ? (inputs.frequency === "havi" ? 12 : inputs.frequency === "negyedéves" ? 4 : inputs.frequency === "féléves" ? 2 : 1)
+                                                          : 1
                                               return sum + amountValue * frequencyMultiplier
                                             }, 0)
                                             const nonCustomContributionCostsForYear = Math.max(
@@ -13252,7 +13804,7 @@ export function SavingsCalculator() {
                               )
                             })}
                             {effectiveShowBonusColumns &&
-                              showBonusBreakdown &&
+                              effectiveShowBonusBreakdown &&
                               shouldShowWealthBonusPercentColumn && (
                               <td className="py-2 px-3 text-right align-top">
                                 <div className="flex flex-col items-end gap-1 min-h-[44px]">
@@ -13275,7 +13827,7 @@ export function SavingsCalculator() {
                                 </div>
                               </td>
                             )}
-                            {effectiveShowBonusColumns && showBonusBreakdown && (
+                            {effectiveShowBonusColumns && effectiveShowBonusBreakdown && selectedProduct && (
                               (selectedProduct === "alfa_fortis" || selectedProduct === "alfa_jade" || selectedProduct === "alfa_jovokep" || selectedProduct === "alfa_jovotervezo") ? (
                                 <td className="py-2 px-3 text-right align-top">
                                   <div className="flex flex-col items-end gap-1 min-h-[44px]">
@@ -13389,7 +13941,7 @@ export function SavingsCalculator() {
                                 </td>
                               )
                             )}
-                            {effectiveShowBonusColumns && showBonusBreakdown && selectedProduct === "generali_kabala" && (
+                            {effectiveShowBonusColumns && effectiveShowBonusBreakdown && selectedProduct === "generali_kabala" && (
                               <td className="py-2 px-3 text-right tabular-nums text-emerald-600 dark:text-emerald-400 align-top whitespace-nowrap">
                                 <div className="flex items-center justify-end min-h-[44px]">
                                   {formatValue(applyRealValueForYear(kabalaLoyaltyBonusForRow), displayCurrency)}
@@ -13407,14 +13959,63 @@ export function SavingsCalculator() {
                                 </div>
                               </td>
                             )}
-                            {/* Display extra services cost if > 0 */}
-                            {totalExtraServicesCost > 0 && (
-                              <td className="py-2 px-3 text-right text-purple-600 dark:text-purple-400 tabular-nums align-top">
-                                <div className="flex items-center justify-end min-h-[44px]">
-                                  {formatValue(
-                                    applyRealValueForYear(extraServicesCostsByYear[row.year] || 0),
-                                    displayCurrency,
-                                  )}
+                            {showAllianzYieldWatcherColumn && (
+                              <td className="py-2 px-3 text-right align-top">
+                                <div className="flex flex-col items-end gap-1 min-h-[44px]">
+                                  <Input
+                                    type="text"
+                                    inputMode="numeric"
+                                    disabled={isPartialRow}
+                                    value={
+                                      editingFields[`allianzYieldWatcher-${row.year}`]
+                                        ? String(
+                                            Math.round(
+                                              convertForDisplay(
+                                                allianzYieldWatcherCostByYear[row.year] ??
+                                                  (sourceYearRow.allianzYieldWatcherCostForYear ?? 0),
+                                                results.currency,
+                                                displayCurrency,
+                                                inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
+                                              ),
+                                            ),
+                                          )
+                                        : formatNumber(
+                                            Math.round(
+                                              convertForDisplay(
+                                                allianzYieldWatcherCostByYear[row.year] ??
+                                                  (sourceRow.allianzYieldWatcherCostForYear ?? 0),
+                                                results.currency,
+                                                displayCurrency,
+                                                inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
+                                              ),
+                                            ),
+                                          )
+                                    }
+                                    onFocus={() => setFieldEditing(`allianzYieldWatcher-${row.year}`, true)}
+                                    onBlur={() => setFieldEditing(`allianzYieldWatcher-${row.year}`, false)}
+                                    onChange={(e) => {
+                                      const parsed = parseNumber(e.target.value)
+                                      if (!isNaN(parsed) && parsed >= 0) {
+                                        const cappedDisplayValue = Math.min(
+                                          parsed,
+                                          Math.max(0, Math.floor(allianzYieldWatcherMaxForYearDisplay)),
+                                        )
+                                        const calcValue = convertFromDisplayToCalc(
+                                          cappedDisplayValue,
+                                          results.currency,
+                                          displayCurrency,
+                                          inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
+                                        )
+                                        updateAllianzYieldWatcherCost(row.year, calcValue)
+                                      }
+                                    }}
+                                    max={Math.max(0, Math.floor(allianzYieldWatcherMaxForYearDisplay))}
+                                    className={`w-[90px] h-8 text-right tabular-nums text-purple-600 dark:text-purple-400 ${
+                                      allianzYieldWatcherCostByYear[row.year] !== undefined
+                                        ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300"
+                                        : ""
+                                    }`}
+                                  />
                                 </div>
                               </td>
                             )}

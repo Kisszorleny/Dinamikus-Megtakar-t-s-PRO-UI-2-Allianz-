@@ -1,6 +1,11 @@
 import { calculateResultsDaily, type InputsDaily, type ResultsDaily } from "../calculate-results-daily"
 import type { ProductDefinition } from "./types"
 
+export const ALLIANZ_ELETPROGRAM_MNB_CODE_HUF = "992120" as const
+export const ALLIANZ_ELETPROGRAM_MNB_CODE_EUR = "892120" as const
+export const ALLIANZ_BONUSZ_ELETPROGRAM_MNB_CODE_HUF = "982120" as const
+export const ALLIANZ_BONUSZ_ELETPROGRAM_MNB_CODE_EUR = "882120" as const
+
 const MONTHLY_FEE_HUF = 990
 const MONTHLY_FEE_EUR = 3.3
 const ANNUAL_ASSET_FEE_PERCENT = 1.19
@@ -38,6 +43,7 @@ export const allianzEletprogram: ProductDefinition = {
       managementFeeValue: 0,
       yearlyFixedManagementFeeAmount: 0,
       adminFeeMonthlyAmount: shouldUseProductDefaults ? monthlyFee : (inputs.adminFeeMonthlyAmount ?? 0),
+      adminFeeMonthlyStartYear: shouldUseProductDefaults ? 1 : (inputs.adminFeeMonthlyStartYear ?? 1),
       assetBasedFeePercent: shouldUseProductDefaults ? ANNUAL_ASSET_FEE_PERCENT : (inputs.assetBasedFeePercent ?? 0),
       taxCreditToInvestedAccount: inputs.enableTaxCredit === true,
     })

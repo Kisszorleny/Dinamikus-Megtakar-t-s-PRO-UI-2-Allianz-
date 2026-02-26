@@ -39,7 +39,7 @@ export default function LoginClient({ from }: Props) {
         return
       }
 
-      const target = from && from.startsWith("/") ? from : "/"
+      const target = from && from.startsWith("/") ? from : "/kalkulator"
       router.replace(target)
     } catch {
       setError("Sikertelen belépés. Próbáld újra.")

@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { ColumnHoverInfoPanel } from "@/components/column-hover-info-panel"
 import { resolveProductContextKey } from "@/lib/column-explanations"
+import { getProductLabelFromCatalog } from "@/lib/product-catalog/ui"
 // TODO: Replace with real calculation import when implementing business logic
 // import { calculateResultsDaily, type InputsDaily, type Currency } from "@/lib/engine/calculate-results-daily"
 type InputsDaily = any
@@ -247,6 +248,9 @@ export default function OsszesitesPage() {
   }
 
   const getProductLabel = (productValue: string): string => {
+    const catalogLabel = getProductLabelFromCatalog(productValue)
+    if (catalogLabel) return catalogLabel
+
     const productMap: Record<string, string> = {
       alfa_exclusive_plus: "Alfa Exclusive Plus",
       alfa_fortis: "Alfa Fortis (WL-02)",
@@ -1483,7 +1487,7 @@ export default function OsszesitesPage() {
         <div className="mb-6 flex flex-wrap gap-3 items-center">
           <Button
             variant="outline"
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/kalkulator")}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Vissza

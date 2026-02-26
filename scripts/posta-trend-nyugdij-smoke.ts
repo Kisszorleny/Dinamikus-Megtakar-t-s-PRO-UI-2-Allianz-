@@ -19,7 +19,7 @@ import {
 } from "../lib/engine/products/posta-trend-nyugdij-config.ts"
 
 function runIdentityChecks(): void {
-  assert.equal(POSTA_TREND_NYUGDIJ_MNB_CODE, "23073-NY")
+  assert.equal(POSTA_TREND_NYUGDIJ_MNB_CODE, "23074")
   assert.equal(POSTA_TREND_NYUGDIJ_PRODUCT_CODE, "23073-NY")
   assert.equal(POSTA_TREND_NYUGDIJ_PRODUCT_VARIANT_HUF, "posta_trend_nyugdij_huf")
   assert.equal(toPostaTrendNyugdijProductVariantId(), POSTA_TREND_NYUGDIJ_PRODUCT_VARIANT_HUF)

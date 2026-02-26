@@ -2,7 +2,7 @@ import type { Currency, InputsDaily } from "../calculate-results-daily"
 
 export type GroupamaNextVariant = "ul100-trad0" | "ul75-trad25" | "ul0-trad100"
 
-export const GROUPAMA_NEXT_MNB_CODE = "NEXT" as const
+export const GROUPAMA_NEXT_MNB_CODE = "GB733" as const
 export const GROUPAMA_NEXT_PRODUCT_CODE = "NEXT" as const
 
 export const GROUPAMA_NEXT_PRODUCT_VARIANT_UL100_TRAD0 = "groupama_next_ul100_trad0_huf" as const

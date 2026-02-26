@@ -83,6 +83,19 @@ function normalizePayload(payload: CustomPresetCreatePayload | CustomPresetUpdat
               : {},
           startYear: entry.startYear ? Math.max(1, Number(entry.startYear)) : undefined,
           stopYear: entry.stopYear ? Math.max(0, Number(entry.stopYear)) : undefined,
+          dayOfMonth:
+            entry.dayOfMonth != null && entry.dayOfMonth >= 1 && entry.dayOfMonth <= 31
+              ? Math.round(entry.dayOfMonth)
+              : undefined,
+          month:
+            entry.month != null && entry.month >= 1 && entry.month <= 12 ? Math.round(entry.month) : undefined,
+          baseMode:
+            entry.baseMode === "contribution" ||
+            entry.baseMode === "asset" ||
+            entry.baseMode === "costRefundAll" ||
+            entry.baseMode === "costRefundCustom"
+              ? entry.baseMode
+              : undefined,
         }))
     : undefined
   return { cleanName, productScope, entries }

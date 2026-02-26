@@ -2,7 +2,7 @@ import type { Currency, InputsDaily } from "../calculate-results-daily"
 
 export type GroupamaEasyVariant = "life" | "life-tax"
 
-export const GROUPAMA_EASY_MNB_CODE = "EASY" as const
+export const GROUPAMA_EASY_MNB_CODE = "GB730" as const
 export const GROUPAMA_EASY_PRODUCT_CODE = "EASY" as const
 
 export const GROUPAMA_EASY_PRODUCT_VARIANT_LIFE_HUF = "groupama_easy_life_huf" as const

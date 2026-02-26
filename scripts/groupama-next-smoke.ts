@@ -23,7 +23,7 @@ import {
 import { groupamaNext } from "../lib/engine/products/groupama-next.ts"
 
 function runIdentityChecks(): void {
-  assert.equal(GROUPAMA_NEXT_MNB_CODE, "NEXT")
+  assert.equal(GROUPAMA_NEXT_MNB_CODE, "GB733")
   assert.equal(GROUPAMA_NEXT_PRODUCT_CODE, "NEXT")
   assert.equal(GROUPAMA_NEXT_PRODUCT_VARIANT_UL100_TRAD0, "groupama_next_ul100_trad0_huf")
   assert.equal(GROUPAMA_NEXT_PRODUCT_VARIANT_UL75_TRAD25, "groupama_next_ul75_trad25_huf")

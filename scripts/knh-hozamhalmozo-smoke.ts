@@ -34,7 +34,7 @@ function assertClose(actual: number | undefined, expected: number, tolerance = 1
 }
 
 function runIdentityChecks(): void {
-  assert.equal(KNH_HOZAMHALMOZO_MNB_CODE, "K&H-HOZAMHALMOZO-4")
+  assert.equal(KNH_HOZAMHALMOZO_MNB_CODE, "113")
   assert.equal(KNH_HOZAMHALMOZO_PRODUCT_CODE, "KH-HHZ4")
   assert.equal(KNH_HOZAMHALMOZO_PRODUCT_VARIANT_HUF, "knh_hozamhalmozo_huf")
   assert.equal(toKnhHozamhalmozoProductVariantId(), KNH_HOZAMHALMOZO_PRODUCT_VARIANT_HUF)

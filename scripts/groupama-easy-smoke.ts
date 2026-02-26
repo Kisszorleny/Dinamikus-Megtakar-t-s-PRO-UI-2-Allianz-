@@ -20,7 +20,7 @@ import {
 import { groupamaEasy } from "../lib/engine/products/groupama-easy.ts"
 
 function runIdentityChecks(): void {
-  assert.equal(GROUPAMA_EASY_MNB_CODE, "EASY")
+  assert.equal(GROUPAMA_EASY_MNB_CODE, "GB730")
   assert.equal(GROUPAMA_EASY_PRODUCT_CODE, "EASY")
   assert.equal(GROUPAMA_EASY_PRODUCT_VARIANT_LIFE_HUF, "groupama_easy_life_huf")
   assert.equal(GROUPAMA_EASY_PRODUCT_VARIANT_LIFE_TAX_HUF, "groupama_easy_life_tax_huf")

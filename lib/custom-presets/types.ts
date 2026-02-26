@@ -1,7 +1,7 @@
 export type CustomPresetAccount = "client" | "invested" | "taxBonus" | "main" | "eseti"
 export type CustomPresetKind = "cost" | "bonus"
 export type CustomPresetValueType = "percent" | "amount"
-export type CustomPresetFrequency = "napi" | "havi" | "negyedéves" | "féléves" | "éves"
+export type CustomPresetFrequency = "napi" | "havi" | "negyedéves" | "féléves" | "éves" | "fizetési_gyakoriság"
 
 export interface CustomPresetEntry {
   id: string
@@ -14,6 +14,9 @@ export interface CustomPresetEntry {
   frequency?: CustomPresetFrequency
   startYear?: number
   stopYear?: number
+  dayOfMonth?: number
+  month?: number
+  baseMode?: "contribution" | "asset" | "costRefundAll" | "costRefundCustom"
 }
 
 export interface CustomPreset {

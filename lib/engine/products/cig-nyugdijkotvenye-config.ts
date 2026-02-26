@@ -1,5 +1,6 @@
 import type { InputsDaily } from "../calculate-results-daily"
 
+export const CIG_NYUGDIJKOTVENYE_MNB_CODE = "P0139" as const
 export const CIG_NYUGDIJKOTVENYE_PRODUCT_CODE = "NyugdijkotvenyE" as const
 export const CIG_NYUGDIJKOTVENYE_PRODUCT_VARIANT = "cig_nyugdijkotvenye_nyugdij" as const
 export const CIG_NYUGDIJKOTVENYE_CURRENCY = "HUF" as const

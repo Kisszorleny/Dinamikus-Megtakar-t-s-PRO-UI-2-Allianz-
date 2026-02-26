@@ -2,7 +2,7 @@ import type { InputsDaily } from "../calculate-results-daily"
 
 export type PostaTrendNyugdijVariant = "huf"
 
-export const POSTA_TREND_NYUGDIJ_MNB_CODE = "23073-NY" as const
+export const POSTA_TREND_NYUGDIJ_MNB_CODE = "23074" as const
 export const POSTA_TREND_NYUGDIJ_PRODUCT_CODE = "23073-NY" as const
 export const POSTA_TREND_NYUGDIJ_PRODUCT_VARIANT_HUF = "posta_trend_nyugdij_huf" as const
 
