@@ -1101,10 +1101,18 @@ export default function OsszesitesPage() {
     }
   }
 
+  const shouldUseDataUrlForClipboard = () => {
+    if (typeof navigator === "undefined") return false
+    const ua = navigator.userAgent || ""
+    return !/Android|iPhone|iPad|iPod|Mobile/i.test(ua)
+  }
+
   const buildOutlookEmail = async (safeName: string, safeUntil: string) => {
     const subject = getEmailSubject()
     const tone = getSummaryEmailTone(emailTegezo)
-    const tkmImageSrc = await loadClipboardInlineImage("/email-assets/tkm-chart.png")
+    const tkmImageSrc = shouldUseDataUrlForClipboard()
+      ? await loadClipboardInlineImage("/email-assets/tkm-chart.png")
+      : `${window.location.origin}/email-assets/tkm-chart.png`
     const { html, plain } = buildSummaryEmailTemplate({
       safeName,
       safeUntil,
