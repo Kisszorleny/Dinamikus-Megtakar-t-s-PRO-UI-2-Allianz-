@@ -59,7 +59,10 @@ export function getSummaryEmailTone(emailTegezo: boolean): EmailTone {
 }
 
 type EmailImageSlots = {
-  tkm?: string
+  penz?: string
+  chart?: string
+  chart2?: string
+  penzkoteg?: string
 }
 
 export type SummaryEmailTemplateInput = {
@@ -163,8 +166,17 @@ export function buildSummaryEmailTemplate(input: SummaryEmailTemplateInput) {
     </table>
   `
 
-  const tkmImage = images.tkm
-    ? `<div style="margin: 16px 0 20px 0;"><img src="${esc(images.tkm)}" alt="TKM ábra" style="display:block; max-width:760px; width:100%; height:auto; border:0;" /></div>`
+  const penzImage = images.penz
+    ? `<div style="margin: 12px 0 12px 0;"><img src="${esc(images.penz)}" alt="" style="display:block; width:84px; height:84px; border:0;" /></div>`
+    : ""
+  const chartImage = images.chart
+    ? `<div style="margin: 12px 0 12px 0;"><img src="${esc(images.chart)}" alt="" style="display:block; width:84px; height:84px; border:0;" /></div>`
+    : ""
+  const chart2Image = images.chart2
+    ? `<div style="margin: 12px 0 12px 0;"><img src="${esc(images.chart2)}" alt="" style="display:block; width:84px; height:84px; border:0;" /></div>`
+    : ""
+  const penzkotegImage = images.penzkoteg
+    ? `<div style="margin: 12px 0 12px 0;"><img src="${esc(images.penzkoteg)}" alt="" style="display:block; width:84px; height:84px; border:0;" /></div>`
     : ""
 
   const yearlyReviewLines = emailTegezo
@@ -222,8 +234,8 @@ export function buildSummaryEmailTemplate(input: SummaryEmailTemplateInput) {
 
         ${pSpacer(24)}
 
+        ${penzImage}
         ${heading("Teljes költségmutató (TKM)")}
-        ${tkmImage}
         ${p("A biztosítók más és más költséggel dolgoznak,")}
         ${p("ezt a mutatót az MNB hozta létre melynek célja,")}
         ${p("hogy a megtakarító tudjon mérlegelni, hogy")}
@@ -250,6 +262,9 @@ export function buildSummaryEmailTemplate(input: SummaryEmailTemplateInput) {
         ${p("Valamint segítek eligazodni a hozamok,")}
         ${p("befektetési alapok között.")}
 
+        ${penzkotegImage}
+        ${heading("+ Extra Bónusz")}
+        ${chart2Image}
         ${heading("FIX Bónusz jóváírás a hozamokon felül")}
         ${p("Minden évben kapsz bónusz jóváírást is,")}
         ${p("pontosan annyi százalékot,")}
@@ -264,6 +279,8 @@ export function buildSummaryEmailTemplate(input: SummaryEmailTemplateInput) {
         ${p(`ugyanis például a 10. évben már ${spanOrange("+10% jóváírást")} kapsz az éves megtakarításaid után.`, true)}
 
         ${pSpacer(24)}
+        ${chartImage}
+        ${heading("Kiemelkedő hozamú részvényekben kamatoztatjuk pénzét")}
         ${p("<span style=\"font-weight:700;\">Világgazdasági Részvény</span>")}
         ${p(`2024 01. - 2025 01. hozam: ${spanOrange("33,6 % / év")}`)}
         ${p(`2020 01. - 2025 01. hozam: ${spanOrange("106,80 % / 5év")}`)}
@@ -334,8 +351,8 @@ export function buildSummaryEmailTemplate(input: SummaryEmailTemplateInput) {
 
         ${summaryTableHtml}
 
+        ${penzImage}
         ${heading("Teljes költségmutató (TKM)")}
-        ${tkmImage}
         ${p("A biztosítók más és más költséggel dolgoznak,")}
         ${p("ezt a mutatót az MNB hozta létre melynek célja,")}
         ${p("hogy a megtakarító tudjon mérlegelni, hogy")}
@@ -374,6 +391,9 @@ export function buildSummaryEmailTemplate(input: SummaryEmailTemplateInput) {
           forrás: profilline.hu - ${tone.youNom} is ${tone.canVerbSimple} ellenőrizni jelen megtakarítási hozamokat.
         </div>
 
+        ${penzkotegImage}
+        ${heading("+ Extra Bónusz")}
+        ${chart2Image}
         ${heading("FIX Bónusz jóváírás a hozamokon felül")}
         ${p(emailTegezo ? "Minden évben kapsz bónusz jóváírást is," : "Minden évben kap bónusz jóváírást,")}
         ${p("pontosan annyi százalékot,")}
@@ -393,6 +413,8 @@ export function buildSummaryEmailTemplate(input: SummaryEmailTemplateInput) {
         )}
 
         ${pSpacer(26)}
+        ${chartImage}
+        ${heading("Kiemelkedő hozamú részvényekben kamatoztatjuk pénzét")}
         ${p("amennyiben a fent meghatározott promóciós időszakban")}
         ${p(
           displayCurrency === "HUF"

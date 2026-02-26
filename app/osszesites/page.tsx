@@ -1081,13 +1081,14 @@ export default function OsszesitesPage() {
     }
   }
 
-  const loadClipboardInlineImage = async (relativePath: string) => {
+  const loadClipboardInlineImage = async (relativePath: string, asDataUrl: boolean) => {
     if (typeof window === "undefined") return undefined
     try {
       const response = await fetch(relativePath)
       if (!response.ok) {
-        return `${window.location.origin}${relativePath}`
+        return undefined
       }
+      if (!asDataUrl) return `${window.location.origin}${relativePath}`
       const blob = await response.blob()
       const dataUrl: string = await new Promise((resolve, reject) => {
         const reader = new FileReader()
@@ -1097,7 +1098,7 @@ export default function OsszesitesPage() {
       })
       return dataUrl || `${window.location.origin}${relativePath}`
     } catch {
-      return `${window.location.origin}${relativePath}`
+      return undefined
     }
   }
 
@@ -1110,9 +1111,11 @@ export default function OsszesitesPage() {
   const buildOutlookEmail = async (safeName: string, safeUntil: string) => {
     const subject = getEmailSubject()
     const tone = getSummaryEmailTone(emailTegezo)
-    const tkmImageSrc = shouldUseDataUrlForClipboard()
-      ? await loadClipboardInlineImage("/email-assets/tkm-chart.png")
-      : `${window.location.origin}/email-assets/tkm-chart.png`
+    const useDataUrl = shouldUseDataUrlForClipboard()
+    const penzImageSrc = await loadClipboardInlineImage("/email-assets/penz.png", useDataUrl)
+    const chartImageSrc = await loadClipboardInlineImage("/email-assets/chart.png", useDataUrl)
+    const chart2ImageSrc = await loadClipboardInlineImage("/email-assets/chart2.png", useDataUrl)
+    const penzkotegImageSrc = await loadClipboardInlineImage("/email-assets/penzkoteg.png", useDataUrl)
     const { html, plain } = buildSummaryEmailTemplate({
       safeName,
       safeUntil,
@@ -1122,7 +1125,10 @@ export default function OsszesitesPage() {
       subject,
       values: getSummaryEmailValues(),
       images: {
-        tkm: tkmImageSrc,
+        penz: penzImageSrc,
+        chart: chartImageSrc,
+        chart2: chart2ImageSrc,
+        penzkoteg: penzkotegImageSrc,
       },
     })
 

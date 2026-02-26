@@ -100,10 +100,25 @@ type InlineImageDescriptor = {
 }
 
 const inlineImageMap: Record<string, InlineImageDescriptor> = {
-  tkm: {
-    fileName: "tkm-chart.png",
+  penz: {
+    fileName: "penz.png",
     contentType: "image/png",
-    contentId: "summary-tkm-chart",
+    contentId: "summary-penz-icon",
+  },
+  chart: {
+    fileName: "chart.png",
+    contentType: "image/png",
+    contentId: "summary-chart-icon",
+  },
+  chart2: {
+    fileName: "chart2.png",
+    contentType: "image/png",
+    contentId: "summary-chart2-icon",
+  },
+  penzkoteg: {
+    fileName: "penzkoteg.png",
+    contentType: "image/png",
+    contentId: "summary-penzkoteg-icon",
   },
 }
 
@@ -171,7 +186,10 @@ export async function POST(request: Request) {
       subject: payload.subject,
       values: payload.values,
       images: {
-        tkm: imageSlots.tkm,
+        penz: imageSlots.penz,
+        chart: imageSlots.chart,
+        chart2: imageSlots.chart2,
+        penzkoteg: imageSlots.penzkoteg,
       },
     })
 
