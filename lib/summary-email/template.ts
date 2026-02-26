@@ -112,16 +112,16 @@ export function buildSummaryEmailTemplate(input: SummaryEmailTemplateInput) {
     `<span style="display:inline-block; background:${ORANGE}; color:#ffffff; font-weight:700; padding:2px 8px;">${esc(text)}</span>`
 
   const heading = (text: string) =>
-    `<div style="margin: 34px 0 12px 0;"><span style="display:inline-block; background:${ORANGE}; color:#ffffff; font-weight:700; padding:6px 12px; font-family:${FONT}; font-size:22px;">${esc(text)}</span></div>`
+    `<div style="margin: 34px 0 12px 0; text-align:center;"><span style="display:inline-block; background:${ORANGE}; color:#ffffff; font-weight:700; padding:6px 12px; font-family:${FONT}; font-size:22px;">${esc(text)}</span></div>`
 
   const p = (text: string, bold = false) =>
-    `<div style="color:${BLUE}; font-family:${FONT}; font-size:18px; line-height:1.35; ${bold ? "font-weight:700;" : "font-weight:600;"} margin: 0 0 6px 0;">${text}</div>`
+    `<div style="color:${BLUE}; font-family:${FONT}; font-size:18px; line-height:1.35; text-align:left; ${bold ? "font-weight:700;" : "font-weight:600;"} margin: 0 0 6px 0;">${text}</div>`
 
   const pSpacer = (h = 14) => `<div style="height:${h}px; line-height:${h}px;">&nbsp;</div>`
 
   const cellBase = `border:1px solid ${BORDER}; padding:7px 10px; font-family:${FONT}; font-size:16px; line-height:1.2;`
-  const cellLabel = `${cellBase} color:#000000; font-weight:600;`
-  const cellValue = `${cellBase} color:${BLUE}; font-weight:700; text-align:left; white-space:nowrap;`
+  const cellLabel = `${cellBase} color:#000000; font-weight:600; text-align:left;`
+  const cellValue = `${cellBase} color:${BLUE}; font-weight:700; text-align:right; white-space:nowrap;`
 
   const tableRow = (label: string, valueText: string) => `
     <tr>
@@ -140,7 +140,7 @@ export function buildSummaryEmailTemplate(input: SummaryEmailTemplateInput) {
   const highlightRow = (label: string, valueText: string) => `
     <tr>
       <td style="${cellBase} background:${ORANGE_DARK}; color:#ffffff; font-weight:700; font-size:18px;">${esc(label)}</td>
-      <td style="${cellBase} background:${ORANGE_DARKER}; color:#ffffff; font-weight:700; font-size:18px; text-align:left; white-space:nowrap;">${esc(
+      <td style="${cellBase} background:${ORANGE_DARKER}; color:#ffffff; font-weight:700; font-size:18px; text-align:right; white-space:nowrap;">${esc(
         valueText,
       )}</td>
     </tr>
@@ -166,18 +166,27 @@ export function buildSummaryEmailTemplate(input: SummaryEmailTemplateInput) {
     </table>
   `
 
+  const iconBlock = (src?: string, scale = 1) =>
+    src
+      ? `<div style="margin: 12px 0 12px 0; text-align:center;">
+          <span style="display:inline-block; width:120px; height:120px; line-height:120px; vertical-align:middle; text-align:center;">
+            <img src="${esc(src)}" alt="" style="display:inline-block; max-width:${Math.round(96 * scale)}px; max-height:${Math.round(96 * scale)}px; width:auto; height:auto; border:0; vertical-align:middle;" />
+          </span>
+        </div>`
+      : ""
+
   const penzImage = images.penz
-    ? `<div style="margin: 12px 0 12px 0;"><img src="${esc(images.penz)}" alt="" style="display:block; width:84px; height:84px; border:0;" /></div>`
-    : ""
+    ? iconBlock(images.penz, 1)
+    : iconBlock()
   const chartImage = images.chart
-    ? `<div style="margin: 12px 0 12px 0;"><img src="${esc(images.chart)}" alt="" style="display:block; width:84px; height:84px; border:0;" /></div>`
-    : ""
+    ? iconBlock(images.chart, 1)
+    : iconBlock()
   const chart2Image = images.chart2
-    ? `<div style="margin: 12px 0 12px 0;"><img src="${esc(images.chart2)}" alt="" style="display:block; width:84px; height:84px; border:0;" /></div>`
-    : ""
+    ? iconBlock(images.chart2, 0.92)
+    : iconBlock()
   const penzkotegImage = images.penzkoteg
-    ? `<div style="margin: 12px 0 12px 0;"><img src="${esc(images.penzkoteg)}" alt="" style="display:block; width:84px; height:84px; border:0;" /></div>`
-    : ""
+    ? iconBlock(images.penzkoteg, 1.04)
+    : iconBlock()
 
   const yearlyReviewLines = emailTegezo
     ? [
@@ -213,8 +222,8 @@ export function buildSummaryEmailTemplate(input: SummaryEmailTemplateInput) {
 
   const tegezoHtml = `
     <div style="background:#ffffff; padding:0; margin:0;">
-      <div style="padding-left: 40px;">
-        <div style="font-family:${FONT}; color:${BLUE}; font-size:36px; font-style:italic; font-weight:700; margin: 0 0 18px 0;">
+      <div style="max-width:760px; margin:0 auto;">
+        <div style="font-family:${FONT}; color:${BLUE}; font-size:36px; font-style:italic; font-weight:700; margin: 0 0 18px 0; text-align:center;">
           ${esc(`Kedves ${safeName}!`)}
         </div>
 
@@ -335,8 +344,8 @@ export function buildSummaryEmailTemplate(input: SummaryEmailTemplateInput) {
 
   const magazosHtml = `
     <div style="background:#ffffff; padding:0; margin:0;">
-      <div style="padding-left: 40px;">
-        <div style="font-family:${FONT}; color:${BLUE}; font-size:36px; font-style:italic; font-weight:700; margin: 0 0 18px 0;">
+      <div style="max-width:760px; margin:0 auto;">
+        <div style="font-family:${FONT}; color:${BLUE}; font-size:36px; font-style:italic; font-weight:700; margin: 0 0 18px 0; text-align:center;">
           ${esc(`Kedves ${safeName}!`)}
         </div>
 
