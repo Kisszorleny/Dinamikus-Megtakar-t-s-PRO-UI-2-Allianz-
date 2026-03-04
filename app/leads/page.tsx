@@ -783,8 +783,12 @@ export default function LeadsPage() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Ismeretlen hiba."
       if (message.toLowerCase().includes("jogosults")) {
-        setLeadAccessGranted(false)
-        setLeadAccessError("A lead oldal feloldasa lejart, add meg ujra a lead kodot.")
+        const unlocked = await checkLeadAccess()
+        if (unlocked) {
+          setLeadAccessError("A lead kod rendben van, de ehhez a felhasznalohoz nincs admin jogosultsag.")
+        } else {
+          setLeadAccessError("A lead oldal feloldasa lejart, add meg ujra a lead kodot.")
+        }
       }
       setStatus(message)
     } finally {
@@ -792,7 +796,7 @@ export default function LeadsPage() {
     }
   }
 
-  async function checkLeadAccess() {
+  async function checkLeadAccess(): Promise<boolean> {
     try {
       const res = await fetch("/api/auth/lead-access", { cache: "no-store" })
       const parsed = await readApiResponse(res)
@@ -801,11 +805,14 @@ export default function LeadsPage() {
       if (!res.ok || !json?.ok) {
         throw new Error(json?.message ?? "Nem sikerült lekérni a lead hozzáférést.")
       }
-      setLeadAccessGranted(Boolean(json.unlocked))
+      const unlocked = Boolean(json.unlocked)
+      setLeadAccessGranted(unlocked)
       setLeadAccessError(null)
+      return unlocked
     } catch (error) {
       setLeadAccessGranted(false)
       setLeadAccessError(error instanceof Error ? error.message : "Ismeretlen hiba.")
+      return false
     } finally {
       setLeadAccessChecked(true)
     }
@@ -833,9 +840,11 @@ export default function LeadsPage() {
       if (!res.ok || !json?.ok) {
         throw new Error(json?.message ?? "Hibas lead kod.")
       }
-      setLeadAccessGranted(true)
       setLeadAccessCode("")
-      setLeadAccessError(null)
+      const unlocked = await checkLeadAccess()
+      if (!unlocked) {
+        throw new Error("A lead feloldas nem mentodott el. Probald ujra.")
+      }
     } catch (error) {
       setLeadAccessError(error instanceof Error ? error.message : "Ismeretlen hiba.")
     } finally {
@@ -947,8 +956,12 @@ export default function LeadsPage() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Ismeretlen hiba."
       if (message.toLowerCase().includes("jogosults")) {
-        setLeadAccessGranted(false)
-        setLeadAccessError("A lead oldal feloldasa lejart, add meg ujra a lead kodot.")
+        const unlocked = await checkLeadAccess()
+        if (unlocked) {
+          setLeadAccessError("A lead kod rendben van, de ehhez a felhasznalohoz nincs admin jogosultsag.")
+        } else {
+          setLeadAccessError("A lead oldal feloldasa lejart, add meg ujra a lead kodot.")
+        }
       }
       setStatus(message)
     } finally {
