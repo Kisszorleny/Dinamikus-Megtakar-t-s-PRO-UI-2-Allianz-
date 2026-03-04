@@ -113,3 +113,31 @@ export function getSessionUser(request: NextRequest): SessionUser | null {
     isAdmin: matched.username === getExpectedAdminUser(credentials),
   }
 }
+
+function extractCookieTokenFromRequest(request: Request) {
+  const cookieHeader = request.headers.get("cookie") ?? ""
+  const parts = cookieHeader.split(";").map((part) => part.trim())
+  for (const part of parts) {
+    if (part.startsWith("auth_session=")) {
+      return decodeURIComponent(part.slice("auth_session=".length))
+    }
+  }
+  return null
+}
+
+export function getSessionUserFromRequest(request: Request | NextRequest): SessionUser | null {
+  const token =
+    "cookies" in request && request.cookies?.get
+      ? request.cookies.get("auth_session")?.value ?? null
+      : extractCookieTokenFromRequest(request)
+  if (!token) return null
+
+  const credentials = getConfiguredCredentials()
+  const matched = validateSessionToken(token, credentials)
+  if (!matched) return null
+
+  return {
+    userId: matched.username,
+    isAdmin: matched.username === getExpectedAdminUser(credentials),
+  }
+}
