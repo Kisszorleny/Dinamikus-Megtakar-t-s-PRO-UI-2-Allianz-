@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getSessionUserFromRequest } from "@/lib/auth-session"
+import { getSessionUserFromRequest, hasLeadAccessFromRequest } from "@/lib/auth-session"
 import {
   cleanupGoogleCalendarDuplicates,
   deleteGoogleCalendarEvent,
@@ -532,7 +532,7 @@ export async function POST(request: Request) {
     const isInternalCall = request.headers.get("x-internal-sync") === "1"
     if (!isInternalCall) {
       const user = getSessionUserFromRequest(request)
-      if (!user?.isAdmin) {
+      if (!user?.isAdmin || !hasLeadAccessFromRequest(request)) {
         return NextResponse.json({ ok: false, message: "Nincs jogosultság." }, { status: 401 })
       }
     }

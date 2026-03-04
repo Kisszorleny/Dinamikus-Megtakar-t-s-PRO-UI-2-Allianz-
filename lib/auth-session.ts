@@ -11,6 +11,7 @@ export type LoginCredential = {
 }
 
 const LOGIN_SLOT_COUNT = 9
+export const LEAD_ACCESS_COOKIE_NAME = "lead_access"
 
 function parseCredentialEntry(entry: string): LoginCredential | null {
   const separator = entry.indexOf(":")
@@ -57,6 +58,14 @@ export function getConfiguredCredentials(): LoginCredential[] {
 
   if (!username || !code) return []
   return [{ username, code }]
+}
+
+export function getLeadAccessCredential(): LoginCredential | null {
+  const username = process.env.LOGIN_USER_9?.trim()
+  const password = process.env.LOGIN_PASSWORD_9?.trim()
+  const code = (password || process.env.LOGIN_CODE_9 || "").trim()
+  if (!username || !code) return null
+  return { username, code }
 }
 
 export function getExpectedAdminUser(credentials: LoginCredential[] = getConfiguredCredentials()) {
@@ -114,12 +123,13 @@ export function getSessionUser(request: NextRequest): SessionUser | null {
   }
 }
 
-function extractCookieTokenFromRequest(request: Request) {
+function extractCookieTokenFromRequest(request: Request, cookieName = "auth_session") {
   const cookieHeader = request.headers.get("cookie") ?? ""
   const parts = cookieHeader.split(";").map((part) => part.trim())
   for (const part of parts) {
-    if (part.startsWith("auth_session=")) {
-      return decodeURIComponent(part.slice("auth_session=".length))
+    const prefix = `${cookieName}=`
+    if (part.startsWith(prefix)) {
+      return decodeURIComponent(part.slice(prefix.length))
     }
   }
   return null
@@ -140,4 +150,16 @@ export function getSessionUserFromRequest(request: Request | NextRequest): Sessi
     userId: matched.username,
     isAdmin: matched.username === getExpectedAdminUser(credentials),
   }
+}
+
+export function hasLeadAccessFromRequest(request: Request | NextRequest): boolean {
+  const leadAccessToken =
+    "cookies" in request && request.cookies?.get
+      ? request.cookies.get(LEAD_ACCESS_COOKIE_NAME)?.value ?? null
+      : extractCookieTokenFromRequest(request, LEAD_ACCESS_COOKIE_NAME)
+  if (!leadAccessToken) return false
+
+  const leadCredential = getLeadAccessCredential()
+  if (!leadCredential) return false
+  return Boolean(validateSessionToken(leadAccessToken, [leadCredential]))
 }

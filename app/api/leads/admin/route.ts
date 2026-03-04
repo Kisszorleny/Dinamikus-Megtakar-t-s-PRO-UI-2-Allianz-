@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { getSessionUserFromRequest } from "@/lib/auth-session"
+import { getSessionUserFromRequest, hasLeadAccessFromRequest } from "@/lib/auth-session"
 import { leadUpdateSchema } from "@/lib/leads/schema"
 import { deleteLeadById, deleteLeadsBySourceTypes, listLeads, updateLeadById } from "@/lib/leads/repository"
 
@@ -41,7 +41,7 @@ const EDITABLE_LEAD_UPDATE_KEYS = new Set([
 
 function assertAdmin(request: Request) {
   const user = getSessionUserFromRequest(request)
-  if (!user?.isAdmin) {
+  if (!user?.isAdmin || !hasLeadAccessFromRequest(request)) {
     throw new Error("unauthorized")
   }
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useEffect, useMemo, useState } from "react"
+import { Fragment, type FormEvent, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -654,6 +654,11 @@ export default function LeadsPage() {
   const [inlineEditing, setInlineEditing] = useState<{ leadId: string; field: InlineEditableField } | null>(null)
   const [inlineValue, setInlineValue] = useState("")
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null)
+  const [leadAccessChecked, setLeadAccessChecked] = useState(false)
+  const [leadAccessGranted, setLeadAccessGranted] = useState(false)
+  const [leadAccessCode, setLeadAccessCode] = useState("")
+  const [leadAccessUnlocking, setLeadAccessUnlocking] = useState(false)
+  const [leadAccessError, setLeadAccessError] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     const qRaw = search.trim().toLowerCase()
@@ -776,15 +781,76 @@ export default function LeadsPage() {
       setStats((statsJson.stats as Stats | null) ?? null)
       setCalendarAutoSyncEnabled(Boolean(autoJson.enabled))
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Ismeretlen hiba.")
+      const message = error instanceof Error ? error.message : "Ismeretlen hiba."
+      if (message.toLowerCase().includes("jogosults")) {
+        setLeadAccessGranted(false)
+        setLeadAccessError("A lead oldal feloldasa lejart, add meg ujra a lead kodot.")
+      }
+      setStatus(message)
     } finally {
       setLoading(false)
     }
   }
 
+  async function checkLeadAccess() {
+    try {
+      const res = await fetch("/api/auth/lead-access", { cache: "no-store" })
+      const parsed = await readApiResponse(res)
+      if (!parsed.ok) throw new Error(parsed.message)
+      const json = parsed.json
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message ?? "Nem sikerült lekérni a lead hozzáférést.")
+      }
+      setLeadAccessGranted(Boolean(json.unlocked))
+      setLeadAccessError(null)
+    } catch (error) {
+      setLeadAccessGranted(false)
+      setLeadAccessError(error instanceof Error ? error.message : "Ismeretlen hiba.")
+    } finally {
+      setLeadAccessChecked(true)
+    }
+  }
+
+  async function unlockLeadAccess(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const code = leadAccessCode.trim()
+    if (!code) {
+      setLeadAccessError("Add meg a lead oldali kodot.")
+      return
+    }
+
+    setLeadAccessUnlocking(true)
+    setLeadAccessError(null)
+    try {
+      const res = await fetch("/api/auth/lead-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      })
+      const parsed = await readApiResponse(res)
+      if (!parsed.ok) throw new Error(parsed.message)
+      const json = parsed.json
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message ?? "Hibas lead kod.")
+      }
+      setLeadAccessGranted(true)
+      setLeadAccessCode("")
+      setLeadAccessError(null)
+    } catch (error) {
+      setLeadAccessError(error instanceof Error ? error.message : "Ismeretlen hiba.")
+    } finally {
+      setLeadAccessUnlocking(false)
+    }
+  }
+
   useEffect(() => {
-    void loadData()
+    void checkLeadAccess()
   }, [])
+
+  useEffect(() => {
+    if (!leadAccessGranted) return
+    void loadData()
+  }, [leadAccessGranted])
 
   useEffect(() => {
     function isTypingTarget(target: EventTarget | null) {
@@ -879,7 +945,12 @@ export default function LeadsPage() {
         await loadData()
       }
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Ismeretlen hiba.")
+      const message = error instanceof Error ? error.message : "Ismeretlen hiba."
+      if (message.toLowerCase().includes("jogosults")) {
+        setLeadAccessGranted(false)
+        setLeadAccessError("A lead oldal feloldasa lejart, add meg ujra a lead kodot.")
+      }
+      setStatus(message)
     } finally {
       setLoading(false)
     }
@@ -1426,6 +1497,48 @@ export default function LeadsPage() {
           </div>
         </TableCell>
       </TableRow>
+    )
+  }
+
+  if (!leadAccessChecked) {
+    return (
+      <main className="mx-auto max-w-2xl px-4 py-10">
+        <Card>
+          <CardHeader>
+            <CardTitle>Lead hozzaferes ellenorzese</CardTitle>
+            <CardDescription>Kerlek varj, ellenorizzuk a lead oldal feloldasat.</CardDescription>
+          </CardHeader>
+        </Card>
+      </main>
+    )
+  }
+
+  if (!leadAccessGranted) {
+    return (
+      <main className="mx-auto max-w-2xl px-4 py-10">
+        <Card>
+          <CardHeader>
+            <CardTitle>Lead oldal feloldasa</CardTitle>
+            <CardDescription>A Lead oldal megnyitasahoz kulon kod megadasa szukseges.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-3" onSubmit={unlockLeadAccess}>
+              <Input
+                type="password"
+                value={leadAccessCode}
+                onChange={(event) => setLeadAccessCode(event.target.value)}
+                placeholder="Lead kod"
+                autoComplete="current-password"
+                required
+              />
+              {leadAccessError ? <p className="text-sm text-destructive">{leadAccessError}</p> : null}
+              <Button type="submit" disabled={leadAccessUnlocking || !leadAccessCode.trim()}>
+                {leadAccessUnlocking ? "Ellenorzes..." : "Feloldas"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </main>
     )
   }
 

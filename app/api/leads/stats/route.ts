@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getSessionUserFromRequest } from "@/lib/auth-session"
+import { getSessionUserFromRequest, hasLeadAccessFromRequest } from "@/lib/auth-session"
 import { getLeadMonthsWithData, getLeadStatsSummary } from "@/lib/leads/repository"
 
 const SOURCE_TYPE_VALUES = ["landing_form", "manual_import", "sheets", "app_edit"] as const
@@ -7,7 +7,7 @@ const SOURCE_TYPE_VALUES = ["landing_form", "manual_import", "sheets", "app_edit
 export async function GET(request: Request) {
   try {
     const user = getSessionUserFromRequest(request)
-    if (!user?.isAdmin) {
+    if (!user?.isAdmin || !hasLeadAccessFromRequest(request)) {
       return NextResponse.json({ ok: false, message: "Nincs jogosultság." }, { status: 401 })
     }
 

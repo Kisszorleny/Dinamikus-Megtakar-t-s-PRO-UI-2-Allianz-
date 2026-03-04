@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getSessionUserFromRequest } from "@/lib/auth-session"
+import { getSessionUserFromRequest, hasLeadAccessFromRequest } from "@/lib/auth-session"
 import { fetchLeadSheetRows } from "@/lib/integrations/google/sheets/client"
 import { deleteSheetsLeadsMissingRowIds, listLeads, upsertSheetsLeadsByRowId } from "@/lib/leads/repository"
 import { mapRowObjectToManualLead } from "@/lib/leads/manual-sheet-mapper"
@@ -7,7 +7,7 @@ import { mapRowObjectToManualLead } from "@/lib/leads/manual-sheet-mapper"
 export async function POST(request: Request) {
   try {
     const user = getSessionUserFromRequest(request)
-    if (!user?.isAdmin) {
+    if (!user?.isAdmin || !hasLeadAccessFromRequest(request)) {
       return NextResponse.json({ ok: false, message: "Nincs jogosultság." }, { status: 401 })
     }
 

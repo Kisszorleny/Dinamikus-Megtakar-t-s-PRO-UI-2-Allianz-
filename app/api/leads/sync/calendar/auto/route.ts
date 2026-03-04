@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
-import { getSessionUserFromRequest } from "@/lib/auth-session"
+import { getSessionUserFromRequest, hasLeadAccessFromRequest } from "@/lib/auth-session"
 import { getCalendarAutoSyncEnabled, setCalendarAutoSyncEnabled } from "@/lib/leads/repository"
 
 export async function GET(request: Request) {
   try {
     const user = getSessionUserFromRequest(request)
-    if (!user?.isAdmin) {
+    if (!user?.isAdmin || !hasLeadAccessFromRequest(request)) {
       return NextResponse.json({ ok: false, message: "Nincs jogosultság." }, { status: 401 })
     }
     const enabled = await getCalendarAutoSyncEnabled()
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const user = getSessionUserFromRequest(request)
-    if (!user?.isAdmin) {
+    if (!user?.isAdmin || !hasLeadAccessFromRequest(request)) {
       return NextResponse.json({ ok: false, message: "Nincs jogosultság." }, { status: 401 })
     }
     const body = (await request.json().catch(() => ({}))) as { enabled?: unknown }

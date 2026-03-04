@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import * as XLSX from "xlsx"
-import { getSessionUserFromRequest } from "@/lib/auth-session"
+import { getSessionUserFromRequest, hasLeadAccessFromRequest } from "@/lib/auth-session"
 import { mapRowObjectToManualLead } from "@/lib/leads/manual-sheet-mapper"
 import { upsertManualLeads } from "@/lib/leads/repository"
 
@@ -38,7 +38,7 @@ function parseSpreadsheet(buffer: ArrayBuffer, fileName: string) {
 export async function POST(request: Request) {
   try {
     const user = getSessionUserFromRequest(request)
-    if (!user?.isAdmin) {
+    if (!user?.isAdmin || !hasLeadAccessFromRequest(request)) {
       return NextResponse.json({ ok: false, message: "Nincs jogosultság." }, { status: 401 })
     }
 
