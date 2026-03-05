@@ -546,6 +546,69 @@ describe("email-template tools", () => {
     expect(rendered.html).toContain("Másik helyen 999 Ft")
   })
 
+  it("does not mutate inline image src while replacing fixed amounts in html text", () => {
+    const rendered = renderEmailTemplate({
+      template: {
+        htmlContent:
+          '<img src="data:image/png;base64,abc990def" alt="header"><div>A konstrukció 990 Ft fix díj.</div>',
+        textContent: "A konstrukció 990 Ft fix díj.",
+        mappings: [
+          {
+            key: "fixed_small_amount",
+            label: "Fix kis összeg",
+            token: "{{fixed_small_amount}}",
+            sourceSnippet: "990 Ft fix díj",
+          },
+        ],
+      },
+      values: {
+        fixed_small_amount: "3.3 Euro",
+      },
+    })
+    expect(rendered.html).toContain('src="data:image/png;base64,abc990def"')
+    expect(rendered.html).toContain("A konstrukció 3.3 Euro fix díj.")
+  })
+
+  it("keeps multiple inline image sources intact during fixed amount replacement", () => {
+    const rendered = renderEmailTemplate({
+      template: {
+        htmlContent:
+          '<img src="data:image/png;base64,HEADER990AAA" alt="header"><div>Ajánlat: 990 Ft.</div><img src="data:image/png;base64,FOOTER123BBB" alt="footer">',
+        textContent: "Ajánlat: 990 Ft.",
+        mappings: [
+          {
+            key: "fixed_small_amount",
+            label: "Fix kis összeg",
+            token: "{{fixed_small_amount}}",
+            sourceSnippet: "990 Ft",
+          },
+        ],
+      },
+      values: {
+        fixed_small_amount: "3.3 Euro",
+      },
+    })
+    expect(rendered.html).toContain('src="data:image/png;base64,HEADER990AAA"')
+    expect(rendered.html).toContain('src="data:image/png;base64,FOOTER123BBB"')
+    expect(rendered.html).toContain("Ajánlat: 3.3 Euro.")
+  })
+
+  it("does not corrupt image data uri when short currency snippet is replaced", () => {
+    const rendered = renderEmailTemplate({
+      template: {
+        htmlContent:
+          '<img src="data:image/png;base64,HEADERFtAAA" alt="header"><div>Pénznem: Ft</div><div>Díj: 25 000 Ft</div>',
+        textContent: "Pénznem: Ft\nDíj: 25 000 Ft",
+        mappings: [{ key: "currency", label: "Pénznem", token: "{{currency}}", sourceSnippet: "Ft" }],
+      },
+      values: {
+        currency: "EUR",
+      },
+    })
+    expect(rendered.html).toContain('src="data:image/png;base64,HEADERFtAAA"')
+    expect(rendered.html).toContain("Pénznem: EUR")
+  })
+
   it("replaces fixed large amount variants in body text outside table", () => {
     const rendered = renderEmailTemplate({
       template: {

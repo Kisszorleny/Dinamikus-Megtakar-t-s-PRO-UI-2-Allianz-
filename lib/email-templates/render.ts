@@ -38,7 +38,31 @@ function replaceFirst(input: string, needle: string, replacement: string): strin
   return `${input.slice(0, index)}${replacement}${input.slice(index + needle.length)}`
 }
 
+function replaceFirstOutsideHtmlTags(inputHtml: string, needle: string, replacement: string): string {
+  if (!needle) return inputHtml
+  let replaced = false
+  return inputHtml
+    .split(/(<[^>]+>)/g)
+    .map((part) => {
+      if (replaced || !part || part.startsWith("<")) return part
+      const index = part.indexOf(needle)
+      if (index < 0) return part
+      replaced = true
+      return `${part.slice(0, index)}${replacement}${part.slice(index + needle.length)}`
+    })
+    .join("")
+}
+
 function replaceOutsideTables(inputHtml: string, replacer: (segment: string) => string): string {
+  const replaceOutsideHtmlTags = (segment: string): string =>
+    segment
+      .split(/(<[^>]+>)/g)
+      .map((part) => {
+        if (!part || part.startsWith("<")) return part
+        return replacer(part)
+      })
+      .join("")
+
   const tableRegex = /<table\b[\s\S]*?<\/table>/gi
   let result = ""
   let cursor = 0
@@ -46,12 +70,12 @@ function replaceOutsideTables(inputHtml: string, replacer: (segment: string) => 
   while (match) {
     const tableStart = match.index
     const tableEnd = tableStart + match[0].length
-    result += replacer(inputHtml.slice(cursor, tableStart))
+    result += replaceOutsideHtmlTags(inputHtml.slice(cursor, tableStart))
     result += match[0]
     cursor = tableEnd
     match = tableRegex.exec(inputHtml)
   }
-  result += replacer(inputHtml.slice(cursor))
+  result += replaceOutsideHtmlTags(inputHtml.slice(cursor))
   return result
 }
 
@@ -541,7 +565,7 @@ export function renderEmailTemplate({
       rawValue.trim()
     ) {
       const snippet = mapping.sourceSnippet.trim()
-      htmlOutput = replaceFirst(htmlOutput, snippet, htmlValue)
+      htmlOutput = replaceFirstOutsideHtmlTags(htmlOutput, snippet, htmlValue)
       plainOutput = replaceFirst(plainOutput, snippet, plainValue)
     }
 

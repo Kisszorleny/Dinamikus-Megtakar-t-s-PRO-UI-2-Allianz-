@@ -91,6 +91,10 @@ type StoredEmailTemplate = {
 type StoredEmailTemplateDetails = {
   id: string
   name: string
+  sourceType?: EmailTemplateSourceType
+  originalFileName?: string
+  rawContent?: string
+  subject?: string
   htmlContent: string
   textContent: string
   mappings: TemplateFieldMapping[]
@@ -123,7 +127,12 @@ function sanitizePreviewHtml(input: string): string {
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
     .replace(/\son\w+="[^"]*"/gi, "")
     .replace(/\son\w+='[^']*'/gi, "")
-    .replace(/\bsrc=(["'])data:image\/[^"']{4000,}\1/gi, 'src=""')
+    // Preview-only fallback for very large inline images:
+    // keep send path untouched, but avoid rendering extremely heavy blobs in the editor.
+    .replace(
+      /<img\b[^>]*\bsrc=(["'])data:image\/[^"']{2000000,}\1[^>]*>/gi,
+      '<div data-dm-preview-image-truncated="true" style="margin:8px 0;padding:10px 12px;border:1px dashed #9ca3af;border-radius:6px;background:#f8fafc;color:#475569;font-size:12px;">Nagy inline kép az előnézetben egyszerűsítve. Küldéskor a teljes kép megy ki.</div>',
+    )
 }
 
 function toTemplateCurrencyLabel(currency: Currency): string {
@@ -276,6 +285,59 @@ export default function OsszesitesPage() {
     void loadEmailTemplates()
   }, [])
 
+  useEffect(() => {
+    const id = selectedTemplateId.trim()
+    if (!id) return
+
+    let cancelled = false
+    const loadSelectedTemplateDetails = async () => {
+      setIsTemplateUploaderOpen(true)
+      setTemplateStatus("loading")
+      setTemplateError("")
+      try {
+        const response = await fetch(`/api/email-templates/${encodeURIComponent(id)}`)
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok || !result?.template) {
+          if (!cancelled) {
+            setTemplateStatus("failed")
+            setTemplateError(
+              typeof result?.message === "string" && result.message ? result.message : "Nem sikerült betölteni a kiválasztott sablont.",
+            )
+          }
+          return
+        }
+
+        const template = result.template as StoredEmailTemplateDetails
+        const previewHtml = template.htmlContent || (template.textContent ? `<pre>${template.textContent}</pre>` : "")
+
+        if (!cancelled) {
+          setTemplateName(template.name || "")
+          if (template.sourceType) setTemplateSourceType(template.sourceType)
+          setTemplateOriginalFileName(template.originalFileName || "")
+          setTemplateRawContent(template.rawContent || template.htmlContent || template.textContent || "")
+          setTemplateSuggestedSubject(template.subject || "")
+          setTemplatePreviewHtml(sanitizePreviewHtml(previewHtml))
+          setTemplateSelectedSnippet("")
+          setTemplateSelectedTableSnippet("")
+          if (Array.isArray(template.mappings) && template.mappings.length > 0) {
+            setTemplateMappings(template.mappings)
+          }
+          setTemplateStatus("idle")
+        }
+      } catch {
+        if (!cancelled) {
+          setTemplateStatus("failed")
+          setTemplateError("Nem sikerült betölteni a kiválasztott sablont.")
+        }
+      }
+    }
+
+    void loadSelectedTemplateDetails()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedTemplateId])
+
   const upsertTemplateMapping = (mapping: TemplateFieldMapping) => {
     setTemplateMappings((current) => {
       const next = [...current]
@@ -401,6 +463,7 @@ export default function OsszesitesPage() {
       }
       setTemplateStatus("idle")
       // Keep the built-in template as default after saving.
+      setIsTemplateUploaderOpen(true)
       await loadEmailTemplates()
     } catch {
       setTemplateStatus("failed")
@@ -615,17 +678,9 @@ export default function OsszesitesPage() {
   }, [fxBaseColor])
 
   useEffect(() => {
-    const MAX_RENDERED_PREVIEW_SIZE = 300_000
     if (!templatePreviewHtml.trim()) {
       setTemplateRenderedPreviewHtml("")
       setTemplateRenderedPreviewError("")
-      return
-    }
-    if (templatePreviewHtml.length > MAX_RENDERED_PREVIEW_SIZE) {
-      setTemplateRenderedPreviewHtml("")
-      setTemplateRenderedPreviewError(
-        "A kitöltött előnézet ehhez a sablonhoz túl nagy lenne, ezért ki van kapcsolva. A küldés továbbra is működik.",
-      )
       return
     }
     if (!computedData) {
@@ -1606,6 +1661,11 @@ export default function OsszesitesPage() {
       if (!raw || /^0([,.]0+)?(?:\s*(Ft|HUF|EUR|USD|€))?$/i.test(raw)) return ""
       return raw
     }
+    const hasFxSourceValues =
+      (typeof data.endBalanceHufCurrent === "number" && data.endBalanceHufCurrent > 0) ||
+      (typeof data.endBalanceEUR500 === "number" && data.endBalanceEUR500 > 0) ||
+      (typeof data.endBalanceEUR600 === "number" && data.endBalanceEUR600 > 0)
+    const includeFxConversionRows = data.currency !== "HUF" && hasFxSourceValues
 
     return {
       accountName: getText("accountName"),
@@ -1621,9 +1681,9 @@ export default function OsszesitesPage() {
       endBalance: getMoney("endBalance"),
       totalBonus: data.productHasBonus ? getMoneyOrBlank("totalBonus") : "",
       finalNet: getMoney("endBalance"),
-      endBalanceHufCurrent: getMoneyWithCurrencyOrBlank("endBalanceHufCurrent", "HUF", "HUF"),
-      endBalanceEUR500: getMoneyWithCurrencyOrBlank("endBalanceEUR500", "HUF", "HUF"),
-      endBalanceEUR600: getMoneyWithCurrencyOrBlank("endBalanceEUR600", "HUF", "HUF"),
+      endBalanceHufCurrent: includeFxConversionRows ? getMoneyWithCurrencyOrBlank("endBalanceHufCurrent", "HUF", "HUF") : "",
+      endBalanceEUR500: includeFxConversionRows ? getMoneyWithCurrencyOrBlank("endBalanceEUR500", "HUF", "HUF") : "",
+      endBalanceEUR600: includeFxConversionRows ? getMoneyWithCurrencyOrBlank("endBalanceEUR600", "HUF", "HUF") : "",
     }
   }
 
@@ -1988,7 +2048,10 @@ export default function OsszesitesPage() {
                     id="templateSelect"
                     className="h-10 rounded-md border bg-background px-3 text-sm"
                     value={selectedTemplateId}
-                    onChange={(e) => setSelectedTemplateId(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedTemplateId(e.target.value)
+                      setIsTemplateUploaderOpen(true)
+                    }}
                   >
                     <option value="">Beépített sablon (jelenlegi)</option>
                     {emailTemplates.map((template) => (
@@ -2097,6 +2160,9 @@ export default function OsszesitesPage() {
                       <Label className="text-xs text-muted-foreground">
                         Nyers HTML előnézet (jelöld ki az egérrel a szöveget, majd rendeld mezőhöz)
                       </Label>
+                      <div className="text-xs text-muted-foreground">
+                        Egyes nagy képek az előnézetben egyszerűsítve jelennek meg, de küldéskor a teljes kép megy ki.
+                      </div>
                       <div
                         ref={templatePreviewRef}
                         className="w-full min-h-56 rounded border bg-white px-3 py-2 text-sm overflow-auto max-h-[460px]"
