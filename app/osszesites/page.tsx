@@ -1,10 +1,10 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Loader2, Table2, LayoutGrid, Copy } from "lucide-react"
+import { ArrowLeft, Loader2, Table2, LayoutGrid, Copy, Upload, Wand2, Save, Trash2, ChevronDown } from "lucide-react"
 import { useCalculatorData } from "@/lib/calculator-context"
 import { convertForDisplay } from "@/lib/currency-conversion"
 import { formatNumber, parseNumber } from "@/lib/format-number"
@@ -15,6 +15,10 @@ import { ColumnHoverInfoPanel } from "@/components/column-hover-info-panel"
 import { resolveProductContextKey } from "@/lib/column-explanations"
 import { getProductLabelFromCatalog } from "@/lib/product-catalog/ui"
 import { buildSummaryEmailTemplate, getSummaryEmailTone } from "@/lib/summary-email/template"
+import type { EmailTemplateFieldKey, EmailTemplateSourceType, TemplateFieldMapping } from "@/lib/email-templates/types"
+import { renderEmailTemplate } from "@/lib/email-templates/render"
+import { buildCalculatorTableHtmlFromTemplate, buildCalculatorTablePlain } from "@/lib/email-templates/calculator-table"
+import { getFixedAmountValues } from "@/lib/email-templates/fixed-amounts"
 // TODO: Replace with real calculation import when implementing business logic
 // import { calculateResultsDaily, type InputsDaily, type Currency } from "@/lib/engine/calculate-results-daily"
 type InputsDaily = any
@@ -74,11 +78,97 @@ const MOBILE_SUMMARY_LAYOUT = {
   helperText: "text-xs text-muted-foreground min-[560px]:col-span-2 lg:col-span-12",
 } as const
 
+type StoredEmailTemplate = {
+  id: string
+  name: string
+  ownerId: string
+  ownerRole: "admin" | "user"
+  sourceType: EmailTemplateSourceType
+  mappings: TemplateFieldMapping[]
+  updatedAt: string
+}
+
+type StoredEmailTemplateDetails = {
+  id: string
+  name: string
+  htmlContent: string
+  textContent: string
+  mappings: TemplateFieldMapping[]
+}
+
+const TEMPLATE_FIELD_LABELS: Record<EmailTemplateFieldKey, string> = {
+  name: "Név",
+  amount: "Összeg",
+  deadline: "Határidő",
+  currency: "Pénznem",
+  tone: "Hangnem",
+  calculator_table: "Kalkulátor táblázat",
+  fixed_small_amount: "Fix kis összeg",
+  fixed_large_amount: "Fix nagy összeg",
+  retirement_section: "Nyugdíj szekció",
+  bonus_section: "Bónusz szekció",
+}
+
+function inferSourceTypeFromFileName(fileName: string): EmailTemplateSourceType | null {
+  const lower = fileName.trim().toLowerCase()
+  if (lower.endsWith(".html") || lower.endsWith(".htm")) return "html"
+  if (lower.endsWith(".txt")) return "text"
+  if (lower.endsWith(".eml")) return "eml"
+  return null
+}
+
+function sanitizePreviewHtml(input: string): string {
+  return input
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+    .replace(/\son\w+="[^"]*"/gi, "")
+    .replace(/\son\w+='[^']*'/gi, "")
+    .replace(/\bsrc=(["'])data:image\/[^"']{4000,}\1/gi, 'src=""')
+}
+
+function toTemplateCurrencyLabel(currency: Currency): string {
+  return currency === "HUF" ? "Ft" : currency
+}
+
+function normalizeSnippetForField(key: EmailTemplateFieldKey, input: string): string {
+  const normalized = input.replace(/\s+/g, " ").trim()
+  if (key === "name") {
+    return normalized.replace(/[!?,.;:]+$/g, "").trim()
+  }
+  return normalized
+}
+
+function normalizeHexColorInput(input: string): string | null {
+  const raw = String(input ?? "").trim()
+  const match = raw.match(/^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/)
+  if (!match) return null
+  const hex = match[1]
+  const normalized =
+    hex.length === 3
+      ? hex
+          .split("")
+          .map((ch) => `${ch}${ch}`)
+          .join("")
+      : hex
+  return `#${normalized.toLowerCase()}`
+}
+
+function darkenHexColor(hex: string, ratio: number): string {
+  const normalized = normalizeHexColorInput(hex)
+  if (!normalized) return hex
+  const raw = normalized.slice(1)
+  const r = Math.max(0, Math.min(255, Math.round(Number.parseInt(raw.slice(0, 2), 16) * (1 - ratio))))
+  const g = Math.max(0, Math.min(255, Math.round(Number.parseInt(raw.slice(2, 4), 16) * (1 - ratio))))
+  const b = Math.max(0, Math.min(255, Math.round(Number.parseInt(raw.slice(4, 6), 16) * (1 - ratio))))
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`
+}
+
 export default function OsszesitesPage() {
   const router = useRouter()
   const { data: contextData, isHydrated, updateData } = useCalculatorData()
   const [activeColumnInfoKey, setActiveColumnInfoKey] = useState<string | null>(null)
   const OFFER_UNTIL_STORAGE_KEY = "summary-emailOfferUntil"
+  const FX_BASE_COLOR_STORAGE_KEY = "summary-emailFxBaseColor"
 
   const getDefaultOfferUntil = () => {
     const pad2 = (n: number) => String(n).padStart(2, "0")
@@ -111,10 +201,46 @@ export default function OsszesitesPage() {
     }
     return getDefaultOfferUntil()
   })
+  const [fxBaseColor, setFxBaseColor] = useState(() => {
+    if (typeof window === "undefined") return "#c55a11"
+    const stored = localStorage.getItem(FX_BASE_COLOR_STORAGE_KEY)
+    return normalizeHexColorInput(stored || "") ?? "#c55a11"
+  })
   const [emailCopyStatus, setEmailCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
   const [emailSendStatus, setEmailSendStatus] = useState<"idle" | "sending" | "sent" | "failed">("idle")
   const [emailSendError, setEmailSendError] = useState("")
   const [emailTegezo, setEmailTegezo] = useState(false)
+  const [emailTemplates, setEmailTemplates] = useState<StoredEmailTemplate[]>([])
+  const [isTemplateAdminView, setIsTemplateAdminView] = useState(false)
+  const [selectedTemplateId, setSelectedTemplateId] = useState("")
+  const [templateSourceType, setTemplateSourceType] = useState<EmailTemplateSourceType>("html")
+  const [templateRawContent, setTemplateRawContent] = useState("")
+  const [templatePreviewHtml, setTemplatePreviewHtml] = useState("")
+  const [templateRenderedPreviewHtml, setTemplateRenderedPreviewHtml] = useState("")
+  const [templateRenderedPreviewError, setTemplateRenderedPreviewError] = useState("")
+  const [templateSuggestedSubject, setTemplateSuggestedSubject] = useState("")
+  const [templateName, setTemplateName] = useState("")
+  const [templateOriginalFileName, setTemplateOriginalFileName] = useState("")
+  const [templateStatus, setTemplateStatus] = useState<"idle" | "loading" | "saving" | "failed">("idle")
+  const [templateError, setTemplateError] = useState("")
+  const [templateSelectedSnippet, setTemplateSelectedSnippet] = useState("")
+  const [templateSelectedTableSnippet, setTemplateSelectedTableSnippet] = useState("")
+  const [isFxColorPickerOpen, setIsFxColorPickerOpen] = useState(false)
+  const [isTemplateUploaderOpen, setIsTemplateUploaderOpen] = useState(true)
+  const [templateMappings, setTemplateMappings] = useState<TemplateFieldMapping[]>([
+    { key: "name", label: TEMPLATE_FIELD_LABELS.name, token: "{{name}}" },
+    { key: "amount", label: TEMPLATE_FIELD_LABELS.amount, token: "{{amount}}" },
+    { key: "deadline", label: TEMPLATE_FIELD_LABELS.deadline, token: "{{deadline}}" },
+    { key: "currency", label: TEMPLATE_FIELD_LABELS.currency, token: "{{currency}}" },
+    { key: "tone", label: TEMPLATE_FIELD_LABELS.tone, token: "{{tone}}" },
+    { key: "calculator_table", label: TEMPLATE_FIELD_LABELS.calculator_table, token: "{{calculator_table}}" },
+    { key: "fixed_small_amount", label: TEMPLATE_FIELD_LABELS.fixed_small_amount, token: "{{fixed_small_amount}}" },
+    { key: "fixed_large_amount", label: TEMPLATE_FIELD_LABELS.fixed_large_amount, token: "{{fixed_large_amount}}" },
+    { key: "retirement_section", label: TEMPLATE_FIELD_LABELS.retirement_section, token: "{{retirement_section}}" },
+    { key: "bonus_section", label: TEMPLATE_FIELD_LABELS.bonus_section, token: "{{bonus_section}}" },
+  ])
+  const [templateSelectionFieldKey, setTemplateSelectionFieldKey] = useState<EmailTemplateFieldKey>("name")
+  const templatePreviewRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -125,6 +251,315 @@ export default function OsszesitesPage() {
     }
     localStorage.removeItem(OFFER_UNTIL_STORAGE_KEY)
   }, [emailOfferUntil])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const normalized = normalizeHexColorInput(fxBaseColor)
+    if (!normalized) return
+    localStorage.setItem(FX_BASE_COLOR_STORAGE_KEY, normalized)
+  }, [fxBaseColor])
+
+  const loadEmailTemplates = async () => {
+    try {
+      const response = await fetch("/api/email-templates")
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) return
+      const templates = Array.isArray(result?.templates) ? (result.templates as StoredEmailTemplate[]) : []
+      setEmailTemplates(templates)
+      setIsTemplateAdminView(Boolean(result?.isAdmin))
+    } catch {
+      // ignore list errors in main page flow
+    }
+  }
+
+  useEffect(() => {
+    void loadEmailTemplates()
+  }, [])
+
+  const upsertTemplateMapping = (mapping: TemplateFieldMapping) => {
+    setTemplateMappings((current) => {
+      const next = [...current]
+      const index = next.findIndex((item) => item.key === mapping.key)
+      if (index >= 0) {
+        next[index] = { ...next[index], ...mapping }
+      } else {
+        next.push(mapping)
+      }
+      return next
+    })
+  }
+
+  const parseTemplateContentOnServer = async (sourceType: EmailTemplateSourceType, rawContent: string) => {
+    setTemplateStatus("loading")
+    setTemplateError("")
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), 15000)
+    try {
+      const response = await fetch("/api/email-templates/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({ sourceType, rawContent }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok || !result?.candidate) {
+        setTemplateStatus("failed")
+        setTemplateError(
+          typeof result?.message === "string" && result.message
+            ? result.message
+            : "Nem sikerült feldolgozni a sablont.",
+        )
+        return
+      }
+      const candidate = result.candidate as {
+        htmlContent: string
+        textContent: string
+        suggestedMappings: TemplateFieldMapping[]
+        subject?: string
+      }
+      const previewHtml = candidate.htmlContent || (candidate.textContent ? `<pre>${candidate.textContent}</pre>` : "")
+      setTemplatePreviewHtml(sanitizePreviewHtml(previewHtml))
+      setTemplateSelectedSnippet("")
+      setTemplateSuggestedSubject(candidate.subject || "")
+      if (Array.isArray(candidate.suggestedMappings)) {
+        setTemplateMappings((current) => {
+          const byKey = new Map<EmailTemplateFieldKey, TemplateFieldMapping>()
+          for (const item of current) {
+            byKey.set(item.key, item)
+          }
+          for (const suggestion of candidate.suggestedMappings) {
+            const existing = byKey.get(suggestion.key)
+            const sanitizedSnippet =
+              suggestion.key === "calculator_table" && suggestion.sourceSnippet
+                ? sanitizePreviewHtml(suggestion.sourceSnippet)
+                : suggestion.sourceSnippet
+            byKey.set(suggestion.key, {
+              ...(existing ?? {
+                key: suggestion.key,
+                label: suggestion.label || TEMPLATE_FIELD_LABELS[suggestion.key],
+                token: suggestion.token || `{{${suggestion.key}}}`,
+              }),
+              ...suggestion,
+              sourceSnippet: sanitizedSnippet,
+              token: existing?.token || suggestion.token || `{{${suggestion.key}}}`,
+            })
+          }
+          return [...byKey.values()]
+        })
+      }
+      setTemplateStatus("idle")
+    } catch (error) {
+      setTemplateStatus("failed")
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setTemplateError("A sablon feldolgozása túl sokáig tartott. Próbáld újra, vagy kisebb/kevesebb mellékletes EML-t tölts fel.")
+      } else {
+        setTemplateError("Nem sikerült feldolgozni a sablont.")
+      }
+    } finally {
+      window.clearTimeout(timeoutId)
+    }
+  }
+
+  const saveTemplate = async () => {
+    const hasToken = templateMappings.some((mapping) => Boolean(mapping.token?.trim()))
+    if (!templateName.trim()) {
+      setTemplateStatus("failed")
+      setTemplateError("Adj meg sablon nevet.")
+      return
+    }
+    if (!templateRawContent.trim()) {
+      setTemplateStatus("failed")
+      setTemplateError("Tölts fel sablonfájlt.")
+      return
+    }
+    if (!hasToken) {
+      setTemplateStatus("failed")
+      setTemplateError("Legalább egy dinamikus mező token szükséges.")
+      return
+    }
+
+    setTemplateStatus("saving")
+    setTemplateError("")
+    try {
+      const response = await fetch("/api/email-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: templateName.trim(),
+          sourceType: templateSourceType,
+          originalFileName: templateOriginalFileName || undefined,
+          rawContent: templateRawContent,
+          subject: templateSuggestedSubject || undefined,
+          mappings: templateMappings.filter((mapping) => mapping.token.trim()),
+        }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok || !result?.template) {
+        setTemplateStatus("failed")
+        setTemplateError(typeof result?.message === "string" ? result.message : "Sablon mentési hiba.")
+        return
+      }
+      setTemplateStatus("idle")
+      // Keep the built-in template as default after saving.
+      await loadEmailTemplates()
+    } catch {
+      setTemplateStatus("failed")
+      setTemplateError("Sablon mentési hiba.")
+    }
+  }
+
+  const deleteSelectedTemplate = async () => {
+    const id = selectedTemplateId.trim()
+    if (!id) return
+    setTemplateError("")
+    try {
+      const response = await fetch(`/api/email-templates/${encodeURIComponent(id)}`, { method: "DELETE" })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok || !result?.ok) {
+        setTemplateError(typeof result?.message === "string" ? result.message : "Nem sikerült törölni a sablont.")
+        return
+      }
+      setSelectedTemplateId("")
+      await loadEmailTemplates()
+    } catch {
+      setTemplateError("Nem sikerült törölni a sablont.")
+    }
+  }
+
+  const captureSelectedHtmlSnippet = () => {
+    const extractSelectedTableHtml = () => {
+      const selectionInFn = window.getSelection()
+      const previewElementInFn = templatePreviewRef.current
+      if (!selectionInFn || !previewElementInFn || selectionInFn.rangeCount === 0) return ""
+      const rangeInFn = selectionInFn.getRangeAt(0)
+      const common = rangeInFn.commonAncestorContainer
+      const commonElement =
+        common.nodeType === Node.ELEMENT_NODE
+          ? (common as Element)
+          : common.parentElement
+      const nearestTable = commonElement?.closest("table")
+      if (nearestTable) return nearestTable.outerHTML.trim()
+      const fragmentRoot = document.createElement("div")
+      fragmentRoot.appendChild(rangeInFn.cloneContents())
+      const selectedTable = fragmentRoot.querySelector("table")
+      return selectedTable?.outerHTML.trim() || ""
+    }
+
+    const selection = window.getSelection()
+    const previewElement = templatePreviewRef.current
+    if (!selection || !previewElement || selection.rangeCount === 0) {
+      setTemplateSelectedSnippet("")
+      setTemplateSelectedTableSnippet("")
+      return
+    }
+    const anchorNode = selection.anchorNode
+    const focusNode = selection.focusNode
+    if (!anchorNode || !focusNode || !previewElement.contains(anchorNode) || !previewElement.contains(focusNode)) {
+      setTemplateSelectedSnippet("")
+      setTemplateSelectedTableSnippet("")
+      return
+    }
+    const range = selection.getRangeAt(0)
+    if (range.collapsed) {
+      const collapsedElement =
+        anchorNode.nodeType === Node.ELEMENT_NODE ? (anchorNode as Element) : anchorNode.parentElement
+      const collapsedTable = collapsedElement?.closest("table")
+      if (collapsedTable) {
+        const collapsedTableHtml = collapsedTable.outerHTML.trim()
+        setTemplateSelectedTableSnippet(collapsedTableHtml)
+        if (templateSelectionFieldKey === "calculator_table") {
+          setTemplateSelectedSnippet(collapsedTableHtml)
+        } else {
+          setTemplateSelectedSnippet("")
+        }
+        return
+      }
+      setTemplateSelectedSnippet("")
+      setTemplateSelectedTableSnippet("")
+      return
+    }
+    const selectedTableHtmlForAnyField = extractSelectedTableHtml()
+    setTemplateSelectedTableSnippet(selectedTableHtmlForAnyField || "")
+    if (templateSelectionFieldKey === "calculator_table") {
+      const selectedTableHtml = selectedTableHtmlForAnyField
+      if (selectedTableHtml) {
+        setTemplateSelectedSnippet(selectedTableHtml)
+        return
+      }
+      const fragmentRoot = document.createElement("div")
+      fragmentRoot.appendChild(range.cloneContents())
+      const selectedHtml = fragmentRoot.innerHTML.trim()
+      const selectedText = selection.toString().replace(/\s+/g, " ").trim()
+      setTemplateSelectedSnippet(selectedHtml || selectedText)
+      return
+    }
+    const selectedText = selection.toString().replace(/\s+/g, " ").trim()
+    setTemplateSelectedSnippet(selectedText)
+  }
+
+  const captureClickedTableSnippet = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const clicked = event.target as Element | null
+    const table = clicked?.closest("table")
+    if (!table) return
+    const tableHtml = table.outerHTML.trim()
+    setTemplateSelectedTableSnippet(tableHtml)
+    if (templateSelectionFieldKey === "calculator_table") {
+      setTemplateSelectedSnippet(tableHtml)
+    }
+  }
+
+  const selectedSnippetToField = () => {
+    const selected = normalizeSnippetForField(templateSelectionFieldKey, templateSelectedSnippet)
+    if (!selected) return
+    upsertTemplateMapping({
+      key: templateSelectionFieldKey,
+      label: TEMPLATE_FIELD_LABELS[templateSelectionFieldKey],
+      token: `{{${templateSelectionFieldKey}}}`,
+      sourceSnippet: selected,
+      confidence: 1,
+    })
+  }
+
+  const assignSelectedTableField = () => {
+    const selection = window.getSelection()
+    const previewElement = templatePreviewRef.current
+    let selectedTableHtml = ""
+    if (selection && previewElement && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0)
+      const common = range.commonAncestorContainer
+      const commonElement = common.nodeType === Node.ELEMENT_NODE ? (common as Element) : common.parentElement
+      const nearestTable = commonElement?.closest("table")
+      if (nearestTable) {
+        selectedTableHtml = nearestTable.outerHTML.trim()
+      } else {
+        const fragmentRoot = document.createElement("div")
+        fragmentRoot.appendChild(range.cloneContents())
+        selectedTableHtml = fragmentRoot.querySelector("table")?.outerHTML.trim() || ""
+      }
+    }
+
+    if (!selectedTableHtml && templateSelectedTableSnippet.trim().startsWith("<table")) {
+      selectedTableHtml = templateSelectedTableSnippet.trim()
+    }
+    if (!selectedTableHtml && templateSelectedSnippet.trim().startsWith("<table")) {
+      selectedTableHtml = templateSelectedSnippet.trim()
+    }
+    if (!selectedTableHtml) {
+      setTemplateError("A táblázat-hozzárendeléshez jelölj ki legalább egy cellát a táblázatból.")
+      return
+    }
+    setTemplateError("")
+    setTemplateSelectionFieldKey("calculator_table")
+    setTemplateSelectedSnippet(selectedTableHtml)
+    setTemplateSelectedTableSnippet(selectedTableHtml)
+    upsertTemplateMapping({
+      key: "calculator_table",
+      label: TEMPLATE_FIELD_LABELS.calculator_table,
+      token: "{{calculator_table}}",
+      sourceSnippet: selectedTableHtml,
+      confidence: 1,
+    })
+  }
   const summaryPanelProductKey = useMemo(
     () =>
       resolveProductContextKey(computedData?.selectedProduct ?? contextData?.selectedProduct, {
@@ -164,6 +599,92 @@ export default function OsszesitesPage() {
     if (Number.isNaN(dt.getTime())) return ""
     return new Intl.DateTimeFormat("hu-HU", { weekday: "long" }).format(dt)
   }, [emailOfferUntil])
+
+  const selectedTemplate = useMemo(
+    () => emailTemplates.find((template) => template.id === selectedTemplateId) ?? null,
+    [emailTemplates, selectedTemplateId],
+  )
+  const fxSummaryPalette = useMemo(() => {
+    const base = normalizeHexColorInput(fxBaseColor) ?? "#c55a11"
+    return {
+      finalEndBalance: base,
+      endBalanceHufCurrent: darkenHexColor(base, 0.12),
+      endBalanceEUR500: darkenHexColor(base, 0.24),
+      endBalanceEUR600: darkenHexColor(base, 0.36),
+    }
+  }, [fxBaseColor])
+
+  useEffect(() => {
+    const MAX_RENDERED_PREVIEW_SIZE = 300_000
+    if (!templatePreviewHtml.trim()) {
+      setTemplateRenderedPreviewHtml("")
+      setTemplateRenderedPreviewError("")
+      return
+    }
+    if (templatePreviewHtml.length > MAX_RENDERED_PREVIEW_SIZE) {
+      setTemplateRenderedPreviewHtml("")
+      setTemplateRenderedPreviewError(
+        "A kitöltött előnézet ehhez a sablonhoz túl nagy lenne, ezért ki van kapcsolva. A küldés továbbra is működik.",
+      )
+      return
+    }
+    if (!computedData) {
+      setTemplateRenderedPreviewHtml(templatePreviewHtml)
+      setTemplateRenderedPreviewError("")
+      return
+    }
+
+    try {
+      const summaryValues = getSummaryEmailValues()
+      const displayCurrency = computedData.displayCurrency
+      const templateCurrencyLabel = toTemplateCurrencyLabel(displayCurrency)
+      const fixedAmounts = getFixedAmountValues(displayCurrency)
+      const safeName = (emailClientName || "Ügyfél").trim()
+      const safeUntil = (emailOfferUntil || "").trim()
+      const tableMapping = templateMappings.find((mapping) => mapping.key === "calculator_table")
+      const calculatorTableHtml = buildCalculatorTableHtmlFromTemplate(summaryValues, tableMapping?.sourceSnippet, {
+        fxBaseColor,
+      })
+      const calculatorTablePlain = buildCalculatorTablePlain(summaryValues)
+      const rendered = renderEmailTemplate({
+        template: {
+          htmlContent: templatePreviewHtml,
+          textContent: "",
+          mappings: templateMappings,
+        },
+        values: {
+          name: safeName,
+          amount: summaryValues.monthlyPayment,
+          deadline: safeUntil,
+          currency: templateCurrencyLabel,
+          tone: emailTegezo ? "Kedves" : "Tisztelt",
+          calculator_table: "{{calculator_table}}",
+          fixed_small_amount: fixedAmounts.fixedSmallAmount,
+          fixed_large_amount: fixedAmounts.fixedLargeAmount,
+          retirement_section: "{{retirement_section}}",
+          bonus_section: "{{bonus_section}}",
+        },
+        calculatorTableHtml,
+        calculatorTablePlain,
+        accountGoalPhrase: summaryValues.accountGoal,
+        isAllianzEletprogram: computedData.selectedProduct === "allianz_eletprogram",
+      })
+      setTemplateRenderedPreviewHtml(sanitizePreviewHtml(rendered.html || templatePreviewHtml))
+      setTemplateRenderedPreviewError("")
+    } catch {
+      setTemplateRenderedPreviewHtml(templatePreviewHtml)
+      setTemplateRenderedPreviewError("A kitöltött előnézet számítása közben hiba történt, a nyers sablon látható.")
+    }
+  }, [
+    templatePreviewHtml,
+    computedData,
+    summaryOverrides,
+    templateMappings,
+    emailClientName,
+    emailOfferUntil,
+    emailTegezo,
+    fxBaseColor,
+  ])
 
   const copyHtmlToClipboard = async (html: string, plain: string) => {
     // 1) Modern Clipboard API (works on most desktops; limited on mobile)
@@ -1059,10 +1580,31 @@ export default function OsszesitesPage() {
   const getSummaryEmailValues = () => {
     const getText = (key: RowKey) => String(getValue(key) ?? "")
     const getMoney = (key: RowKey) => formatValue(getValue(key) as number, true, "", undefined, data.displayCurrency)
+    const getMoneyWithCurrencyOrBlank = (
+      key: RowKey,
+      displayCurrency: "HUF" | "EUR" | "USD",
+      valueCurrency: "HUF" | "EUR" | "USD",
+    ) => {
+      const v = getValue(key)
+      if (v === undefined || v === null || v === "") return ""
+      if (typeof v === "number") return formatValue(v, true, "", valueCurrency, displayCurrency)
+      return String(v)
+    }
     const getMoneyOrBlank = (key: RowKey) => {
       const v = getValue(key)
       if (v === undefined || v === null || v === "") return ""
       return typeof v === "number" ? formatValue(v, true, "", undefined, data.displayCurrency) : String(v)
+    }
+    const getPositiveMoneyOrBlank = (key: RowKey) => {
+      const v = getValue(key)
+      if (v === undefined || v === null || v === "") return ""
+      if (typeof v === "number") {
+        if (v <= 0) return ""
+        return formatValue(v, true, "", undefined, data.displayCurrency)
+      }
+      const raw = String(v).trim()
+      if (!raw || /^0([,.]0+)?(?:\s*(Ft|HUF|EUR|USD|€))?$/i.test(raw)) return ""
+      return raw
     }
 
     return {
@@ -1075,9 +1617,13 @@ export default function OsszesitesPage() {
       strategy: getText("strategy"),
       annualYield: getText("annualYield"),
       totalReturn: getMoney("totalReturn"),
+      totalTaxCredit: getPositiveMoneyOrBlank("totalTaxCredit"),
       endBalance: getMoney("endBalance"),
       totalBonus: data.productHasBonus ? getMoneyOrBlank("totalBonus") : "",
       finalNet: getMoney("endBalance"),
+      endBalanceHufCurrent: getMoneyWithCurrencyOrBlank("endBalanceHufCurrent", "HUF", "HUF"),
+      endBalanceEUR500: getMoneyWithCurrencyOrBlank("endBalanceEUR500", "HUF", "HUF"),
+      endBalanceEUR600: getMoneyWithCurrencyOrBlank("endBalanceEUR600", "HUF", "HUF"),
     }
   }
 
@@ -1109,6 +1655,57 @@ export default function OsszesitesPage() {
   }
 
   const buildOutlookEmail = async (safeName: string, safeUntil: string) => {
+    const summaryValues = getSummaryEmailValues()
+    const templateCurrencyLabel = toTemplateCurrencyLabel(data.displayCurrency)
+    const fixedAmounts = getFixedAmountValues(data.displayCurrency)
+    const selectedTemplateIdValue = selectedTemplateId.trim()
+    if (selectedTemplateIdValue) {
+      const templateResponse = await fetch(`/api/email-templates/${encodeURIComponent(selectedTemplateIdValue)}`)
+      const templateResult = await templateResponse.json().catch(() => ({}))
+      if (!templateResponse.ok || !templateResult?.template) {
+        throw new Error(
+          typeof templateResult?.message === "string" && templateResult.message
+            ? templateResult.message
+            : "Nem sikerült betölteni a kiválasztott sablont.",
+        )
+      }
+
+      const template = templateResult.template as StoredEmailTemplateDetails
+      const tableMapping = template.mappings.find((mapping) => mapping.key === "calculator_table")
+      const calculatorTableHtml = buildCalculatorTableHtmlFromTemplate(summaryValues, tableMapping?.sourceSnippet, {
+        fxBaseColor,
+      })
+      const calculatorTablePlain = buildCalculatorTablePlain(summaryValues)
+      const rendered = renderEmailTemplate({
+        template: {
+          htmlContent: template.htmlContent || "",
+          textContent: template.textContent || "",
+          mappings: template.mappings || [],
+        },
+        values: {
+          name: safeName,
+          amount: summaryValues.monthlyPayment,
+          deadline: safeUntil,
+          currency: templateCurrencyLabel,
+          tone: emailTegezo ? "Kedves" : "Tisztelt",
+          calculator_table: "{{calculator_table}}",
+          fixed_small_amount: fixedAmounts.fixedSmallAmount,
+          fixed_large_amount: fixedAmounts.fixedLargeAmount,
+          retirement_section: "{{retirement_section}}",
+          bonus_section: "{{bonus_section}}",
+        },
+        calculatorTableHtml,
+        calculatorTablePlain,
+        accountGoalPhrase: summaryValues.accountGoal,
+        isAllianzEletprogram: data.selectedProduct === "allianz_eletprogram",
+      })
+
+      return {
+        html: rendered.html || template.htmlContent || "",
+        plain: [rendered.plain || template.textContent || "", "", `Megnyitás: ${window.location.origin}/osszesites`].join("\n"),
+      }
+    }
+
     const subject = getEmailSubject()
     const tone = getSummaryEmailTone(emailTegezo)
     const useDataUrl = shouldUseDataUrlForClipboard()
@@ -1123,7 +1720,7 @@ export default function OsszesitesPage() {
       displayCurrency: data.displayCurrency,
       tone,
       subject,
-      values: getSummaryEmailValues(),
+      values: summaryValues,
       images: {
         penz: penzImageSrc,
         chart: chartImageSrc,
@@ -1284,6 +1881,9 @@ export default function OsszesitesPage() {
                 const safeName = (emailClientName || "Ügyfél").trim()
                 const safeUntil = (emailOfferUntil || "").trim()
                 const subject = getEmailSubject()
+                const emailValues = getSummaryEmailValues()
+                const templateCurrencyLabel = toTemplateCurrencyLabel(data.displayCurrency)
+                const fixedAmounts = getFixedAmountValues(data.displayCurrency)
 
                 setEmailSendStatus("sending")
                 try {
@@ -1297,9 +1897,24 @@ export default function OsszesitesPage() {
                       safeName,
                       safeUntil,
                       emailTegezo,
+                      fxBaseColor,
                       displayCurrency: data.displayCurrency,
                       subject,
-                      values: getSummaryEmailValues(),
+                      values: emailValues,
+                      templateId: selectedTemplateId || undefined,
+                      selectedProduct: data.selectedProduct || undefined,
+                      dynamicValues: {
+                        name: safeName,
+                        amount: emailValues.monthlyPayment,
+                        deadline: safeUntil,
+                        currency: templateCurrencyLabel,
+                        tone: emailTegezo ? "Kedves" : "Tisztelt",
+                        calculator_table: "{{calculator_table}}",
+                        fixed_small_amount: fixedAmounts.fixedSmallAmount,
+                        fixed_large_amount: fixedAmounts.fixedLargeAmount,
+                        retirement_section: "{{retirement_section}}",
+                        bonus_section: "{{bonus_section}}",
+                      },
                     }),
                   })
 
@@ -1335,9 +1950,264 @@ export default function OsszesitesPage() {
               <span className="font-medium">Formázott sablon másolása</span> gombot, majd az Outlook levélbe illeszd be.
             </div>
             {emailSendError ? <div className={`${MOBILE_SUMMARY_LAYOUT.helperText} text-red-600`}>{emailSendError}</div> : null}
+
+            <div className="min-[560px]:col-span-2 lg:col-span-12 rounded-md border p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-medium">E-mail sablon feltöltés (HTML/TXT/EML)</div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setIsTemplateUploaderOpen((current) => !current)}
+                  aria-label={isTemplateUploaderOpen ? "Sablon feltöltés összecsukása" : "Sablon feltöltés lenyitása"}
+                  aria-expanded={isTemplateUploaderOpen}
+                >
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isTemplateUploaderOpen ? "" : "-rotate-90"}`} />
+                </Button>
+              </div>
+              {isTemplateUploaderOpen ? (
+                <>
+                  <div className="grid gap-3 grid-cols-1 lg:grid-cols-12">
+                <div className="grid gap-1 lg:col-span-4">
+                  <Label className="text-xs text-muted-foreground" htmlFor="templateName">
+                    Sablon neve
+                  </Label>
+                  <Input
+                    id="templateName"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    placeholder="pl. Ügyfél díjbekérő sablon"
+                  />
+                </div>
+                <div className="grid gap-1 lg:col-span-4">
+                  <Label className="text-xs text-muted-foreground" htmlFor="templateSelect">
+                    Aktív küldési sablon
+                  </Label>
+                  <select
+                    id="templateSelect"
+                    className="h-10 rounded-md border bg-background px-3 text-sm"
+                    value={selectedTemplateId}
+                    onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  >
+                    <option value="">Beépített sablon (jelenlegi)</option>
+                    {emailTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {isTemplateAdminView ? `${template.name} - készítette: ${template.ownerId}` : template.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-end gap-2 lg:col-span-4">
+                  <Button variant="outline" type="button" onClick={() => void deleteSelectedTemplate()} disabled={!selectedTemplateId}>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Kiválasztott törlése
+                  </Button>
+                </div>
+
+                <div className="grid gap-1 lg:col-span-6">
+                  <Label className="text-xs text-muted-foreground" htmlFor="templateFile">
+                    Sablon fájl
+                  </Label>
+                  <Input
+                    id="templateFile"
+                    type="file"
+                    accept=".html,.htm,.txt,.eml,text/html,text/plain,message/rfc822"
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0]
+                      if (!file) return
+                      const sourceType = inferSourceTypeFromFileName(file.name)
+                      if (!sourceType) {
+                        setTemplateStatus("failed")
+                        setTemplateError("Csak HTML, TXT vagy EML fájl tölthető fel az MVP-ben.")
+                        return
+                      }
+                      if (file.size > 2 * 1024 * 1024) {
+                        setTemplateStatus("failed")
+                        setTemplateError("A fájl túl nagy. Maximum 2 MB.")
+                        return
+                      }
+                      const content = await file.text()
+                      setTemplateSourceType(sourceType)
+                      setTemplateOriginalFileName(file.name)
+                      setTemplateRawContent(content)
+                      if (!templateName.trim()) {
+                        setTemplateName(file.name.replace(/\.[^.]+$/, ""))
+                      }
+                      await parseTemplateContentOnServer(sourceType, content)
+                    }}
+                  />
+                </div>
+                <div className="flex items-end gap-2 lg:col-span-6">
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    onClick={() => void parseTemplateContentOnServer(templateSourceType, templateRawContent)}
+                    disabled={!templateRawContent.trim() || templateStatus === "loading"}
+                  >
+                    <Wand2 className="w-4 h-4 mr-2" />
+                    Auto-felismerés frissítése
+                  </Button>
+                  <Button type="button" onClick={() => void saveTemplate()} disabled={templateStatus === "saving"}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {templateStatus === "saving" ? "Mentés..." : "Sablon mentése"}
+                  </Button>
+                </div>
+                  </div>
+
+                  <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-9">
+                {(
+                  [
+                    "name",
+                    "amount",
+                    "deadline",
+                    "currency",
+                    "tone",
+                    "calculator_table",
+                    "fixed_small_amount",
+                    "fixed_large_amount",
+                    "retirement_section",
+                    "bonus_section",
+                  ] as EmailTemplateFieldKey[]
+                ).map((fieldKey) => {
+                  const mapping = templateMappings.find((item) => item.key === fieldKey)
+                  return (
+                    <div key={fieldKey} className="rounded border p-2 space-y-1">
+                      <Label className="text-xs text-muted-foreground">{TEMPLATE_FIELD_LABELS[fieldKey]} helye</Label>
+                      <Input
+                        value={mapping?.sourceSnippet ?? ""}
+                        onChange={(event) =>
+                          upsertTemplateMapping({
+                            key: fieldKey,
+                            label: TEMPLATE_FIELD_LABELS[fieldKey],
+                            token: `{{${fieldKey}}}`,
+                            sourceSnippet: normalizeSnippetForField(fieldKey, event.target.value),
+                            confidence: 1,
+                          })
+                        }
+                        placeholder="Kézzel jelöld, vagy auto-javaslat"
+                      />
+                    </div>
+                  )
+                })}
+                  </div>
+
+                  {templatePreviewHtml ? (
+                    <div className="grid gap-2">
+                      <Label className="text-xs text-muted-foreground">
+                        Nyers HTML előnézet (jelöld ki az egérrel a szöveget, majd rendeld mezőhöz)
+                      </Label>
+                      <div
+                        ref={templatePreviewRef}
+                        className="w-full min-h-56 rounded border bg-white px-3 py-2 text-sm overflow-auto max-h-[460px]"
+                        onMouseUp={captureSelectedHtmlSnippet}
+                        onKeyUp={captureSelectedHtmlSnippet}
+                        onClick={captureClickedTableSnippet}
+                        dangerouslySetInnerHTML={{ __html: templatePreviewHtml }}
+                      />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <select
+                          className="h-9 rounded-md border bg-background px-3 text-sm"
+                          value={templateSelectionFieldKey}
+                          onChange={(e) => setTemplateSelectionFieldKey(e.target.value as EmailTemplateFieldKey)}
+                        >
+                          <option value="name">Név</option>
+                          <option value="amount">Összeg</option>
+                          <option value="deadline">Határidő</option>
+                          <option value="currency">Pénznem</option>
+                          <option value="tone">Hangnem</option>
+                          <option value="calculator_table">Kalkulátor táblázat</option>
+                          <option value="fixed_small_amount">Fix kis összeg</option>
+                          <option value="fixed_large_amount">Fix nagy összeg</option>
+                          <option value="retirement_section">Nyugdíj szekció</option>
+                          <option value="bonus_section">Bónusz szekció</option>
+                        </select>
+                        <Button type="button" variant="outline" onClick={selectedSnippetToField} disabled={!templateSelectedSnippet.trim()}>
+                          <Upload className="w-4 h-4 mr-2" />
+                          Kijelölt rész hozzárendelése
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={assignSelectedTableField}
+                          disabled={!templateSelectedSnippet.trim() && !templateSelectedTableSnippet.trim()}
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          Kijelölt táblázat hozzárendelése
+                        </Button>
+                        {templateSelectedSnippet ? (
+                          <span className="text-xs text-muted-foreground truncate max-w-[380px]">
+                            Kijelölt: {templateSelectedSnippet}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                  {templateRenderedPreviewHtml ? (
+                    <div className="grid gap-2">
+                      <Label className="text-xs text-muted-foreground">
+                        Kitöltött HTML előnézet (név, dátum, pénznem, hangnem, táblázat behelyettesítve)
+                      </Label>
+                      <div
+                        className="w-full min-h-56 rounded border bg-white px-3 py-2 text-sm overflow-auto max-h-[460px]"
+                        dangerouslySetInnerHTML={{ __html: templateRenderedPreviewHtml }}
+                      />
+                    </div>
+                  ) : null}
+                  {templateRenderedPreviewError ? (
+                    <div className="text-xs text-amber-600">{templateRenderedPreviewError}</div>
+                  ) : null}
+                  {selectedTemplate ? (
+                    <div className="text-xs text-muted-foreground">
+                      Kiválasztott sablon: <span className="font-medium">{selectedTemplate.name}</span>
+                    </div>
+                  ) : null}
+                  <div className="text-xs text-muted-foreground">
+                    A beépített eredeti sablon megmarad alapértelmezettnek; új sablon mentése nem írja felül.
+                  </div>
+                  {templateError ? <div className="text-xs text-red-600">{templateError}</div> : null}
+                </>
+              ) : null}
+            </div>
           </div>
         </div>
 
+        <div className="mb-2 flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setIsFxColorPickerOpen((current) => !current)}
+            title="FX sorok bázisszíne"
+            aria-label="FX sorok bázisszíne"
+            aria-expanded={isFxColorPickerOpen}
+          >
+            <Wand2 className="h-4 w-4" />
+          </Button>
+          {isFxColorPickerOpen ? (
+            <div className="flex items-center gap-2 rounded-md border bg-card px-2 py-1">
+              <Input
+                id="fxBaseColor"
+                type="color"
+                value={normalizeHexColorInput(fxBaseColor) ?? "#c55a11"}
+                onChange={(e) => setFxBaseColor(normalizeHexColorInput(e.target.value) ?? "#c55a11")}
+                className="h-8 w-10 p-1"
+              />
+              <Input
+                value={fxBaseColor}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setFxBaseColor(next)
+                  const normalized = normalizeHexColorInput(next)
+                  if (normalized) setFxBaseColor(normalized)
+                }}
+                className="h-8 w-[104px] text-xs"
+                placeholder="#c55a11"
+              />
+            </div>
+          ) : null}
+        </div>
         {isExcelView ? (
           <Card>
             <CardContent className="p-4 overflow-x-auto">
@@ -1369,8 +2239,16 @@ export default function OsszesitesPage() {
                       : (row.value as string)
 
                     const highlightStyle = row.isHighlight
-                      ? { background: "#c66a2c", color: "#ffffff", fontWeight: 700 }
+                      ? { background: fxSummaryPalette.finalEndBalance, color: "#ffffff", fontWeight: 700 }
                       : {}
+                    const fxRowBackground =
+                      row.key === "endBalanceHufCurrent"
+                        ? fxSummaryPalette.endBalanceHufCurrent
+                        : row.key === "endBalanceEUR500"
+                          ? fxSummaryPalette.endBalanceEUR500
+                          : row.key === "endBalanceEUR600"
+                            ? fxSummaryPalette.endBalanceEUR600
+                            : null
 
                     const labelStyle = row.isHighlight
                       ? { color: "#ffffff" }
@@ -1389,7 +2267,13 @@ export default function OsszesitesPage() {
                               ? row.bgColor
                               : ""
                         }`}
-                        style={highlightStyle}
+                        style={
+                          fxRowBackground
+                            ? { ...highlightStyle, backgroundColor: fxRowBackground }
+                            : row.key === "finalEndBalance"
+                              ? { ...highlightStyle, backgroundColor: fxSummaryPalette.finalEndBalance }
+                              : highlightStyle
+                        }
                       >
                         <td
                           className="py-2 px-3 text-sm"
@@ -1495,6 +2379,17 @@ export default function OsszesitesPage() {
                           className={`grid grid-cols-2 gap-4 px-4 md:px-6 py-3 md:py-4 transition-colors ${
                             row.isHighlight ? "summary-highlight-row hover:bg-primary/80" : "hover:bg-muted/30"
                           } ${row.bgColor || ""} ${row.isHighlight ? "font-bold text-base md:text-xl" : ""}`}
+                          style={
+                            row.key === "finalEndBalance"
+                              ? { backgroundColor: fxSummaryPalette.finalEndBalance }
+                              : row.key === "endBalanceHufCurrent"
+                              ? { backgroundColor: fxSummaryPalette.endBalanceHufCurrent }
+                              : row.key === "endBalanceEUR500"
+                                ? { backgroundColor: fxSummaryPalette.endBalanceEUR500 }
+                                : row.key === "endBalanceEUR600"
+                                  ? { backgroundColor: fxSummaryPalette.endBalanceEUR600 }
+                                  : undefined
+                          }
                         >
                           {isEditingLabel ? (
                             <input
