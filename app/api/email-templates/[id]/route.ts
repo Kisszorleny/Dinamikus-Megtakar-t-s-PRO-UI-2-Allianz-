@@ -35,8 +35,20 @@ const updateTemplateSchema = z.object({
   sourceType: sourceTypeSchema.optional(),
   originalFileName: z.string().trim().optional(),
   rawContent: z.string().min(1).optional(),
+  htmlContent: z.string().min(1).optional(),
+  textContent: z.string().optional(),
   subject: z.string().trim().optional(),
   mappings: z.array(mappingSchema).min(1).optional(),
+  conversion: z
+    .object({
+      status: z.enum(["none", "pending_review", "approved", "rejected"]),
+      targetTone: z.enum(["tegezo"]).optional(),
+      convertedSubject: z.string().trim().optional(),
+      convertedHtmlContent: z.string().optional(),
+      convertedTextContent: z.string().optional(),
+      notes: z.string().trim().optional(),
+    })
+    .optional(),
 })
 
 export async function GET(request: NextRequest, context: RouteContext) {
@@ -67,8 +79,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    let htmlContent: string | undefined
-    let textContent: string | undefined
+    let htmlContent: string | undefined = parsed.data.htmlContent
+    let textContent: string | undefined = parsed.data.textContent
     let subject: string | undefined = parsed.data.subject
     if (parsed.data.rawContent && parsed.data.sourceType) {
       const document = parseTemplateContent(parsed.data.sourceType, parsed.data.rawContent)
@@ -76,6 +88,17 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       htmlContent = candidate.htmlContent
       textContent = candidate.textContent
       if (!subject) subject = candidate.subject
+    }
+    if (parsed.data.conversion?.status === "approved") {
+      if (parsed.data.conversion.convertedSubject) {
+        subject = parsed.data.conversion.convertedSubject
+      }
+      if (parsed.data.conversion.convertedHtmlContent) {
+        htmlContent = parsed.data.conversion.convertedHtmlContent
+      }
+      if (parsed.data.conversion.convertedTextContent) {
+        textContent = parsed.data.conversion.convertedTextContent
+      }
     }
 
     const template = await updateEmailTemplate(session, id, {

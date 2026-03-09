@@ -31,6 +31,8 @@ function decodeQuotedPrintable(input: string): string {
 
 type MimeHeaders = Record<string, string>
 type InlineImageMap = Record<string, string>
+const MAX_INLINE_IMAGE_PART_CHARS = 220_000
+const MAX_INLINE_IMAGE_PARTS = 10
 
 function splitHeaderAndBody(raw: string): { headersRaw: string; bodyRaw: string } {
   const separatorIndex = raw.indexOf("\n\n")
@@ -122,7 +124,12 @@ function splitMimeByBoundary(bodyRaw: string, boundary: string): string[] {
     .map((part) => (part.endsWith("--") ? part.slice(0, -2).trim() : part))
 }
 
-function extractMimeBodies(headers: MimeHeaders, bodyRaw: string): { html?: string; text?: string; inlineImages: InlineImageMap } {
+function extractMimeBodies(
+  headers: MimeHeaders,
+  bodyRaw: string,
+  options?: { inlineImagePartsSeen?: { count: number } },
+): { html?: string; text?: string; inlineImages: InlineImageMap } {
+  const inlineImagePartsSeen = options?.inlineImagePartsSeen ?? { count: 0 }
   const contentType = (headers["content-type"] || "").toLowerCase()
   const transferEncoding = headers["content-transfer-encoding"] || ""
   const inlineImages: InlineImageMap = {}
@@ -136,7 +143,7 @@ function extractMimeBodies(headers: MimeHeaders, bodyRaw: string): { html?: stri
     for (const part of parts) {
       const { headersRaw: childHeadersRaw, bodyRaw: childBodyRaw } = splitHeaderAndBody(part)
       const childHeaders = parseHeaders(childHeadersRaw)
-      const childResult = extractMimeBodies(childHeaders, childBodyRaw)
+      const childResult = extractMimeBodies(childHeaders, childBodyRaw, { inlineImagePartsSeen })
       Object.assign(inlineImages, childResult.inlineImages)
       if (!text && childResult.text) text = childResult.text
       if (!html && childResult.html) html = childResult.html
@@ -156,6 +163,18 @@ function extractMimeBodies(headers: MimeHeaders, bodyRaw: string): { html?: stri
   if (contentType.startsWith("image/")) {
     const contentId = headers["content-id"] || ""
     const contentLocation = headers["content-location"] || ""
+    // Skip expensive base64 -> data URL conversion unless there is a usable key.
+    // Many EML files include image parts that are not referenced inline.
+    if (!contentId && !contentLocation) {
+      return { inlineImages }
+    }
+    if (inlineImagePartsSeen.count >= MAX_INLINE_IMAGE_PARTS) {
+      return { inlineImages }
+    }
+    if (bodyRaw.length > MAX_INLINE_IMAGE_PART_CHARS) {
+      return { inlineImages }
+    }
+    inlineImagePartsSeen.count += 1
     const dataUrl = toDataUrl(contentType.split(";")[0].trim(), bodyRaw, transferEncoding)
     if (contentId) registerInlineImage(inlineImages, contentId, dataUrl)
     if (contentLocation) registerInlineImage(inlineImages, contentLocation, dataUrl)

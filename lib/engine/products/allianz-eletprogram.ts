@@ -43,7 +43,7 @@ export const allianzEletprogram: ProductDefinition = {
       managementFeeValue: 0,
       yearlyFixedManagementFeeAmount: 0,
       adminFeeMonthlyAmount: shouldUseProductDefaults ? monthlyFee : (inputs.adminFeeMonthlyAmount ?? 0),
-      adminFeeMonthlyStartYear: shouldUseProductDefaults ? 1 : (inputs.adminFeeMonthlyStartYear ?? 1),
+      adminFeeMonthlyStartYear: shouldUseProductDefaults ? 2 : (inputs.adminFeeMonthlyStartYear ?? 1),
       assetBasedFeePercent: shouldUseProductDefaults ? ANNUAL_ASSET_FEE_PERCENT : (inputs.assetBasedFeePercent ?? 0),
       taxCreditToInvestedAccount: inputs.enableTaxCredit === true,
     })

@@ -12,6 +12,15 @@ export type EmailTemplateFieldKey =
 
 export type EmailTemplateSourceType = "html" | "text" | "eml"
 
+export type ToneConversionTarget = "tegezo"
+export type ToneConversionStatus = "none" | "pending_review" | "approved" | "rejected"
+export type ToneConversionMode = "ai_full" | "builtin"
+export type ToneConversionLlmStatus =
+  | "llm_full"
+  | "llm_partial_fallback"
+  | "builtin_fallback"
+  | "llm_unavailable_fallback"
+
 export type TemplateDocument = {
   sourceType: EmailTemplateSourceType
   rawContent: string
@@ -28,6 +37,55 @@ export type TemplateFieldMapping = {
   confidence?: number
 }
 
+export type TemplateVariantTone = "magazo" | "tegezo"
+export type TemplateVariantProduct = "allianz_eletprogram" | "allianz_bonusz_eletprogram"
+export type TemplateVariantCurrency = "HUF" | "EUR"
+export type TemplateVariantGoal = "tokenoveles" | "nyugdij"
+
+export type TemplateVariantItem = {
+  id: string
+  name: string
+  tone: TemplateVariantTone
+  product: TemplateVariantProduct
+  currency: TemplateVariantCurrency
+  goal: TemplateVariantGoal
+  emlFileName: string
+  htmlFileName: string
+  subject: string
+  htmlContent: string
+  plainContent: string
+  emlContent: string
+}
+
+export type TemplateVariantBundle = {
+  templateId: string
+  variants: TemplateVariantItem[]
+  updatedAt: string
+}
+
+export type ToneConversionPayload = {
+  status: ToneConversionStatus
+  targetTone?: ToneConversionTarget
+  convertedSubject?: string
+  convertedHtmlContent?: string
+  convertedTextContent?: string
+  notes?: string
+}
+
+export type TemplateToneConversionSuggestion = {
+  status: "pending_review"
+  targetTone: ToneConversionTarget
+  modeUsed: ToneConversionMode
+  llmStatus: ToneConversionLlmStatus
+  modelUsed?: string
+  detectedFormal: boolean
+  detectedFormalScore: number
+  convertedSubject?: string
+  convertedHtmlContent?: string
+  convertedTextContent?: string
+  notes: string[]
+}
+
 export type EmailTemplate = {
   id: string
   name: string
@@ -40,6 +98,13 @@ export type EmailTemplate = {
   htmlContent: string
   textContent: string
   mappings: TemplateFieldMapping[]
+  conversionStatus: ToneConversionStatus
+  conversionTargetTone?: ToneConversionTarget
+  convertedSubject?: string
+  convertedHtmlContent?: string
+  convertedTextContent?: string
+  conversionNotes?: string
+  variantBundle?: TemplateVariantBundle
   createdAt: string
   updatedAt: string
 }
@@ -53,6 +118,7 @@ export type EmailTemplateCreatePayload = {
   htmlContent?: string
   textContent?: string
   mappings: TemplateFieldMapping[]
+  conversion?: ToneConversionPayload
 }
 
 export type EmailTemplateUpdatePayload = Partial<EmailTemplateCreatePayload> & {
@@ -61,4 +127,5 @@ export type EmailTemplateUpdatePayload = Partial<EmailTemplateCreatePayload> & {
 
 export type ParsedTemplateCandidate = TemplateDocument & {
   suggestedMappings: TemplateFieldMapping[]
+  conversionSuggestion?: TemplateToneConversionSuggestion
 }

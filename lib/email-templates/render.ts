@@ -356,7 +356,12 @@ function toGoalPhrase(input: string): string {
 
 function replaceSavingsGoalPhrase(input: string, goalPhrase: string): string {
   if (!goalPhrase) return input
-  return input.replace(/szabad(?:\s+|-)?felhaszn[aá]l[aá]s[úu]/gi, goalPhrase)
+  let next = input.replace(/szabad(?:\s+|-)?felhaszn[aá]l[aá]s[úu]/gi, goalPhrase)
+  next = next.replace(
+    /\b(?:nyugd[ií]j|t[őo]ken[oö]vel[eé]s|szabad(?:\s+|-)?felhaszn[aá]l[aá]s[úu]?)(?:\s*|-)c[eé]l[úu](?=\s+megtakar[ií]t[aá]s)/gi,
+    goalPhrase,
+  )
+  return next
 }
 
 function normalizeHunComparable(input: string): string {
@@ -386,18 +391,53 @@ const TAX_CREDIT_KEYWORDS = [
 
 const BONUS_BLOCK_KEYWORDS = [
   "fix bonusz jovairas a hozamokon felul",
+  "eves bonusz jovairas",
+  "eves bonuszjovairas",
   "minden evben kap bonusz jovairast",
+  "extra jovairast kap",
+  "minden evben az adott evszamnak megfelelo bonuszt irunk jova",
+  "bonuszt irunk jova",
+  "hozamokon felul",
   "1 evben 1 bonusz",
+  "1 evben +1",
+  "2 evben +2",
+  "20 evben +20",
+  "eves megtakaritasokra",
   "es igy tovabb",
 ]
 
 const RETIREMENT_FAST_PATTERN =
   /gondoskodjon|nyugd[ií]j|[aá]llami\s+t[aá]mogat[aá]s|ad[oó]j[oó]v[aá][ií]r[aá]s|alanyi\s+jogon/i
-const BONUS_FAST_PATTERN = /bonusz|b[oó]nuszj[oó]v[aá][ií]r[aá]s|hozamokon\s+fel[uü]l/i
+const BONUS_FAST_PATTERN =
+  /b[oó]nusz|b[oó]nuszj[oó]v[aá][ií]r[aá]s|hozamokon\s+fel[uü]l|\d{1,2}\.?\s*[ée]vben\s*\+?\d{1,2}%/i
+const EUR_ONLY_SECTION_FAST_PATTERN =
+  /forint\s+ingadozik|infl[aá]ci[oó]\s+nem\s+k[eé]rdez|[ée]rt[eé]k[aá]ll[oó]bb\s+deviza|[áa]rfolyamkock[aá]zatt[oó]l/i
+
+const EUR_ONLY_SECTION_KEYWORDS = [
+  "a forint ingadozik",
+  "inflacio nem kerdez",
+  "ertekallobb deviza",
+  "euro nem gyengulhet",
+  "kulfoldi celokra idealis",
+  "ved az arfolyamkockazattol",
+  "forint evek alatt 10-20",
+]
 
 function containsAnyNormalizedKeyword(input: string, keywords: string[]): boolean {
   const normalized = normalizeHunComparable(input)
   return keywords.some((keyword) => normalized.includes(keyword))
+}
+
+function isBonusContinuationBlock(input: string): boolean {
+  const normalized = normalizeHunComparable(input)
+  if (!normalized) return false
+  if (/^\s*(?:\.|\u2026|&hellip;|&#8230;|\u00b7)(?:\s*(?:\.|\u2026|&hellip;|&#8230;|\u00b7))*\s*$/.test(normalized)) return true
+  if (/\d{1,2}\.?\s*evben\s*\+?\d{1,2}%?/.test(normalized)) return true
+  if (/ev\s*:\s*\+?\d{1,2}%?/.test(normalized)) return true
+  if (/\+\d{1,2}%/.test(normalized) && normalized.includes("evben")) return true
+  if (/\+\d{1,2}%/.test(normalized) && normalized.includes("ev:")) return true
+  if (normalized.includes("eves megtakaritasokra") && normalized.includes("bonusz")) return true
+  return false
 }
 
 function removeHtmlBlocksByPredicate(input: string, predicate: (blockText: string) => boolean): string {
@@ -446,15 +486,161 @@ function removeBonusSectionHeuristic(input: string, htmlMode: boolean): string {
   if (!BONUS_FAST_PATTERN.test(input)) {
     return input
   }
-  const shouldRemoveBlock = (block: string) => containsAnyNormalizedKeyword(block, BONUS_BLOCK_KEYWORDS)
+  const shouldRemoveBlock = (block: string) =>
+    containsAnyNormalizedKeyword(block, BONUS_BLOCK_KEYWORDS) || isBonusContinuationBlock(block)
 
   if (htmlMode) {
     // Keep table rows intact; remove textual bonus sections only.
     const pattern = /<(div|p|li|h[1-6]|section)\b[^>]*>[\s\S]*?<\/\1>/gi
-    return input.replace(pattern, (block) => (shouldRemoveBlock(block) ? "" : block))
+    let output = input.replace(pattern, (block) => {
+      const comparable = normalizeComparableText(block)
+      if (comparable === "...") return ""
+      return shouldRemoveBlock(block) ? "" : block
+    })
+    output = output.replace(/(?:[ÉE]ves\s+b[óo]nusz\s*j[óo]v[aá][ií]r[aá]s[\s\S]{0,2500}?hozamokon\s+fel[uü]l[^<]*[.!?]?)/gi, "")
+    output = output.replace(
+      /<(div|p|li|section)\b[^>]*>\s*(?:\.|\u2026|&hellip;|&#8230;|\u00b7)(?:\s*(?:\.|\u2026|&hellip;|&#8230;|\u00b7))*\s*<\/\1>/gi,
+      "",
+    )
+    return output
   }
 
-  return removePlainLinesByPredicate(input, shouldRemoveBlock)
+  let output = removePlainLinesByPredicate(input, shouldRemoveBlock)
+  output = output.replace(/(?:[ÉE]ves\s+b[óo]nusz\s*j[óo]v[aá][ií]r[aá]s[\s\S]{0,1200}?hozamokon\s+fel[uü]l[^\n.!?]*[.!?]?)/gi, "")
+  return output
+}
+
+function isEurCurrency(value: string): boolean {
+  const normalized = normalizeHunComparable(value)
+  return normalized.includes("eur") || value.includes("€")
+}
+
+function removeEurOnlySectionHeuristic(input: string, htmlMode: boolean): string {
+  if (!EUR_ONLY_SECTION_FAST_PATTERN.test(input)) return input
+
+  const shouldRemoveBlock = (block: string) => containsAnyNormalizedKeyword(block, EUR_ONLY_SECTION_KEYWORDS)
+  let output = htmlMode ? removeHtmlBlocksByPredicate(input, shouldRemoveBlock) : removePlainLinesByPredicate(input, shouldRemoveBlock)
+  output = output.replace(
+    /(?:\d{1,2}\s*[,.)-]?\s*A\s+forint\s+ingadozik[\s\S]{0,4000}?V[eé]d\s+az\s+[áa]rfolyamkock[aá]zatt[oó]l[^.!?\n]*[.!?]?)/gi,
+    "",
+  )
+  return output
+}
+
+type HeadingMatch = {
+  number: number
+  separator: string
+}
+
+function extractFirstNumberedHeadingFromText(text: string): HeadingMatch | null {
+  const match = text.match(/^\s*(\d{1,2})\s*([,.)-]\s*)\S/)
+  if (!match) return null
+  const number = Number.parseInt(match[1], 10)
+  if (!Number.isFinite(number)) return null
+  return { number, separator: match[2] || ", " }
+}
+
+function readFirstTextChunk(parts: string[]): { index: number; text: string } | null {
+  for (let idx = 0; idx < parts.length; idx += 1) {
+    const part = parts[idx]
+    if (!part || part.startsWith("<")) continue
+    if (part.trim().length === 0) continue
+    return { index: idx, text: part }
+  }
+  return null
+}
+
+function renumberSectionHeadingsHtml(input: string): string {
+  const blockPattern = /<(div|p|li|h[1-6]|section)\b[^>]*>[\s\S]*?<\/\1>/gi
+  const blocks = Array.from(input.matchAll(blockPattern))
+  if (blocks.length === 0) return input
+
+  const headingIndexes: number[] = []
+  const headingNumbers: number[] = []
+  const headingSeparators: string[] = []
+
+  for (let idx = 0; idx < blocks.length; idx += 1) {
+    const block = blocks[idx][0]
+    const parts = block.split(/(<[^>]+>)/g)
+    const firstText = readFirstTextChunk(parts)
+    if (!firstText) continue
+    const parsed = extractFirstNumberedHeadingFromText(firstText.text)
+    if (!parsed) continue
+    headingIndexes.push(idx)
+    headingNumbers.push(parsed.number)
+    headingSeparators.push(parsed.separator)
+  }
+
+  if (headingIndexes.length <= 1) return input
+  const baseNumber = headingNumbers[0]
+  if (!Number.isFinite(baseNumber)) return input
+
+  const nextBlocks = blocks.map((item) => item[0])
+  let changed = false
+
+  for (let pos = 0; pos < headingIndexes.length; pos += 1) {
+    const blockIndex = headingIndexes[pos]
+    const expected = baseNumber + pos
+    const current = headingNumbers[pos]
+    if (current === expected) continue
+    const original = nextBlocks[blockIndex]
+    const parts = original.split(/(<[^>]+>)/g)
+    const firstText = readFirstTextChunk(parts)
+    if (!firstText) continue
+    parts[firstText.index] = firstText.text.replace(/^\s*\d{1,2}\s*([,.)-]\s*)/, (m, sep: string) => {
+      const usedSeparator = sep || headingSeparators[pos] || ", "
+      return m.replace(/^\s*\d{1,2}\s*([,.)-]\s*)/, `${expected}${usedSeparator}`)
+    })
+    nextBlocks[blockIndex] = parts.join("")
+    changed = true
+  }
+
+  if (!changed) return input
+  let cursor = 0
+  let result = ""
+  for (let idx = 0; idx < blocks.length; idx += 1) {
+    const block = blocks[idx]
+    const start = block.index ?? 0
+    const original = block[0]
+    result += input.slice(cursor, start)
+    result += nextBlocks[idx] || original
+    cursor = start + original.length
+  }
+  result += input.slice(cursor)
+  return result
+}
+
+function renumberSectionHeadingsPlain(input: string): string {
+  const lines = input.split("\n")
+  const headingLines: number[] = []
+  const headingNumbers: number[] = []
+  const headingSeparators: string[] = []
+
+  for (let idx = 0; idx < lines.length; idx += 1) {
+    const parsed = extractFirstNumberedHeadingFromText(lines[idx] || "")
+    if (!parsed) continue
+    headingLines.push(idx)
+    headingNumbers.push(parsed.number)
+    headingSeparators.push(parsed.separator)
+  }
+
+  if (headingLines.length <= 1) return input
+  const baseNumber = headingNumbers[0]
+  if (!Number.isFinite(baseNumber)) return input
+
+  let changed = false
+  for (let pos = 0; pos < headingLines.length; pos += 1) {
+    const expected = baseNumber + pos
+    const current = headingNumbers[pos]
+    if (current === expected) continue
+    const lineIndex = headingLines[pos]
+    lines[lineIndex] = (lines[lineIndex] || "").replace(/^\s*\d{1,2}\s*([,.)-]\s*)/, (_m, sep: string) => {
+      const usedSeparator = sep || headingSeparators[pos] || ", "
+      return `${expected}${usedSeparator}`
+    })
+    changed = true
+  }
+  return changed ? lines.join("\n") : input
 }
 
 export function renderEmailTemplate({
@@ -475,10 +661,6 @@ export function renderEmailTemplate({
     retirementSectionMapping?.sourceSnippet?.trim() ||
       (retirementSectionMapping?.token?.trim() && htmlOutput.includes(retirementSectionMapping.token.trim())),
   )
-  const hasConfiguredBonusSection = Boolean(
-    bonusSectionMapping?.sourceSnippet?.trim() || (bonusSectionMapping?.token?.trim() && htmlOutput.includes(bonusSectionMapping.token.trim())),
-  )
-
   for (const mapping of template.mappings) {
     const isTableMapping = mapping.key === "calculator_table"
     if (isTableMapping) hasCalculatorMapping = true
@@ -593,7 +775,7 @@ export function renderEmailTemplate({
 
   const goalPhrase = toGoalPhrase(accountGoalPhrase)
   if (goalPhrase) {
-    htmlOutput = replaceSavingsGoalPhrase(htmlOutput, escapeHtml(goalPhrase))
+    htmlOutput = replaceOutsideTables(htmlOutput, (segment) => replaceSavingsGoalPhrase(segment, escapeHtml(goalPhrase)))
     plainOutput = replaceSavingsGoalPhrase(plainOutput, goalPhrase)
   }
 
@@ -602,9 +784,18 @@ export function renderEmailTemplate({
     plainOutput = removeRetirementSectionHeuristic(plainOutput, false)
   }
 
-  if (isAllianzEletprogram && hasConfiguredBonusSection) {
+  if (!isEurCurrency(String(values.currency ?? ""))) {
+    htmlOutput = removeEurOnlySectionHeuristic(htmlOutput, true)
+    plainOutput = removeEurOnlySectionHeuristic(plainOutput, false)
+    htmlOutput = renumberSectionHeadingsHtml(htmlOutput)
+    plainOutput = renumberSectionHeadingsPlain(plainOutput)
+  }
+
+  if (isAllianzEletprogram) {
     htmlOutput = removeBonusSectionHeuristic(htmlOutput, true)
     plainOutput = removeBonusSectionHeuristic(plainOutput, false)
+    htmlOutput = renumberSectionHeadingsHtml(htmlOutput)
+    plainOutput = renumberSectionHeadingsPlain(plainOutput)
   }
 
   return {

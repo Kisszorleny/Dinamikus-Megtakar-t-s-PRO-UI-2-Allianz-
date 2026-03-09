@@ -247,9 +247,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, message: "A kiválasztott sablon nem található." }, { status: 404 })
       }
       const tableMapping = template.mappings.find((mapping) => mapping.key === "calculator_table")
-      const calculatorTableHtml = buildCalculatorTableHtmlFromTemplate(payload.values, tableMapping?.sourceSnippet, {
-        fxBaseColor: payload.fxBaseColor,
-      })
+      const calculatorTableHtml = buildCalculatorTableHtmlFromTemplate(payload.values, tableMapping?.sourceSnippet)
       const calculatorTablePlain = buildCalculatorTablePlain(payload.values)
       const fixedAmounts = getFixedAmountValues(payload.displayCurrency)
       const rendered = renderEmailTemplate({

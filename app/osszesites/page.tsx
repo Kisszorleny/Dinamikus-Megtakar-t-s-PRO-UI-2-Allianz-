@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react"
+import { useMemo, useState, useEffect, useRef, type MouseEvent as ReactMouseEvent, type DragEvent as ReactDragEvent } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,7 +15,7 @@ import { ColumnHoverInfoPanel } from "@/components/column-hover-info-panel"
 import { resolveProductContextKey } from "@/lib/column-explanations"
 import { getProductLabelFromCatalog } from "@/lib/product-catalog/ui"
 import { buildSummaryEmailTemplate, getSummaryEmailTone } from "@/lib/summary-email/template"
-import type { EmailTemplateFieldKey, EmailTemplateSourceType, TemplateFieldMapping } from "@/lib/email-templates/types"
+import type { EmailTemplateFieldKey, EmailTemplateSourceType, ToneConversionMode, TemplateFieldMapping } from "@/lib/email-templates/types"
 import { renderEmailTemplate } from "@/lib/email-templates/render"
 import { buildCalculatorTableHtmlFromTemplate, buildCalculatorTablePlain } from "@/lib/email-templates/calculator-table"
 import { getFixedAmountValues } from "@/lib/email-templates/fixed-amounts"
@@ -86,6 +86,24 @@ type StoredEmailTemplate = {
   sourceType: EmailTemplateSourceType
   mappings: TemplateFieldMapping[]
   updatedAt: string
+  variantBundle?: {
+    templateId: string
+    updatedAt: string
+    variants: Array<{
+      id: string
+      name: string
+      tone: "magazo" | "tegezo"
+      product: "allianz_eletprogram" | "allianz_bonusz_eletprogram"
+      currency: "HUF" | "EUR"
+      goal: "tokenoveles" | "nyugdij"
+      emlFileName: string
+      htmlFileName: string
+      subject: string
+      htmlContent: string
+      plainContent: string
+      emlContent: string
+    }>
+  }
 }
 
 type StoredEmailTemplateDetails = {
@@ -98,6 +116,18 @@ type StoredEmailTemplateDetails = {
   htmlContent: string
   textContent: string
   mappings: TemplateFieldMapping[]
+  conversionStatus?: "none" | "pending_review" | "approved" | "rejected"
+  conversionTargetTone?: "tegezo"
+  convertedSubject?: string
+  convertedHtmlContent?: string
+  convertedTextContent?: string
+  conversionNotes?: string
+  variantBundle?: StoredEmailTemplate["variantBundle"]
+}
+
+type OfferUntilStoragePayload = {
+  value: string
+  editedOn: string
 }
 
 const TEMPLATE_FIELD_LABELS: Record<EmailTemplateFieldKey, string> = {
@@ -111,6 +141,47 @@ const TEMPLATE_FIELD_LABELS: Record<EmailTemplateFieldKey, string> = {
   fixed_large_amount: "Fix nagy összeg",
   retirement_section: "Nyugdíj szekció",
   bonus_section: "Bónusz szekció",
+}
+
+const RENDERED_SNAPSHOT_MARKER = "<!--dm-rendered-snapshot-->"
+const TEMPLATE_DRAFT_STORAGE_KEY = "summary-emailTemplateDraft-v1"
+
+const DEFAULT_TEMPLATE_MAPPINGS: TemplateFieldMapping[] = [
+  { key: "name", label: TEMPLATE_FIELD_LABELS.name, token: "{{name}}" },
+  { key: "amount", label: TEMPLATE_FIELD_LABELS.amount, token: "{{amount}}" },
+  { key: "deadline", label: TEMPLATE_FIELD_LABELS.deadline, token: "{{deadline}}" },
+  { key: "currency", label: TEMPLATE_FIELD_LABELS.currency, token: "{{currency}}" },
+  { key: "tone", label: TEMPLATE_FIELD_LABELS.tone, token: "{{tone}}" },
+  { key: "calculator_table", label: TEMPLATE_FIELD_LABELS.calculator_table, token: "{{calculator_table}}" },
+  { key: "fixed_small_amount", label: TEMPLATE_FIELD_LABELS.fixed_small_amount, token: "{{fixed_small_amount}}" },
+  { key: "fixed_large_amount", label: TEMPLATE_FIELD_LABELS.fixed_large_amount, token: "{{fixed_large_amount}}" },
+  { key: "retirement_section", label: TEMPLATE_FIELD_LABELS.retirement_section, token: "{{retirement_section}}" },
+  { key: "bonus_section", label: TEMPLATE_FIELD_LABELS.bonus_section, token: "{{bonus_section}}" },
+]
+
+function cloneDefaultTemplateMappings(): TemplateFieldMapping[] {
+  return DEFAULT_TEMPLATE_MAPPINGS.map((item) => ({ ...item }))
+}
+
+function toSafeTemplateMappings(input: unknown): TemplateFieldMapping[] {
+  if (!Array.isArray(input)) return cloneDefaultTemplateMappings()
+  const allowedKeys = new Set<EmailTemplateFieldKey>(Object.keys(TEMPLATE_FIELD_LABELS) as EmailTemplateFieldKey[])
+  const items = input
+    .map((item) => (typeof item === "object" && item ? (item as Partial<TemplateFieldMapping>) : null))
+    .filter((item): item is Partial<TemplateFieldMapping> => Boolean(item))
+    .filter((item) => typeof item.key === "string" && allowedKeys.has(item.key as EmailTemplateFieldKey))
+    .map((item) => ({
+      key: item.key as EmailTemplateFieldKey,
+      label: typeof item.label === "string" && item.label.trim() ? item.label : TEMPLATE_FIELD_LABELS[item.key as EmailTemplateFieldKey],
+      token:
+        typeof item.token === "string" && item.token.trim()
+          ? item.token
+          : `{{${item.key as EmailTemplateFieldKey}}}`,
+      sourceSnippet: typeof item.sourceSnippet === "string" && item.sourceSnippet ? item.sourceSnippet : undefined,
+      confidence: typeof item.confidence === "number" ? item.confidence : undefined,
+    }))
+  if (items.length === 0) return cloneDefaultTemplateMappings()
+  return items
 }
 
 function inferSourceTypeFromFileName(fileName: string): EmailTemplateSourceType | null {
@@ -127,12 +198,38 @@ function sanitizePreviewHtml(input: string): string {
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
     .replace(/\son\w+="[^"]*"/gi, "")
     .replace(/\son\w+='[^']*'/gi, "")
-    // Preview-only fallback for very large inline images:
-    // keep send path untouched, but avoid rendering extremely heavy blobs in the editor.
+    // Preview-only fallback for inline base64 images:
+    // keep send path untouched, but avoid heavy DOM freezes in the editor.
     .replace(
-      /<img\b[^>]*\bsrc=(["'])data:image\/[^"']{2000000,}\1[^>]*>/gi,
-      '<div data-dm-preview-image-truncated="true" style="margin:8px 0;padding:10px 12px;border:1px dashed #9ca3af;border-radius:6px;background:#f8fafc;color:#475569;font-size:12px;">Nagy inline kép az előnézetben egyszerűsítve. Küldéskor a teljes kép megy ki.</div>',
+      /<img\b[^>]*\bsrc=(["'])data:image\/[^"']*\1[^>]*>/gi,
+      '<div data-dm-preview-image-truncated="true" style="margin:8px 0;padding:10px 12px;border:1px dashed #9ca3af;border-radius:6px;background:#f8fafc;color:#475569;font-size:12px;">Inline kép az előnézetben egyszerűsítve. Kuldeskor a teljes kep megy ki.</div>',
     )
+}
+
+function sanitizeStoredHtml(input: string): string {
+  return input
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+    .replace(/\son\w+="[^"]*"/gi, "")
+    .replace(/\son\w+='[^']*'/gi, "")
+}
+
+function stripSnapshotMarker(input: string): string {
+  return input.replace(RENDERED_SNAPSHOT_MARKER, "").trim()
+}
+
+function htmlToPlainText(input: string): string {
+  if (typeof window !== "undefined") {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(input, "text/html")
+    return (doc.body?.textContent || "").replace(/\n{3,}/g, "\n\n").trim()
+  }
+  return input
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 function toTemplateCurrencyLabel(currency: Currency): string {
@@ -186,6 +283,11 @@ export default function OsszesitesPage() {
     d.setDate(d.getDate() + 7)
     return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`
   }
+  const getTodayStamp = () => {
+    const pad2 = (n: number) => String(n).padStart(2, "0")
+    const now = new Date()
+    return `${now.getFullYear()}.${pad2(now.getMonth() + 1)}.${pad2(now.getDate())}`
+  }
 
   const [computedData, setComputedData] = useState<typeof contextData>(null)
   const [isComputing, setIsComputing] = useState(false)
@@ -204,9 +306,21 @@ export default function OsszesitesPage() {
   const [emailOfferUntil, setEmailOfferUntil] = useState(() => {
     // Avoid SSR/client timezone mismatch: compute only in browser.
     if (typeof window === "undefined") return ""
-    const stored = localStorage.getItem(OFFER_UNTIL_STORAGE_KEY)
-    if (stored && /^\d{4}\.\d{2}\.\d{2}$/.test(stored)) {
-      return stored
+    const storedRaw = localStorage.getItem(OFFER_UNTIL_STORAGE_KEY)
+    if (storedRaw) {
+      try {
+        const parsed = JSON.parse(storedRaw) as Partial<OfferUntilStoragePayload>
+        if (
+          typeof parsed.value === "string" &&
+          /^\d{4}\.\d{2}\.\d{2}$/.test(parsed.value) &&
+          typeof parsed.editedOn === "string" &&
+          parsed.editedOn === getTodayStamp()
+        ) {
+          return parsed.value
+        }
+      } catch {
+        // Backward compatibility: legacy plain-string values are treated as non-persistent defaults.
+      }
     }
     return getDefaultOfferUntil()
   })
@@ -218,6 +332,8 @@ export default function OsszesitesPage() {
   const [emailCopyStatus, setEmailCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
   const [emailSendStatus, setEmailSendStatus] = useState<"idle" | "sending" | "sent" | "failed">("idle")
   const [emailSendError, setEmailSendError] = useState("")
+  const [variantBundleStatus, setVariantBundleStatus] = useState<"idle" | "loading" | "done" | "failed">("idle")
+  const [variantBundleMessage, setVariantBundleMessage] = useState("")
   const [emailTegezo, setEmailTegezo] = useState(false)
   const [emailTemplates, setEmailTemplates] = useState<StoredEmailTemplate[]>([])
   const [isTemplateAdminView, setIsTemplateAdminView] = useState(false)
@@ -225,8 +341,12 @@ export default function OsszesitesPage() {
   const [templateSourceType, setTemplateSourceType] = useState<EmailTemplateSourceType>("html")
   const [templateRawContent, setTemplateRawContent] = useState("")
   const [templatePreviewHtml, setTemplatePreviewHtml] = useState("")
+  const [templateAiPreviewHtml, setTemplateAiPreviewHtml] = useState("")
   const [templateRenderedPreviewHtml, setTemplateRenderedPreviewHtml] = useState("")
+  const [isRenderedPreviewDirty, setIsRenderedPreviewDirty] = useState(false)
+  const [isSelectedTemplateSnapshot, setIsSelectedTemplateSnapshot] = useState(false)
   const [templateRenderedPreviewError, setTemplateRenderedPreviewError] = useState("")
+  const [templateConversionMode, setTemplateConversionMode] = useState<ToneConversionMode>("ai_full")
   const [templateSuggestedSubject, setTemplateSuggestedSubject] = useState("")
   const [templateName, setTemplateName] = useState("")
   const [templateOriginalFileName, setTemplateOriginalFileName] = useState("")
@@ -236,26 +356,25 @@ export default function OsszesitesPage() {
   const [templateSelectedTableSnippet, setTemplateSelectedTableSnippet] = useState("")
   const [isFxColorPickerOpen, setIsFxColorPickerOpen] = useState(false)
   const [isTemplateUploaderOpen, setIsTemplateUploaderOpen] = useState(true)
-  const [templateMappings, setTemplateMappings] = useState<TemplateFieldMapping[]>([
-    { key: "name", label: TEMPLATE_FIELD_LABELS.name, token: "{{name}}" },
-    { key: "amount", label: TEMPLATE_FIELD_LABELS.amount, token: "{{amount}}" },
-    { key: "deadline", label: TEMPLATE_FIELD_LABELS.deadline, token: "{{deadline}}" },
-    { key: "currency", label: TEMPLATE_FIELD_LABELS.currency, token: "{{currency}}" },
-    { key: "tone", label: TEMPLATE_FIELD_LABELS.tone, token: "{{tone}}" },
-    { key: "calculator_table", label: TEMPLATE_FIELD_LABELS.calculator_table, token: "{{calculator_table}}" },
-    { key: "fixed_small_amount", label: TEMPLATE_FIELD_LABELS.fixed_small_amount, token: "{{fixed_small_amount}}" },
-    { key: "fixed_large_amount", label: TEMPLATE_FIELD_LABELS.fixed_large_amount, token: "{{fixed_large_amount}}" },
-    { key: "retirement_section", label: TEMPLATE_FIELD_LABELS.retirement_section, token: "{{retirement_section}}" },
-    { key: "bonus_section", label: TEMPLATE_FIELD_LABELS.bonus_section, token: "{{bonus_section}}" },
-  ])
+  const [isTemplateMappingsOpen, setIsTemplateMappingsOpen] = useState(false)
+  const [isTemplateDragActive, setIsTemplateDragActive] = useState(false)
+  const [templateMappings, setTemplateMappings] = useState<TemplateFieldMapping[]>(() => cloneDefaultTemplateMappings())
   const [templateSelectionFieldKey, setTemplateSelectionFieldKey] = useState<EmailTemplateFieldKey>("name")
+  const [isVariantBundleOpen, setIsVariantBundleOpen] = useState(false)
   const templatePreviewRef = useRef<HTMLDivElement | null>(null)
+  const templateRenderedPreviewRef = useRef<HTMLDivElement | null>(null)
+  const templateFileInputRef = useRef<HTMLInputElement | null>(null)
+  const templateSelectRef = useRef<HTMLSelectElement | null>(null)
 
   useEffect(() => {
     if (typeof window === "undefined") return
     const trimmed = emailOfferUntil.trim()
     if (trimmed && /^\d{4}\.\d{2}\.\d{2}$/.test(trimmed)) {
-      localStorage.setItem(OFFER_UNTIL_STORAGE_KEY, trimmed)
+      const payload: OfferUntilStoragePayload = {
+        value: trimmed,
+        editedOn: getTodayStamp(),
+      }
+      localStorage.setItem(OFFER_UNTIL_STORAGE_KEY, JSON.stringify(payload))
       return
     }
     localStorage.removeItem(OFFER_UNTIL_STORAGE_KEY)
@@ -267,6 +386,77 @@ export default function OsszesitesPage() {
     if (!normalized) return
     localStorage.setItem(FX_BASE_COLOR_STORAGE_KEY, normalized)
   }, [fxBaseColor])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const raw = sessionStorage.getItem(TEMPLATE_DRAFT_STORAGE_KEY)
+    if (!raw) return
+    try {
+      const parsed = JSON.parse(raw) as Partial<{
+        templateSourceType: EmailTemplateSourceType
+        templateRawContent: string
+        templatePreviewHtml: string
+        templateName: string
+        templateOriginalFileName: string
+        templateSuggestedSubject: string
+        templateMappings: TemplateFieldMapping[]
+        isTemplateUploaderOpen: boolean
+        isTemplateMappingsOpen: boolean
+      }>
+      if (parsed.templateSourceType && ["html", "text", "eml"].includes(parsed.templateSourceType)) {
+        setTemplateSourceType(parsed.templateSourceType)
+      }
+      if (typeof parsed.templateRawContent === "string") setTemplateRawContent(parsed.templateRawContent)
+      if (typeof parsed.templatePreviewHtml === "string") setTemplatePreviewHtml(parsed.templatePreviewHtml)
+      if (typeof parsed.templateName === "string") setTemplateName(parsed.templateName)
+      if (typeof parsed.templateOriginalFileName === "string") setTemplateOriginalFileName(parsed.templateOriginalFileName)
+      if (typeof parsed.templateSuggestedSubject === "string") setTemplateSuggestedSubject(parsed.templateSuggestedSubject)
+      if (typeof parsed.isTemplateUploaderOpen === "boolean") setIsTemplateUploaderOpen(parsed.isTemplateUploaderOpen)
+      if (typeof parsed.isTemplateMappingsOpen === "boolean") setIsTemplateMappingsOpen(parsed.isTemplateMappingsOpen)
+      setTemplateMappings(toSafeTemplateMappings(parsed.templateMappings))
+    } catch {
+      // ignore malformed session data
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const hasDraft = Boolean(
+      templateRawContent.trim() || templatePreviewHtml.trim() || templateName.trim() || templateOriginalFileName.trim(),
+    )
+    if (!hasDraft) {
+      sessionStorage.removeItem(TEMPLATE_DRAFT_STORAGE_KEY)
+      return
+    }
+    if (templateRawContent.length > 2_500_000) return
+    const payload = {
+      templateSourceType,
+      templateRawContent,
+      templatePreviewHtml,
+      templateName,
+      templateOriginalFileName,
+      templateSuggestedSubject,
+      templateMappings,
+      isTemplateUploaderOpen,
+      isTemplateMappingsOpen,
+      updatedAt: Date.now(),
+    }
+    try {
+      sessionStorage.setItem(TEMPLATE_DRAFT_STORAGE_KEY, JSON.stringify(payload))
+    } catch {
+      // storage quota might be full; keep runtime state only
+    }
+  }, [
+    templateSourceType,
+    templateRawContent,
+    templatePreviewHtml,
+    templateName,
+    templateOriginalFileName,
+    templateSuggestedSubject,
+    templateMappings,
+    isTemplateUploaderOpen,
+    isTemplateMappingsOpen,
+  ])
 
   const loadEmailTemplates = async () => {
     try {
@@ -287,7 +477,10 @@ export default function OsszesitesPage() {
 
   useEffect(() => {
     const id = selectedTemplateId.trim()
-    if (!id) return
+    if (!id) {
+      setIsSelectedTemplateSnapshot(false)
+      return
+    }
 
     let cancelled = false
     const loadSelectedTemplateDetails = async () => {
@@ -308,7 +501,10 @@ export default function OsszesitesPage() {
         }
 
         const template = result.template as StoredEmailTemplateDetails
-        const previewHtml = template.htmlContent || (template.textContent ? `<pre>${template.textContent}</pre>` : "")
+        const isSnapshotTemplate = (template.htmlContent || "").includes(RENDERED_SNAPSHOT_MARKER)
+        const previewHtml = isSnapshotTemplate
+          ? stripSnapshotMarker(template.htmlContent || "")
+          : template.htmlContent || (template.textContent ? `<pre>${template.textContent}</pre>` : "")
 
         if (!cancelled) {
           setTemplateName(template.name || "")
@@ -317,6 +513,9 @@ export default function OsszesitesPage() {
           setTemplateRawContent(template.rawContent || template.htmlContent || template.textContent || "")
           setTemplateSuggestedSubject(template.subject || "")
           setTemplatePreviewHtml(sanitizePreviewHtml(previewHtml))
+          setTemplateAiPreviewHtml("")
+          setIsRenderedPreviewDirty(false)
+          setIsSelectedTemplateSnapshot(isSnapshotTemplate)
           setTemplateSelectedSnippet("")
           setTemplateSelectedTableSnippet("")
           if (Array.isArray(template.mappings) && template.mappings.length > 0) {
@@ -338,6 +537,13 @@ export default function OsszesitesPage() {
     }
   }, [selectedTemplateId])
 
+  useEffect(() => {
+    if (!selectedTemplateId.trim()) return
+    setVariantBundleStatus("idle")
+    setVariantBundleMessage("")
+    setIsVariantBundleOpen(false)
+  }, [selectedTemplateId])
+
   const upsertTemplateMapping = (mapping: TemplateFieldMapping) => {
     setTemplateMappings((current) => {
       const next = [...current]
@@ -351,17 +557,29 @@ export default function OsszesitesPage() {
     })
   }
 
-  const parseTemplateContentOnServer = async (sourceType: EmailTemplateSourceType, rawContent: string) => {
+  const parseTemplateContentOnServer = async (sourceType: EmailTemplateSourceType, rawContent: string, conversionMode: ToneConversionMode) => {
     setTemplateStatus("loading")
     setTemplateError("")
     const controller = new AbortController()
-    const timeoutId = window.setTimeout(() => controller.abort(), 15000)
+    const timeoutId = window.setTimeout(() => controller.abort(), 95000)
     try {
+      const summaryValues = computedData ? getSummaryEmailValues() : null
       const response = await fetch("/api/email-templates/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ sourceType, rawContent }),
+        body: JSON.stringify({
+          sourceType,
+          rawContent,
+          conversionMode,
+          aiContext: summaryValues
+            ? {
+                accountGoal: summaryValues.accountGoal,
+                currency: computedData?.displayCurrency || "HUF",
+                isAllianzEletprogram: computedData?.selectedProduct === "allianz_eletprogram",
+              }
+            : undefined,
+        }),
       })
       const result = await response.json().catch(() => ({}))
       if (!response.ok || !result?.candidate) {
@@ -373,16 +591,43 @@ export default function OsszesitesPage() {
         )
         return
       }
+      if (conversionMode === "ai_full" && typeof result?.conversionSkippedReason === "string" && result.conversionSkippedReason.trim()) {
+        setTemplateStatus("failed")
+        setTemplateError(result.conversionSkippedReason)
+        return
+      } else if (typeof result?.conversionSkippedReason === "string" && result.conversionSkippedReason.trim()) {
+        setTemplateError(result.conversionSkippedReason)
+      }
       const candidate = result.candidate as {
         htmlContent: string
         textContent: string
         suggestedMappings: TemplateFieldMapping[]
         subject?: string
+        conversionSuggestion?: {
+          convertedHtmlContent?: string
+          convertedTextContent?: string
+        }
       }
       const previewHtml = candidate.htmlContent || (candidate.textContent ? `<pre>${candidate.textContent}</pre>` : "")
       setTemplatePreviewHtml(sanitizePreviewHtml(previewHtml))
+      const aiPreviewHtml =
+        conversionMode === "ai_full"
+          ? candidate.conversionSuggestion?.convertedHtmlContent?.trim()
+            ? sanitizePreviewHtml(candidate.conversionSuggestion.convertedHtmlContent)
+            : candidate.conversionSuggestion?.convertedTextContent?.trim()
+              ? sanitizePreviewHtml(`<pre>${candidate.conversionSuggestion.convertedTextContent}</pre>`)
+              : ""
+          : ""
+      setTemplateAiPreviewHtml(aiPreviewHtml)
+      setIsRenderedPreviewDirty(false)
+      setIsSelectedTemplateSnapshot(false)
       setTemplateSelectedSnippet("")
       setTemplateSuggestedSubject(candidate.subject || "")
+      if (conversionMode === "ai_full" && emailTegezo && !aiPreviewHtml.trim()) {
+        setTemplateStatus("failed")
+        setTemplateError("AI mód: nem érkezett használható kimenet. Próbáld újra, vagy kapcsold ki az AI-t.")
+        return
+      }
       if (Array.isArray(candidate.suggestedMappings)) {
         setTemplateMappings((current) => {
           const byKey = new Map<EmailTemplateFieldKey, TemplateFieldMapping>()
@@ -422,6 +667,49 @@ export default function OsszesitesPage() {
     }
   }
 
+  const handleTemplateFileUpload = async (file: File) => {
+    const sourceType = inferSourceTypeFromFileName(file.name)
+    if (!sourceType) {
+      setTemplateStatus("failed")
+      setTemplateError("Csak HTML, TXT vagy EML fájl tölthető fel az MVP-ben.")
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setTemplateStatus("failed")
+      setTemplateError("A fájl túl nagy. Maximum 2 MB.")
+      return
+    }
+    const content = await file.text()
+    setTemplateSourceType(sourceType)
+    setTemplateOriginalFileName(file.name)
+    setTemplateRawContent(content)
+    if (!templateName.trim()) {
+      setTemplateName(file.name.replace(/\.[^.]+$/, ""))
+    }
+    await parseTemplateContentOnServer(sourceType, content, templateConversionMode)
+  }
+
+  const onTemplateFileDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!isTemplateDragActive) setIsTemplateDragActive(true)
+  }
+
+  const onTemplateFileDragLeave = (event: ReactDragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsTemplateDragActive(false)
+  }
+
+  const onTemplateFileDrop = async (event: ReactDragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsTemplateDragActive(false)
+    const file = event.dataTransfer?.files?.[0]
+    if (!file) return
+    await handleTemplateFileUpload(file)
+  }
+
   const saveTemplate = async () => {
     const hasToken = templateMappings.some((mapping) => Boolean(mapping.token?.trim()))
     if (!templateName.trim()) {
@@ -439,7 +727,6 @@ export default function OsszesitesPage() {
       setTemplateError("Legalább egy dinamikus mező token szükséges.")
       return
     }
-
     setTemplateStatus("saving")
     setTemplateError("")
     try {
@@ -461,10 +748,37 @@ export default function OsszesitesPage() {
         setTemplateError(typeof result?.message === "string" ? result.message : "Sablon mentési hiba.")
         return
       }
-      setTemplateStatus("idle")
-      // Keep the built-in template as default after saving.
+      const savedTemplateId = typeof result.template?.id === "string" ? result.template.id : ""
       setIsTemplateUploaderOpen(true)
       await loadEmailTemplates()
+      if (savedTemplateId) {
+        setSelectedTemplateId(savedTemplateId)
+      }
+      const editedHtml = (templateRenderedPreviewRef.current?.innerHTML || templateRenderedPreviewHtml || "").trim()
+      if (savedTemplateId && isRenderedPreviewDirty && editedHtml) {
+        const storedHtml = `${RENDERED_SNAPSHOT_MARKER}\n${sanitizeStoredHtml(editedHtml)}`
+        const storedPlain = htmlToPlainText(storedHtml)
+        const snapshotResponse = await fetch(`/api/email-templates/${encodeURIComponent(savedTemplateId)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            htmlContent: storedHtml,
+            textContent: storedPlain,
+          }),
+        })
+        const snapshotResult = await snapshotResponse.json().catch(() => ({}))
+        if (!snapshotResponse.ok || !snapshotResult?.template) {
+          setTemplateStatus("failed")
+          setTemplateError(
+            typeof snapshotResult?.message === "string"
+              ? snapshotResult.message
+              : "A sablon mentve lett, de a szerkesztett kitöltött előnézet mentése nem sikerült.",
+          )
+          return
+        }
+        setIsRenderedPreviewDirty(false)
+      }
+      setTemplateStatus("idle")
     } catch {
       setTemplateStatus("failed")
       setTemplateError("Sablon mentési hiba.")
@@ -667,6 +981,14 @@ export default function OsszesitesPage() {
     () => emailTemplates.find((template) => template.id === selectedTemplateId) ?? null,
     [emailTemplates, selectedTemplateId],
   )
+
+  useEffect(() => {
+    if (!selectedTemplateId.trim()) return
+    const exists = emailTemplates.some((template) => template.id === selectedTemplateId)
+    if (!exists) {
+      setSelectedTemplateId("")
+    }
+  }, [emailTemplates, selectedTemplateId])
   const fxSummaryPalette = useMemo(() => {
     const base = normalizeHexColorInput(fxBaseColor) ?? "#c55a11"
     return {
@@ -680,11 +1002,19 @@ export default function OsszesitesPage() {
   useEffect(() => {
     if (!templatePreviewHtml.trim()) {
       setTemplateRenderedPreviewHtml("")
+      setIsRenderedPreviewDirty(false)
       setTemplateRenderedPreviewError("")
       return
     }
+    const effectiveTemplateHtml =
+      templateConversionMode === "ai_full" && emailTegezo && templateAiPreviewHtml.trim() ? templateAiPreviewHtml : templatePreviewHtml
     if (!computedData) {
-      setTemplateRenderedPreviewHtml(templatePreviewHtml)
+      setTemplateRenderedPreviewHtml(effectiveTemplateHtml)
+      setTemplateRenderedPreviewError("")
+      return
+    }
+    if (isSelectedTemplateSnapshot) {
+      setTemplateRenderedPreviewHtml((current) => (isRenderedPreviewDirty ? current : templatePreviewHtml))
       setTemplateRenderedPreviewError("")
       return
     }
@@ -697,13 +1027,11 @@ export default function OsszesitesPage() {
       const safeName = (emailClientName || "Ügyfél").trim()
       const safeUntil = (emailOfferUntil || "").trim()
       const tableMapping = templateMappings.find((mapping) => mapping.key === "calculator_table")
-      const calculatorTableHtml = buildCalculatorTableHtmlFromTemplate(summaryValues, tableMapping?.sourceSnippet, {
-        fxBaseColor,
-      })
+      const calculatorTableHtml = buildCalculatorTableHtmlFromTemplate(summaryValues, tableMapping?.sourceSnippet)
       const calculatorTablePlain = buildCalculatorTablePlain(summaryValues)
       const rendered = renderEmailTemplate({
         template: {
-          htmlContent: templatePreviewHtml,
+          htmlContent: effectiveTemplateHtml,
           textContent: "",
           mappings: templateMappings,
         },
@@ -724,22 +1052,44 @@ export default function OsszesitesPage() {
         accountGoalPhrase: summaryValues.accountGoal,
         isAllianzEletprogram: computedData.selectedProduct === "allianz_eletprogram",
       })
-      setTemplateRenderedPreviewHtml(sanitizePreviewHtml(rendered.html || templatePreviewHtml))
+      const nextRenderedPreviewHtml = sanitizePreviewHtml(rendered.html || effectiveTemplateHtml)
+      setTemplateRenderedPreviewHtml((current) => (isRenderedPreviewDirty ? current : nextRenderedPreviewHtml))
       setTemplateRenderedPreviewError("")
     } catch {
-      setTemplateRenderedPreviewHtml(templatePreviewHtml)
+      setTemplateRenderedPreviewHtml((current) => (isRenderedPreviewDirty ? current : effectiveTemplateHtml))
       setTemplateRenderedPreviewError("A kitöltött előnézet számítása közben hiba történt, a nyers sablon látható.")
     }
   }, [
     templatePreviewHtml,
+    templateAiPreviewHtml,
+    templateConversionMode,
     computedData,
     summaryOverrides,
     templateMappings,
     emailClientName,
     emailOfferUntil,
     emailTegezo,
-    fxBaseColor,
+    isRenderedPreviewDirty,
+    isSelectedTemplateSnapshot,
   ])
+
+  useEffect(() => {
+    if (!templateRenderedPreviewRef.current) return
+    if (document.activeElement === templateRenderedPreviewRef.current) return
+    if (templateRenderedPreviewRef.current.innerHTML !== templateRenderedPreviewHtml) {
+      templateRenderedPreviewRef.current.innerHTML = templateRenderedPreviewHtml
+    }
+  }, [templateRenderedPreviewHtml])
+
+  const resetRenderedPreviewFromCalculator = () => {
+    setIsRenderedPreviewDirty(false)
+  }
+
+  const onRenderedPreviewInput = () => {
+    const html = templateRenderedPreviewRef.current?.innerHTML ?? ""
+    setTemplateRenderedPreviewHtml(html)
+    setIsRenderedPreviewDirty(true)
+  }
 
   const copyHtmlToClipboard = async (html: string, plain: string) => {
     // 1) Modern Clipboard API (works on most desktops; limited on mobile)
@@ -1731,10 +2081,16 @@ export default function OsszesitesPage() {
       }
 
       const template = templateResult.template as StoredEmailTemplateDetails
+      if ((template.htmlContent || "").includes(RENDERED_SNAPSHOT_MARKER)) {
+        const snapshotHtml = stripSnapshotMarker(template.htmlContent || "")
+        const plain = template.textContent?.trim() || htmlToPlainText(snapshotHtml)
+        return {
+          html: snapshotHtml,
+          plain: [plain, "", `Megnyitás: ${window.location.origin}/osszesites`].join("\n"),
+        }
+      }
       const tableMapping = template.mappings.find((mapping) => mapping.key === "calculator_table")
-      const calculatorTableHtml = buildCalculatorTableHtmlFromTemplate(summaryValues, tableMapping?.sourceSnippet, {
-        fxBaseColor,
-      })
+      const calculatorTableHtml = buildCalculatorTableHtmlFromTemplate(summaryValues, tableMapping?.sourceSnippet)
       const calculatorTablePlain = buildCalculatorTablePlain(summaryValues)
       const rendered = renderEmailTemplate({
         template: {
@@ -1792,6 +2148,86 @@ export default function OsszesitesPage() {
     return {
       html,
       plain: [plain, "", `Megnyitás: ${window.location.origin}/osszesites`].join("\n"),
+    }
+  }
+
+  const downloadBase64File = (base64: string, fileName: string, mimeType: string) => {
+    const binary = atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index)
+    }
+    const blob = new Blob([bytes], { type: mimeType })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadTextFile = (content: string, fileName: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
+  const generateVariantBundle = async () => {
+    setVariantBundleStatus("idle")
+    setVariantBundleMessage("")
+    const templateId = selectedTemplateId.trim() || templateSelectRef.current?.value.trim() || ""
+    if (!templateId) {
+      setVariantBundleStatus("failed")
+      setVariantBundleMessage("A csomaghoz előbb válassz ki egy aktív küldési sablont.")
+      return
+    }
+    const safeName = (emailClientName || "Ügyfél").trim()
+    const safeUntil = (emailOfferUntil || "").trim()
+    const values = getSummaryEmailValues()
+
+    setVariantBundleStatus("loading")
+    try {
+      const response = await fetch("/api/email-templates/generate-variants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateId,
+          safeName,
+          safeUntil,
+          subject: getEmailSubject(),
+          values,
+        }),
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok || !result?.ok) {
+        setVariantBundleStatus("failed")
+        setVariantBundleMessage(
+          typeof result?.message === "string" && result.message ? result.message : "Nem sikerült létrehozni a variáns csomagot.",
+        )
+        return
+      }
+      if (typeof result?.zipBase64 !== "string" || typeof result?.zipFileName !== "string") {
+        setVariantBundleStatus("failed")
+        setVariantBundleMessage("Hiányos ZIP válasz érkezett a szervertől.")
+        return
+      }
+      downloadBase64File(result.zipBase64, result.zipFileName, "application/zip")
+      await loadEmailTemplates()
+      setVariantBundleStatus("done")
+      setVariantBundleMessage(
+        `Elkészült a csomag: ${typeof result?.createdCount === "number" ? result.createdCount : 16} sablon mentve, ZIP letöltve.`,
+      )
+    } catch {
+      setVariantBundleStatus("failed")
+      setVariantBundleMessage("Nem sikerült létrehozni a variáns csomagot. Próbáld újra.")
     }
   }
 
@@ -2004,12 +2440,27 @@ export default function OsszesitesPage() {
                     ? "Küldés sikertelen"
                     : "Küldés e-mailben (Resend)"}
             </Button>
+            <Button
+              variant="secondary"
+              className={`${MOBILE_SUMMARY_LAYOUT.button} lg:col-span-12`}
+              disabled={variantBundleStatus === "loading"}
+              onClick={() => void generateVariantBundle()}
+            >
+              {variantBundleStatus === "loading"
+                ? "16 variáns csomag készítése..."
+                : "16 variáns csomag (ZIP + profil mentés)"}
+            </Button>
 
             <div className={MOBILE_SUMMARY_LAYOUT.helperText}>
               Mobilon a `mailto:` gyakran csak sima szöveget támogat. Nyomd meg a{" "}
               <span className="font-medium">Formázott sablon másolása</span> gombot, majd az Outlook levélbe illeszd be.
             </div>
             {emailSendError ? <div className={`${MOBILE_SUMMARY_LAYOUT.helperText} text-red-600`}>{emailSendError}</div> : null}
+            {variantBundleMessage ? (
+              <div className={`${MOBILE_SUMMARY_LAYOUT.helperText} ${variantBundleStatus === "failed" ? "text-red-600" : "text-emerald-700"}`}>
+                {variantBundleMessage}
+              </div>
+            ) : null}
 
             <div className="min-[560px]:col-span-2 lg:col-span-12 rounded-md border p-3 space-y-3">
               <div className="flex items-center justify-between gap-2">
@@ -2045,11 +2496,14 @@ export default function OsszesitesPage() {
                     Aktív küldési sablon
                   </Label>
                   <select
+                    ref={templateSelectRef}
                     id="templateSelect"
                     className="h-10 rounded-md border bg-background px-3 text-sm"
                     value={selectedTemplateId}
                     onChange={(e) => {
                       setSelectedTemplateId(e.target.value)
+                      setVariantBundleStatus("idle")
+                      setVariantBundleMessage("")
                       setIsTemplateUploaderOpen(true)
                     }}
                   >
@@ -2073,39 +2527,66 @@ export default function OsszesitesPage() {
                     Sablon fájl
                   </Label>
                   <Input
+                    ref={templateFileInputRef}
                     id="templateFile"
                     type="file"
                     accept=".html,.htm,.txt,.eml,text/html,text/plain,message/rfc822"
+                    onClick={(event) => {
+                      // Allow re-selecting the same file while keeping filename visible after upload.
+                      event.currentTarget.value = ""
+                    }}
                     onChange={async (event) => {
-                      const file = event.target.files?.[0]
+                      const file = event.currentTarget.files?.[0]
                       if (!file) return
-                      const sourceType = inferSourceTypeFromFileName(file.name)
-                      if (!sourceType) {
-                        setTemplateStatus("failed")
-                        setTemplateError("Csak HTML, TXT vagy EML fájl tölthető fel az MVP-ben.")
-                        return
-                      }
-                      if (file.size > 2 * 1024 * 1024) {
-                        setTemplateStatus("failed")
-                        setTemplateError("A fájl túl nagy. Maximum 2 MB.")
-                        return
-                      }
-                      const content = await file.text()
-                      setTemplateSourceType(sourceType)
-                      setTemplateOriginalFileName(file.name)
-                      setTemplateRawContent(content)
-                      if (!templateName.trim()) {
-                        setTemplateName(file.name.replace(/\.[^.]+$/, ""))
-                      }
-                      await parseTemplateContentOnServer(sourceType, content)
+                      await handleTemplateFileUpload(file)
                     }}
                   />
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onDragEnter={onTemplateFileDragOver}
+                    onDragOver={onTemplateFileDragOver}
+                    onDragLeave={onTemplateFileDragLeave}
+                    onDrop={(event) => void onTemplateFileDrop(event)}
+                    onClick={() => templateFileInputRef.current?.click()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault()
+                        templateFileInputRef.current?.click()
+                      }
+                    }}
+                    className={`mt-2 rounded-md border border-dashed px-3 py-3 text-xs transition-colors cursor-pointer ${
+                      isTemplateDragActive
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-muted-foreground/40 text-muted-foreground hover:bg-muted/40"
+                    }`}
+                  >
+                    Húzd ide a sablon fájlt (HTML/TXT/EML), vagy kattints a tallózáshoz.
+                  </div>
                 </div>
-                <div className="flex items-end gap-2 lg:col-span-6">
+                <div className="flex items-end gap-2 lg:col-span-6 flex-wrap">
+                  <div className="flex items-center gap-1 rounded-md border p-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={templateConversionMode === "ai_full" ? "default" : "ghost"}
+                      onClick={() => setTemplateConversionMode("ai_full")}
+                    >
+                      AI mód
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={templateConversionMode === "builtin" ? "default" : "ghost"}
+                      onClick={() => setTemplateConversionMode("builtin")}
+                    >
+                      Logika mód
+                    </Button>
+                  </div>
                   <Button
                     variant="secondary"
                     type="button"
-                    onClick={() => void parseTemplateContentOnServer(templateSourceType, templateRawContent)}
+                    onClick={() => void parseTemplateContentOnServer(templateSourceType, templateRawContent, templateConversionMode)}
                     disabled={!templateRawContent.trim() || templateStatus === "loading"}
                   >
                     <Wand2 className="w-4 h-4 mr-2" />
@@ -2118,41 +2599,59 @@ export default function OsszesitesPage() {
                 </div>
                   </div>
 
-                  <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-9">
-                {(
-                  [
-                    "name",
-                    "amount",
-                    "deadline",
-                    "currency",
-                    "tone",
-                    "calculator_table",
-                    "fixed_small_amount",
-                    "fixed_large_amount",
-                    "retirement_section",
-                    "bonus_section",
-                  ] as EmailTemplateFieldKey[]
-                ).map((fieldKey) => {
-                  const mapping = templateMappings.find((item) => item.key === fieldKey)
-                  return (
-                    <div key={fieldKey} className="rounded border p-2 space-y-1">
-                      <Label className="text-xs text-muted-foreground">{TEMPLATE_FIELD_LABELS[fieldKey]} helye</Label>
-                      <Input
-                        value={mapping?.sourceSnippet ?? ""}
-                        onChange={(event) =>
-                          upsertTemplateMapping({
-                            key: fieldKey,
-                            label: TEMPLATE_FIELD_LABELS[fieldKey],
-                            token: `{{${fieldKey}}}`,
-                            sourceSnippet: normalizeSnippetForField(fieldKey, event.target.value),
-                            confidence: 1,
-                          })
-                        }
-                        placeholder="Kézzel jelöld, vagy auto-javaslat"
-                      />
+                  <div className="rounded-md border p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-medium">Dinamikus mezők hozzárendelése</div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => setIsTemplateMappingsOpen((current) => !current)}
+                        aria-label={isTemplateMappingsOpen ? "Mezők összecsukása" : "Mezők lenyitása"}
+                        aria-expanded={isTemplateMappingsOpen}
+                      >
+                        <ChevronDown className={`h-4 w-4 transition-transform ${isTemplateMappingsOpen ? "" : "-rotate-90"}`} />
+                      </Button>
                     </div>
-                  )
-                })}
+                    {isTemplateMappingsOpen ? (
+                      <div className="mt-2 grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-9">
+                        {(
+                          [
+                            "name",
+                            "amount",
+                            "deadline",
+                            "currency",
+                            "tone",
+                            "calculator_table",
+                            "fixed_small_amount",
+                            "fixed_large_amount",
+                            "retirement_section",
+                            "bonus_section",
+                          ] as EmailTemplateFieldKey[]
+                        ).map((fieldKey) => {
+                          const mapping = templateMappings.find((item) => item.key === fieldKey)
+                          return (
+                            <div key={fieldKey} className="rounded border p-2 space-y-1">
+                              <Label className="text-xs text-muted-foreground">{TEMPLATE_FIELD_LABELS[fieldKey]} helye</Label>
+                              <Input
+                                value={mapping?.sourceSnippet ?? ""}
+                                onChange={(event) =>
+                                  upsertTemplateMapping({
+                                    key: fieldKey,
+                                    label: TEMPLATE_FIELD_LABELS[fieldKey],
+                                    token: `{{${fieldKey}}}`,
+                                    sourceSnippet: normalizeSnippetForField(fieldKey, event.target.value),
+                                    confidence: 1,
+                                  })
+                                }
+                                placeholder="Kézzel jelöld, vagy auto-javaslat"
+                              />
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : null}
                   </div>
 
                   {templatePreviewHtml ? (
@@ -2211,12 +2710,28 @@ export default function OsszesitesPage() {
                   ) : null}
                   {templateRenderedPreviewHtml ? (
                     <div className="grid gap-2">
-                      <Label className="text-xs text-muted-foreground">
-                        Kitöltött HTML előnézet (név, dátum, pénznem, hangnem, táblázat behelyettesítve)
-                      </Label>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <Label className="text-xs text-muted-foreground">
+                          Kitöltött HTML előnézet (név, dátum, pénznem, hangnem, táblázat behelyettesítve)
+                        </Label>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Button type="button" size="sm" variant="outline" onClick={resetRenderedPreviewFromCalculator}>
+                            Újragenerálás kalkulátorból
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Itt kézzel is szerkeszthetsz (törlés/átírás). A felső Sablon mentése gomb a szerkesztett verziót menti.
+                      </div>
+                      {isRenderedPreviewDirty ? (
+                        <div className="text-xs text-amber-600">Kézi módosítás történt. Kattints fent a Sablon mentése gombra.</div>
+                      ) : null}
                       <div
+                        ref={templateRenderedPreviewRef}
                         className="w-full min-h-56 rounded border bg-white px-3 py-2 text-sm overflow-auto max-h-[460px]"
-                        dangerouslySetInnerHTML={{ __html: templateRenderedPreviewHtml }}
+                        contentEditable
+                        suppressContentEditableWarning
+                        onInput={onRenderedPreviewInput}
                       />
                     </div>
                   ) : null}
@@ -2226,6 +2741,45 @@ export default function OsszesitesPage() {
                   {selectedTemplate ? (
                     <div className="text-xs text-muted-foreground">
                       Kiválasztott sablon: <span className="font-medium">{selectedTemplate.name}</span>
+                    </div>
+                  ) : null}
+                  {selectedTemplate?.variantBundle?.variants?.length ? (
+                    <div className="rounded-md border p-2 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs text-muted-foreground">
+                          Mentett variánsok: <span className="font-medium">{selectedTemplate.variantBundle.variants.length} db</span>
+                        </div>
+                        <Button type="button" size="sm" variant="outline" onClick={() => setIsVariantBundleOpen((current) => !current)}>
+                          {isVariantBundleOpen ? "Variánsok elrejtése" : "Variánsok (16) megjelenítése"}
+                        </Button>
+                      </div>
+                      {isVariantBundleOpen ? (
+                        <div className="grid gap-2 max-h-64 overflow-auto">
+                          {selectedTemplate.variantBundle.variants.map((variant) => (
+                            <div key={variant.id} className="rounded border px-2 py-1 flex items-center justify-between gap-2">
+                              <div className="text-xs truncate">{variant.name}</div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => downloadTextFile(variant.emlContent, variant.emlFileName, "message/rfc822")}
+                                >
+                                  EML
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => downloadTextFile(variant.htmlContent, variant.htmlFileName, "text/html;charset=utf-8")}
+                                >
+                                  HTML
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                   <div className="text-xs text-muted-foreground">
@@ -2238,45 +2792,45 @@ export default function OsszesitesPage() {
           </div>
         </div>
 
-        <div className="mb-2 flex items-center justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setIsFxColorPickerOpen((current) => !current)}
-            title="FX sorok bázisszíne"
-            aria-label="FX sorok bázisszíne"
-            aria-expanded={isFxColorPickerOpen}
-          >
-            <Wand2 className="h-4 w-4" />
-          </Button>
-          {isFxColorPickerOpen ? (
-            <div className="flex items-center gap-2 rounded-md border bg-card px-2 py-1">
-              <Input
-                id="fxBaseColor"
-                type="color"
-                value={normalizeHexColorInput(fxBaseColor) ?? "#c55a11"}
-                onChange={(e) => setFxBaseColor(normalizeHexColorInput(e.target.value) ?? "#c55a11")}
-                className="h-8 w-10 p-1"
-              />
-              <Input
-                value={fxBaseColor}
-                onChange={(e) => {
-                  const next = e.target.value
-                  setFxBaseColor(next)
-                  const normalized = normalizeHexColorInput(next)
-                  if (normalized) setFxBaseColor(normalized)
-                }}
-                className="h-8 w-[104px] text-xs"
-                placeholder="#c55a11"
-              />
-            </div>
-          ) : null}
-        </div>
         {isExcelView ? (
           <Card>
             <CardContent className="p-4 overflow-x-auto">
+              <div className="mb-3 flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setIsFxColorPickerOpen((current) => !current)}
+                  title="FX sorok bázisszíne"
+                  aria-label="FX sorok bázisszíne"
+                  aria-expanded={isFxColorPickerOpen}
+                >
+                  <Wand2 className="h-4 w-4" />
+                </Button>
+                {isFxColorPickerOpen ? (
+                  <div className="flex items-center gap-2 rounded-md border bg-card px-2 py-1">
+                    <Input
+                      id="fxBaseColor"
+                      type="color"
+                      value={normalizeHexColorInput(fxBaseColor) ?? "#c55a11"}
+                      onChange={(e) => setFxBaseColor(normalizeHexColorInput(e.target.value) ?? "#c55a11")}
+                      className="h-8 w-10 p-1"
+                    />
+                    <Input
+                      value={fxBaseColor}
+                      onChange={(e) => {
+                        const next = e.target.value
+                        setFxBaseColor(next)
+                        const normalized = normalizeHexColorInput(next)
+                        if (normalized) setFxBaseColor(normalized)
+                      }}
+                      className="h-8 w-[104px] text-xs"
+                      placeholder="#c55a11"
+                    />
+                  </div>
+                ) : null}
+              </div>
               <table
                 className="w-full border-collapse"
                 style={{
@@ -2421,6 +2975,42 @@ export default function OsszesitesPage() {
         ) : (
           <Card>
             <CardContent className="p-0">
+              <div className="flex items-center justify-end gap-2 px-4 pt-3 md:px-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setIsFxColorPickerOpen((current) => !current)}
+                  title="FX sorok bázisszíne"
+                  aria-label="FX sorok bázisszíne"
+                  aria-expanded={isFxColorPickerOpen}
+                >
+                  <Wand2 className="h-4 w-4" />
+                </Button>
+                {isFxColorPickerOpen ? (
+                  <div className="flex items-center gap-2 rounded-md border bg-card px-2 py-1">
+                    <Input
+                      id="fxBaseColor"
+                      type="color"
+                      value={normalizeHexColorInput(fxBaseColor) ?? "#c55a11"}
+                      onChange={(e) => setFxBaseColor(normalizeHexColorInput(e.target.value) ?? "#c55a11")}
+                      className="h-8 w-10 p-1"
+                    />
+                    <Input
+                      value={fxBaseColor}
+                      onChange={(e) => {
+                        const next = e.target.value
+                        setFxBaseColor(next)
+                        const normalized = normalizeHexColorInput(next)
+                        if (normalized) setFxBaseColor(normalized)
+                      }}
+                      className="h-8 w-[104px] text-xs"
+                      placeholder="#c55a11"
+                    />
+                  </div>
+                ) : null}
+              </div>
               <div className="divide-y divide-border">
                 {sections.map((section, sectionIndex) => (
                   <div key={sectionIndex}>

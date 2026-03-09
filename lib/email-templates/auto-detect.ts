@@ -196,8 +196,13 @@ function detectCalculatorTableSnippet(document: TemplateDocument): { snippet?: s
 }
 
 export function suggestTemplateMappings(document: TemplateDocument): TemplateFieldMapping[] {
-  // Use subject+plain text for regex detection to avoid scanning huge HTML/data URLs.
-  const corpus = [document.subject ?? "", document.textContent].filter(Boolean).join("\n")
+  // Use subject+plain text for regex detection, but cap scanned size to keep uploads snappy.
+  const fullCorpus = [document.subject ?? "", document.textContent].filter(Boolean).join("\n")
+  const MAX_CORPUS_CHARS = 120_000
+  const corpus =
+    fullCorpus.length <= MAX_CORPUS_CHARS
+      ? fullCorpus
+      : `${fullCorpus.slice(0, 80_000)}\n${fullCorpus.slice(-40_000)}`
   const suggestions: TemplateFieldMapping[] = []
 
   for (const rule of detectionRules) {

@@ -2278,7 +2278,7 @@ export function SavingsCalculator() {
       const stored = sessionStorage.getItem("calculator-durationSource")
       if (stored === "dates" || stored === "value") return stored
     }
-    return "dates"
+    return "value"
   })
   const [esetiBaseInputs, setEsetiBaseInputs] = useState<{
     regularPayment: number
@@ -3152,10 +3152,10 @@ export function SavingsCalculator() {
   const [isCalendarRangeOpen, setIsCalendarRangeOpen] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = sessionStorage.getItem("calculator-isCalendarRangeOpen")
-      if (stored === null) return true
+      if (stored === null) return false
       return stored === "true"
     }
-    return true
+    return false
   })
 
   useEffect(() => {
@@ -8929,7 +8929,7 @@ export function SavingsCalculator() {
     if (appliedPresetLabel) setAppliedPresetLabel(null)
   }
   const updateAllianzAdminFeeAmount = (year: number, value: number) => {
-    const defaultAmount = inputs.currency === "EUR" ? 3.3 * 12 : 990 * 12
+    const defaultAmount = year === 1 ? 0 : inputs.currency === "EUR" ? 3.3 * 12 : 990 * 12
     setAllianzAdminFeeAmountByYear((prev) => {
       const updated = { ...prev }
       if (Math.abs(value - defaultAmount) < 1e-9) {
@@ -10710,7 +10710,7 @@ export function SavingsCalculator() {
                             setInputs({
                               ...inputs,
                               enableTaxCredit: isEnabled,
-                              taxCreditYieldPercent: isEnabled ? 1 : inputs.taxCreditYieldPercent,
+                              taxCreditYieldPercent: isEnabled ? Number(inputs.annualYieldPercent) || 0 : inputs.taxCreditYieldPercent,
                             })
                           }
                         }}
@@ -12941,7 +12941,7 @@ export function SavingsCalculator() {
                         const baselineAssetCostPercent =
                           assetPercentDefaultForView
                         const adminFeeDisplay = isEsetiView ? 0 : (sourceRow.adminCostForYear ?? 0)
-                        const allianzAdminFeeDefaultAmount = (inputs.currency === "EUR" ? 3.3 : 990) * 12
+                        const allianzAdminFeeDefaultAmount = row.year === 1 ? 0 : (inputs.currency === "EUR" ? 3.3 : 990) * 12
                         const adminFeePercentDisplay = isEsetiView
                           ? 0
                           : (adminFeePercentByYear[row.year] ??
@@ -12962,7 +12962,7 @@ export function SavingsCalculator() {
                                       ? 0
                                     : 0))
                         const adminFeeAmountDisplay = isAllianzMainView
-                          ? (allianzAdminFeeAmountByYear[row.year] ?? allianzAdminFeeDefaultAmount)
+                          ? (row.year === 1 ? 0 : (allianzAdminFeeAmountByYear[row.year] ?? allianzAdminFeeDefaultAmount))
                           : adminFeeDisplay
                         const adminFeePercentDefault = baselineAdminFeePercent
                         const isAdminFeePercentModified = Math.abs(adminFeePercentDisplay - adminFeePercentDefault) > 1e-9

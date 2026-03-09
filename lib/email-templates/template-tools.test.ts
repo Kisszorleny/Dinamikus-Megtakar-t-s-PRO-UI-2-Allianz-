@@ -1,18 +1,293 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { parseTemplateContent } from "@/lib/email-templates/parser"
 import { suggestTemplateMappings } from "@/lib/email-templates/auto-detect"
 import { renderEmailTemplate } from "@/lib/email-templates/render"
+import * as toneConversion from "@/lib/email-templates/tone-conversion"
+import { buildTegezoConversionSuggestion } from "@/lib/email-templates/tone-conversion"
 import {
   buildCalculatorTableHtml,
   buildCalculatorTableHtmlFromTemplate,
   buildCalculatorTablePlain,
 } from "@/lib/email-templates/calculator-table"
+import { buildEmlMessage, slugifyVariantFileName } from "@/lib/email-templates/eml"
+import { buildStandaloneHtmlEmail } from "@/lib/email-templates/html-export"
+import { buildPdfFromEmail } from "@/lib/email-templates/pdf"
 
 describe("email-template tools", () => {
+  it("parses LLM JSON wrapped in markdown fences", async () => {
+    const prevApiKey = process.env.OPENAI_API_KEY
+    const prevModel = process.env.OPENAI_TONE_CONVERSION_MODEL
+    process.env.OPENAI_API_KEY = "sk-test"
+    process.env.OPENAI_TONE_CONVERSION_MODEL = "gpt-4o-mini"
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch" as never).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content:
+                '```json\n{"subject":"Kedves {{name}}!","htmlContent":{"[[DM_HTML_TEXT_0]]":"Kedves {{name}}!"},"textContent":"Kedves {{name}}!"}\n```',
+            },
+          },
+        ],
+      }),
+    } as never)
+    try {
+      const doc = {
+        subject: "Tisztelt {{name}}!",
+        htmlContent: "<p>Tisztelt {{name}}!</p>",
+        textContent: "Tisztelt {{name}}!",
+      }
+      const suggestion = await toneConversion.buildTegezoConversionSuggestion(doc)
+      expect(suggestion).toBeTruthy()
+      expect(suggestion?.convertedTextContent).toContain("{{name}}")
+      expect(suggestion?.llmStatus).toBe("llm_full")
+      expect(suggestion?.modelUsed).toBe("gpt-4o-mini")
+      expect(suggestion?.convertedHtmlContent).toContain("<p>Kedves {{name}}!</p>")
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      const fetchCall = fetchSpy.mock.calls[0]
+      const payload = JSON.parse(String((fetchCall?.[1] as { body?: string } | undefined)?.body || "{}")) as {
+        messages?: Array<{ content?: string }>
+      }
+      const prompt = payload.messages?.[1]?.content || ""
+      expect(prompt).toContain("htmlContent:")
+      expect(prompt).toContain('{"[[DM_HTML_TEXT_0]]":"Tisztelt __DM_TOKEN_0__!"}')
+      expect(prompt).not.toContain("<p>Tisztelt")
+    } finally {
+      fetchSpy.mockRestore()
+      if (prevApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY
+      } else {
+        process.env.OPENAI_API_KEY = prevApiKey
+      }
+      if (prevModel === undefined) {
+        delete process.env.OPENAI_TONE_CONVERSION_MODEL
+      } else {
+        process.env.OPENAI_TONE_CONVERSION_MODEL = prevModel
+      }
+    }
+  })
+
+  it("builds tegezo conversion suggestion for formal text", async () => {
+    const doc = parseTemplateContent(
+      "text",
+      "Tisztelt Ügyfelünk!\nKérjük, hogy az Ön befizetését 2026.03.10-ig rendezze.\nKöszönjük megtisztelő bizalmát.",
+    )
+    const suggestion = await buildTegezoConversionSuggestion(doc, { mode: "builtin" })
+    expect(suggestion).toBeTruthy()
+    expect(suggestion?.status).toBe("pending_review")
+    expect(suggestion?.convertedTextContent).toContain("Kedves")
+    expect(suggestion?.convertedTextContent || "").toMatch(/kérlek/i)
+    expect(suggestion?.targetTone).toBe("tegezo")
+  })
+
+  it("falls back when OpenAI model is not configured", async () => {
+    const prevApiKey = process.env.OPENAI_API_KEY
+    const prevModel = process.env.OPENAI_TONE_CONVERSION_MODEL
+    process.env.OPENAI_API_KEY = "sk-test"
+    delete process.env.OPENAI_TONE_CONVERSION_MODEL
+    try {
+      const doc = parseTemplateContent("text", "Tisztelt Ügyfelünk! Kérjük, hogy erősítse meg az adatokat.")
+      const suggestion = await buildTegezoConversionSuggestion(doc)
+      expect(suggestion).toBeTruthy()
+      expect(suggestion?.llmStatus).toBe("llm_unavailable_fallback")
+      expect(suggestion?.modelUsed).toBeUndefined()
+      expect(suggestion?.convertedTextContent).toBeUndefined()
+      expect(suggestion?.convertedHtmlContent).toBeUndefined()
+      expect((suggestion?.notes || []).join(" ")).toContain("OPENAI_TONE_CONVERSION_MODEL")
+    } finally {
+      if (prevApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY
+      } else {
+        process.env.OPENAI_API_KEY = prevApiKey
+      }
+      if (prevModel === undefined) {
+        delete process.env.OPENAI_TONE_CONVERSION_MODEL
+      } else {
+        process.env.OPENAI_TONE_CONVERSION_MODEL = prevModel
+      }
+    }
+  })
+
+  it("marks partial fallback when LLM call fails", async () => {
+    const prevApiKey = process.env.OPENAI_API_KEY
+    const prevModel = process.env.OPENAI_TONE_CONVERSION_MODEL
+    process.env.OPENAI_API_KEY = "sk-test"
+    process.env.OPENAI_TONE_CONVERSION_MODEL = "gpt-5.2"
+    const fetchSpy = vi.spyOn(globalThis, "fetch" as never).mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: { message: "temporary failure", code: "server_error" } }),
+    } as never)
+    try {
+      const doc = parseTemplateContent("text", "Tisztelt Ügyfelünk! Kérjük, hogy jelezze vissza a részleteket.")
+      const suggestion = await buildTegezoConversionSuggestion(doc)
+      expect(suggestion).toBeTruthy()
+      expect(suggestion?.llmStatus).toBe("llm_partial_fallback")
+      expect(suggestion?.modelUsed).toBe("gpt-5.2")
+      expect(suggestion?.convertedTextContent).toBeUndefined()
+      expect(suggestion?.convertedHtmlContent).toBeUndefined()
+      expect((suggestion?.notes || []).join(" ")).toContain("fallback")
+    } finally {
+      fetchSpy.mockRestore()
+      if (prevApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY
+      } else {
+        process.env.OPENAI_API_KEY = prevApiKey
+      }
+      if (prevModel === undefined) {
+        delete process.env.OPENAI_TONE_CONVERSION_MODEL
+      } else {
+        process.env.OPENAI_TONE_CONVERSION_MODEL = prevModel
+      }
+    }
+  })
+
+  it("keeps ai text but drops html when marker-map coverage is too low", async () => {
+    const prevApiKey = process.env.OPENAI_API_KEY
+    const prevModel = process.env.OPENAI_TONE_CONVERSION_MODEL
+    process.env.OPENAI_API_KEY = "sk-test"
+    process.env.OPENAI_TONE_CONVERSION_MODEL = "gpt-5.2"
+    const fetchSpy = vi.spyOn(globalThis, "fetch" as never).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content:
+                '```json\n{"subject":"Kedves {{name}}!","htmlContent":{"[[DM_HTML_TEXT_0]]":"Kedves {{name}}!"},"textContent":"Kedves {{name}}!\\nKérlek jelezd vissza."}\n```',
+            },
+          },
+        ],
+      }),
+    } as never)
+    try {
+      const doc = parseTemplateContent("html", "<p>Tisztelt {{name}}!</p><p>Kérjük, hogy jelezzen vissza.</p>")
+      const suggestion = await buildTegezoConversionSuggestion(doc)
+      expect(suggestion).toBeTruthy()
+      expect(suggestion?.convertedTextContent).toContain("Kedves {{name}}!")
+      expect(suggestion?.convertedHtmlContent).toBeUndefined()
+      expect(suggestion?.llmStatus).toBe("llm_partial_fallback")
+      expect((suggestion?.notes || []).join(" ")).toContain("coverage")
+    } finally {
+      fetchSpy.mockRestore()
+      if (prevApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY
+      } else {
+        process.env.OPENAI_API_KEY = prevApiKey
+      }
+      if (prevModel === undefined) {
+        delete process.env.OPENAI_TONE_CONVERSION_MODEL
+      } else {
+        process.env.OPENAI_TONE_CONVERSION_MODEL = prevModel
+      }
+    }
+  })
+
+  it("keeps template tokens unchanged during tegezo conversion", async () => {
+    const doc = parseTemplateContent("html", "<p>Tisztelt {{name}}!</p><p>Kérjük, hogy az Ön összege: {{amount}}</p>")
+    const suggestion = await buildTegezoConversionSuggestion(doc, { mode: "builtin" })
+    expect(suggestion).toBeTruthy()
+    expect(suggestion?.convertedHtmlContent).toContain("{{name}}")
+    expect(suggestion?.convertedHtmlContent).toContain("{{amount}}")
+  })
+
+  it("does not return conversion suggestion when formal signals are missing", async () => {
+    const doc = parseTemplateContent("text", "Szia! Küldöm az összefoglalót, ha kérdésed van, írj nyugodtan.")
+    const suggestion = await buildTegezoConversionSuggestion(doc, { mode: "builtin" })
+    expect(suggestion).toBeNull()
+  })
+
+  it("converts Önnek phrasing in formal template body", async () => {
+    const doc = parseTemplateContent(
+      "text",
+      "Telefonos megbeszélésünkre hivatkozva küldöm, Önnek a nyugdíj célú megtakarítás terméktájékoztatóját.",
+    )
+    const suggestion = await buildTegezoConversionSuggestion(doc, { mode: "builtin" })
+    expect(suggestion).toBeTruthy()
+    expect(suggestion?.convertedTextContent).toContain("neked")
+    expect(suggestion?.convertedTextContent).not.toContain("Önnek")
+  })
+
   it("parses html into html and text", () => {
     const parsed = parseTemplateContent("html", "<p>Kedves Béla!</p><p>Összeg: 12 300 Ft</p>")
     expect(parsed.htmlContent).toContain("Kedves Béla")
     expect(parsed.textContent).toContain("Összeg: 12 300 Ft")
+  })
+
+  it("builds multipart eml with utf8 encoded subject", () => {
+    const eml = buildEmlMessage({
+      from: "DM PRO <noreply@example.com>",
+      to: "ugyfel@example.com",
+      subject: "Árfolyam ajánlat",
+      html: "<p>Kedves Ügyfél!</p>",
+      plain: "Kedves Ügyfél!",
+      date: new Date("2026-03-08T12:00:00Z"),
+    })
+    expect(eml).toContain("MIME-Version: 1.0")
+    expect(eml).toContain("Content-Type: multipart/alternative; boundary=")
+    expect(eml).toContain("Content-Type: text/plain; charset=\"UTF-8\"")
+    expect(eml).toContain("Content-Type: text/html; charset=\"UTF-8\"")
+    expect(eml).toContain("=?UTF-8?B?")
+    expect(eml).toContain("\r\n")
+    expect(eml).toContain("<p>Kedves Ügyfél!</p>")
+  })
+
+  it("slugifies variant file names", () => {
+    expect(slugifyVariantFileName("Tegező - Allianz Életprogram Nyugdíj Forintos")).toBe(
+      "tegezo-allianz-eletprogram-nyugdij-forintos",
+    )
+    expect(slugifyVariantFileName("___")).toBe("email-variant")
+  })
+
+  it("builds standalone html document for export", () => {
+    const html = buildStandaloneHtmlEmail({
+      subject: "Teszt ajánlat",
+      htmlBody: "<table><tr><td>Kedves Ügyfél!</td></tr></table>",
+    })
+    expect(html.toLowerCase()).toContain("<!doctype html>")
+    expect(html).toContain('<meta charset="utf-8">')
+    expect(html).toContain("<title>Teszt ajánlat</title>")
+    expect(html).toContain("<table><tr><td>Kedves Ügyfél!</td></tr></table>")
+  })
+
+  it("keeps full html export body unchanged", () => {
+    const fullDoc = '<html><head><meta charset="utf-8"></head><body><div>Hi</div></body></html>'
+    const html = buildStandaloneHtmlEmail({
+      subject: "Teszt",
+      htmlBody: fullDoc,
+    })
+    expect(html).toBe(fullDoc)
+  })
+
+  it("builds pdf bytes for email content", async () => {
+    const pdf = await buildPdfFromEmail({
+      subject: "Teszt ajánlat",
+      plain: "Kedves Ügyfél!\nEz egy teszt tartalom.",
+    })
+    expect(pdf).toBeInstanceOf(Uint8Array)
+    expect(pdf.length).toBeGreaterThan(100)
+    const header = Buffer.from(pdf.slice(0, 4)).toString("utf8")
+    expect(header).toBe("%PDF")
+  })
+
+  it("builds pdf for hungarian long accents without crashing", async () => {
+    const pdf = await buildPdfFromEmail({
+      subject: "Tőkenövelés ő és ű",
+      plain: "Nyugdíj cél: tőkenövelés, ő, ű.",
+    })
+    expect(pdf).toBeInstanceOf(Uint8Array)
+    expect(pdf.length).toBeGreaterThan(100)
+  })
+
+  it("builds pdf when text contains math symbols", async () => {
+    const pdf = await buildPdfFromEmail({
+      subject: "Összehasonlítás",
+      plain: "A ≠ B, C ≤ D, E ≥ F",
+    })
+    expect(pdf).toBeInstanceOf(Uint8Array)
+    expect(pdf.length).toBeGreaterThan(100)
   })
 
   it("parses eml and extracts subject", () => {
@@ -824,7 +1099,7 @@ describe("email-template tools", () => {
       values: {},
       accountGoalPhrase: "Nyugdíj és tőkenövelés",
     })
-    expect(rendered.html).toContain("nyugdíjcélú megtakarítás")
+    expect(rendered.html).toContain("nyugdíj és tőkenövelés célú megtakarítás")
     expect(rendered.html).toContain("adójóváírást")
     expect(rendered.plain).toContain("adójóváírást")
   })
@@ -974,6 +1249,118 @@ describe("email-template tools", () => {
     expect(rendered.plain).not.toContain("Minden évben kap bónusz jóváírást")
   })
 
+  it("removes annual bonus description block for Allianz Életprogram without bonus mapping", () => {
+    const rendered = renderEmailTemplate({
+      template: {
+        htmlContent:
+          "<div>3, Éves bónusz jóváírás - akár +20%:</div><div>Minden évben az adott évszámnak megfelelő bónuszt írunk jóvá, azaz:</div><div>- 1. évben +1%</div><div>- 2. évben +2%</div><div>- 20. évben már +20% bónusz az éves megtakarításokra</div><div>Ez a bónusz a hozamokon felül kerül jóváírásra!</div><div>Maradó rész</div>",
+        textContent:
+          "3, Éves bónusz jóváírás - akár +20%:\nMinden évben az adott évszámnak megfelelő bónuszt írunk jóvá, azaz:\n- 1. évben +1%\n- 2. évben +2%\n- 20. évben már +20% bónusz az éves megtakarításokra\nEz a bónusz a hozamokon felül kerül jóváírásra!\nMaradó rész",
+        mappings: [],
+      },
+      values: {},
+      isAllianzEletprogram: true,
+    })
+
+    expect(rendered.html).not.toContain("Éves bónusz jóváírás")
+    expect(rendered.html).not.toContain("hozamokon felül")
+    expect(rendered.plain).not.toContain("Éves bónusz jóváírás")
+    expect(rendered.plain).not.toContain("hozamokon felül")
+    expect(rendered.html).toContain("Maradó rész")
+  })
+
+  it("removes orphaned annual bonus continuation lines for Allianz Életprogram", () => {
+    const rendered = renderEmailTemplate({
+      template: {
+        htmlContent:
+          "<div>Számlavezetési díj: havi 3.3 Euro</div><div>- 1. évben +1%</div><div>- 2. évben +2%</div><div>...</div><div>- 20. évben már +20% bónusz az éves megtakarításokra</div><div>4, Örökölhető, gyors kifizetéssel:</div>",
+        textContent:
+          "Számlavezetési díj: havi 3.3 Euro\n- 1. évben +1%\n- 2. évben +2%\n...\n- 20. évben már +20% bónusz az éves megtakarításokra\n4, Örökölhető, gyors kifizetéssel:",
+        mappings: [],
+      },
+      values: {},
+      isAllianzEletprogram: true,
+    })
+    expect(rendered.html).not.toContain("1. évben +1%")
+    expect(rendered.html).not.toContain("2. évben +2%")
+    expect(rendered.html).not.toContain("20. évben")
+    expect(rendered.html).not.toContain("<div>...</div>")
+    expect(rendered.plain).not.toContain("1. évben +1%")
+    expect(rendered.plain).toContain("4, Örökölhető")
+  })
+
+  it("renumbers section headings after bonus section removal in Allianz Életprogram", () => {
+    const rendered = renderEmailTemplate({
+      template: {
+        htmlContent:
+          "<div>2, Díjmentes lehetőségek:</div><div>3, Éves bónusz jóváírás – akár +20%:</div><div>Minden évben az adott évszámnak megfelelő bónuszt írunk jóvá.</div><div>Ez a bónusz a hozamokon felül kerül jóváírásra!</div><div>4, Örökölhető, gyors kifizetéssel:</div><div>5, Baleseti halál esetén 12 000 Euro extra védelem:</div>",
+        textContent:
+          "2, Díjmentes lehetőségek:\n3, Éves bónusz jóváírás – akár +20%:\nMinden évben az adott évszámnak megfelelő bónuszt írunk jóvá.\nEz a bónusz a hozamokon felül kerül jóváírásra!\n4, Örökölhető, gyors kifizetéssel:\n5, Baleseti halál esetén 12 000 Euro extra védelem:",
+        mappings: [],
+      },
+      values: {},
+      isAllianzEletprogram: true,
+    })
+    expect(rendered.html).toContain("2, Díjmentes lehetőségek:")
+    expect(rendered.html).not.toContain("3, Éves bónusz jóváírás")
+    expect(rendered.html).toContain("3, Örökölhető, gyors kifizetéssel:")
+    expect(rendered.html).toContain("4, Baleseti halál esetén 12 000 Euro extra védelem:")
+    expect(rendered.plain).toContain("3, Örökölhető, gyors kifizetéssel:")
+    expect(rendered.plain).toContain("4, Baleseti halál esetén 12 000 Euro extra védelem:")
+  })
+
+  it("removes one-word bonusjóváírás section variant for Allianz Életprogram", () => {
+    const rendered = renderEmailTemplate({
+      template: {
+        htmlContent:
+          "<div>3. Éves bónuszjóváírás – akár +20%</div><div>Minden évben az adott évszámnak megfelelő extra jóváírást kap:</div><div>év: +1%</div><div>év: +2%</div><div>…</div><div>év: +20%</div><div>Ez a bónusz a hozamokon felül kerül jóváírásra.</div><div>4. Adómentesség és állami inkasszó elleni védelem</div>",
+        textContent:
+          "3. Éves bónuszjóváírás – akár +20%\nMinden évben az adott évszámnak megfelelő extra jóváírást kap:\név: +1%\név: +2%\n…\név: +20%\nEz a bónusz a hozamokon felül kerül jóváírásra.\n4. Adómentesség és állami inkasszó elleni védelem",
+        mappings: [],
+      },
+      values: {},
+      isAllianzEletprogram: true,
+    })
+    expect(rendered.html).not.toContain("Éves bónuszjóváírás")
+    expect(rendered.html).not.toContain("év: +1%")
+    expect(rendered.html).not.toContain("év: +20%")
+    expect(rendered.html).toContain("4. Adómentesség és állami inkasszó elleni védelem")
+    expect(rendered.plain).not.toContain("Éves bónuszjóváírás")
+  })
+
+  it("removes EUR-only forint volatility section for HUF currency", () => {
+    const rendered = renderEmailTemplate({
+      template: {
+        htmlContent:
+          "<div>6. Előző rész</div><div>7. A forint ingadozik. Az infláció nem kérdez:</div><div>✅ Értékállóbb deviza: Az euró nem gyengülhet el úgy, mint a forint.</div><div>✅ Külföldi célokra ideális.</div><div>✅ Véd az árfolyamkockázattól.</div><div>8. Következő rész</div>",
+        textContent:
+          "6. Előző rész\n7. A forint ingadozik. Az infláció nem kérdez:\n✅ Értékállóbb deviza: Az euró nem gyengülhet el úgy, mint a forint.\n✅ Külföldi célokra ideális.\n✅ Véd az árfolyamkockázattól.\n8. Következő rész",
+        mappings: [],
+      },
+      values: { currency: "Ft" },
+    })
+    expect(rendered.html).not.toContain("A forint ingadozik")
+    expect(rendered.html).not.toContain("Értékállóbb deviza")
+    expect(rendered.html).toContain("7. Következő rész")
+    expect(rendered.plain).not.toContain("A forint ingadozik")
+    expect(rendered.plain).toContain("7. Következő rész")
+  })
+
+  it("keeps EUR-only forint volatility section for EUR currency", () => {
+    const rendered = renderEmailTemplate({
+      template: {
+        htmlContent:
+          "<div>7. A forint ingadozik. Az infláció nem kérdez:</div><div>✅ Értékállóbb deviza: Az euró nem gyengülhet el úgy, mint a forint.</div><div>8. Következő rész</div>",
+        textContent:
+          "7. A forint ingadozik. Az infláció nem kérdez:\n✅ Értékállóbb deviza: Az euró nem gyengülhet el úgy, mint a forint.\n8. Következő rész",
+        mappings: [],
+      },
+      values: { currency: "EUR" },
+    })
+    expect(rendered.html).toContain("A forint ingadozik")
+    expect(rendered.plain).toContain("A forint ingadozik")
+  })
+
   it("replaces szabadfelhasználású when written as one word", () => {
     const rendered = renderEmailTemplate({
       template: {
@@ -986,6 +1373,20 @@ describe("email-template tools", () => {
     })
     expect(rendered.html).toContain("nyugdíj célú megtakarítás")
     expect(rendered.plain).toContain("nyugdíj célú megtakarítás")
+  })
+
+  it("replaces nyugdíj célú megtakarítás phrase with selected account goal phrase", () => {
+    const rendered = renderEmailTemplate({
+      template: {
+        htmlContent: "<div>Telefonos megbeszélésünkre hivatkozva küldöm, Önnek a nyugdíj célú megtakarítás részleteit.</div>",
+        textContent: "Telefonos megbeszélésünkre hivatkozva küldöm, Önnek a nyugdíj célú megtakarítás részleteit.",
+        mappings: [],
+      },
+      values: {},
+      accountGoalPhrase: "Tőkenövelés",
+    })
+    expect(rendered.html).toContain("tőkenövelés célú megtakarítás")
+    expect(rendered.plain).toContain("tőkenövelés célú megtakarítás")
   })
 
   it("keeps selected table styles when building from template", () => {

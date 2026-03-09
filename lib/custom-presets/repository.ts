@@ -1,57 +1,26 @@
-import { promises as fs } from "node:fs"
-import path from "node:path"
-import os from "node:os"
 import { randomUUID } from "node:crypto"
+import { createSupabaseAdminClient } from "@/lib/supabase/server"
 import type {
   CustomPreset,
+  CustomPresetEntry,
   CustomPresetCreatePayload,
   CustomPresetUpdatePayload,
 } from "@/lib/custom-presets/types"
-
-type RepositoryState = {
-  presets: CustomPreset[]
-}
 
 type AuthContext = {
   userId: string
   isAdmin: boolean
 }
 
-const PRIMARY_STORAGE_DIR = path.join(process.cwd(), ".runtime-data")
-const PRIMARY_STORAGE_FILE = path.join(PRIMARY_STORAGE_DIR, "custom-presets.json")
-const FALLBACK_STORAGE_DIR = path.join(os.tmpdir(), "dm-pro-ui-runtime-data")
-const FALLBACK_STORAGE_FILE = path.join(FALLBACK_STORAGE_DIR, "custom-presets.json")
-
-let inMemoryCache: RepositoryState | null = null
-
-async function readState(): Promise<RepositoryState> {
-  if (inMemoryCache) return inMemoryCache
-  for (const storageFile of [PRIMARY_STORAGE_FILE, FALLBACK_STORAGE_FILE]) {
-    try {
-      const raw = await fs.readFile(storageFile, "utf8")
-      const parsed = JSON.parse(raw) as RepositoryState
-      inMemoryCache = { presets: Array.isArray(parsed?.presets) ? parsed.presets : [] }
-      return inMemoryCache
-    } catch {
-      // try next location
-    }
-  }
-  inMemoryCache = { presets: [] }
-  return inMemoryCache
-}
-
-async function writeState(next: RepositoryState): Promise<void> {
-  inMemoryCache = next
-  try {
-    await fs.mkdir(PRIMARY_STORAGE_DIR, { recursive: true })
-    await fs.writeFile(PRIMARY_STORAGE_FILE, JSON.stringify(next, null, 2), "utf8")
-    return
-  } catch {
-    // In serverless environments (e.g. /var/task) fallback to temp storage.
-  }
-
-  await fs.mkdir(FALLBACK_STORAGE_DIR, { recursive: true })
-  await fs.writeFile(FALLBACK_STORAGE_FILE, JSON.stringify(next, null, 2), "utf8")
+type CustomPresetRow = {
+  id: string
+  name: string
+  owner_id: string
+  owner_role: "admin" | "user"
+  product_scope: string | null
+  entries: unknown
+  created_at: string
+  updated_at: string
 }
 
 function canReadPreset(preset: CustomPreset, auth: AuthContext): boolean {
@@ -60,6 +29,19 @@ function canReadPreset(preset: CustomPreset, auth: AuthContext): boolean {
 
 function canWritePreset(preset: CustomPreset, auth: AuthContext): boolean {
   return preset.ownerId === auth.userId
+}
+
+function mapRowToPreset(row: CustomPresetRow): CustomPreset {
+  return {
+    id: row.id,
+    name: row.name,
+    ownerId: row.owner_id,
+    ownerRole: row.owner_role,
+    productScope: row.product_scope,
+    entries: (Array.isArray(row.entries) ? row.entries : []) as CustomPresetEntry[],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
 
 function normalizePayload(payload: CustomPresetCreatePayload | CustomPresetUpdatePayload) {
@@ -102,15 +84,25 @@ function normalizePayload(payload: CustomPresetCreatePayload | CustomPresetUpdat
 }
 
 export async function listCustomPresets(auth: AuthContext, productScope?: string | null): Promise<CustomPreset[]> {
-  const state = await readState()
-  return state.presets
+  const supabase = createSupabaseAdminClient()
+  let query = supabase.from("custom_presets").select("*").eq("owner_id", auth.userId).order("updated_at", { ascending: false })
+
+  if (productScope !== undefined) {
+    if (productScope === null) query = query.is("product_scope", null)
+    else query = query.eq("product_scope", productScope)
+  }
+
+  const { data, error } = await query
+  if (error) throw new Error(error.message)
+
+  return (data ?? [])
+    .map((row) => mapRowToPreset(row as CustomPresetRow))
     .filter((preset) => canReadPreset(preset, auth))
     .filter((preset) => {
       if (productScope === undefined) return true
       if (productScope === null) return preset.productScope === null
       return preset.productScope === productScope
     })
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
 export async function createCustomPreset(auth: AuthContext, payload: CustomPresetCreatePayload): Promise<CustomPreset> {
@@ -122,8 +114,6 @@ export async function createCustomPreset(auth: AuthContext, payload: CustomPrese
     throw new Error("Legalább egy egyedi költség vagy bónusz szükséges.")
   }
 
-  const state = await readState()
-  const now = new Date().toISOString()
   const preset: CustomPreset = {
     id: randomUUID(),
     name: cleanName,
@@ -131,14 +121,22 @@ export async function createCustomPreset(auth: AuthContext, payload: CustomPrese
     ownerRole: auth.isAdmin ? "admin" : "user",
     productScope: productScope === undefined ? null : productScope,
     entries,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }
 
-  await writeState({
-    presets: [preset, ...state.presets],
-  })
-  return preset
+  const supabase = createSupabaseAdminClient()
+  const insert = {
+    id: preset.id,
+    name: preset.name,
+    owner_id: preset.ownerId,
+    owner_role: preset.ownerRole,
+    product_scope: preset.productScope,
+    entries: preset.entries,
+  }
+  const { data, error } = await supabase.from("custom_presets").insert(insert).select("*").single()
+  if (error || !data) throw new Error(error?.message ?? "Mentési hiba.")
+  return mapRowToPreset(data as CustomPresetRow)
 }
 
 export async function updateCustomPreset(
@@ -146,33 +144,48 @@ export async function updateCustomPreset(
   id: string,
   payload: CustomPresetUpdatePayload,
 ): Promise<CustomPreset> {
-  const state = await readState()
-  const existing = state.presets.find((preset) => preset.id === id)
+  const supabase = createSupabaseAdminClient()
+  const { data: existingRow, error: existingError } = await supabase
+    .from("custom_presets")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle()
+  if (existingError) throw new Error(existingError.message)
+  const existing = existingRow ? mapRowToPreset(existingRow as CustomPresetRow) : null
   if (!existing) throw new Error("A sablon nem található.")
   if (!canWritePreset(existing, auth)) throw new Error("Nincs jogosultság a sablon módosításához.")
 
   const { cleanName, productScope, entries } = normalizePayload(payload)
-  const next: CustomPreset = {
-    ...existing,
-    name: cleanName ?? existing.name,
-    productScope: productScope === undefined ? existing.productScope : productScope,
-    entries: entries ?? existing.entries,
-    updatedAt: new Date().toISOString(),
+  const updateData = {
+    ...(cleanName !== undefined ? { name: cleanName } : {}),
+    ...(productScope !== undefined ? { product_scope: productScope } : {}),
+    ...(entries !== undefined ? { entries } : {}),
+    updated_at: new Date().toISOString(),
   }
 
-  await writeState({
-    presets: state.presets.map((preset) => (preset.id === id ? next : preset)),
-  })
-  return next
+  const { data, error } = await supabase
+    .from("custom_presets")
+    .update(updateData)
+    .eq("id", id)
+    .eq("owner_id", auth.userId)
+    .select("*")
+    .single()
+  if (error || !data) throw new Error(error?.message ?? "Mentési hiba.")
+  return mapRowToPreset(data as CustomPresetRow)
 }
 
 export async function deleteCustomPreset(auth: AuthContext, id: string): Promise<void> {
-  const state = await readState()
-  const existing = state.presets.find((preset) => preset.id === id)
+  const supabase = createSupabaseAdminClient()
+  const { data: existingRow, error: existingError } = await supabase
+    .from("custom_presets")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle()
+  if (existingError) throw new Error(existingError.message)
+  const existing = existingRow ? mapRowToPreset(existingRow as CustomPresetRow) : null
   if (!existing) throw new Error("A sablon nem található.")
   if (!canWritePreset(existing, auth)) throw new Error("Nincs jogosultság a sablon törléséhez.")
 
-  await writeState({
-    presets: state.presets.filter((preset) => preset.id !== id),
-  })
+  const { error } = await supabase.from("custom_presets").delete().eq("id", id).eq("owner_id", auth.userId)
+  if (error) throw new Error(error.message)
 }

@@ -33,6 +33,16 @@ const createTemplateSchema = z.object({
   rawContent: z.string().min(1),
   subject: z.string().trim().optional(),
   mappings: z.array(mappingSchema).min(1),
+  conversion: z
+    .object({
+      status: z.enum(["none", "pending_review", "approved", "rejected"]),
+      targetTone: z.enum(["tegezo"]).optional(),
+      convertedSubject: z.string().trim().optional(),
+      convertedHtmlContent: z.string().optional(),
+      convertedTextContent: z.string().optional(),
+      notes: z.string().trim().optional(),
+    })
+    .optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -59,15 +69,20 @@ export async function POST(request: NextRequest) {
   try {
     const document = parseTemplateContent(parsed.data.sourceType, parsed.data.rawContent)
     const candidate = buildParsedTemplateCandidate(document)
+    const approvedConversion = parsed.data.conversion?.status === "approved" ? parsed.data.conversion : undefined
+    const subject = approvedConversion?.convertedSubject || parsed.data.subject || candidate.subject
+    const htmlContent = approvedConversion?.convertedHtmlContent || candidate.htmlContent
+    const textContent = approvedConversion?.convertedTextContent || candidate.textContent
     const template = await createEmailTemplate(session, {
       name: parsed.data.name,
       sourceType: parsed.data.sourceType,
       originalFileName: parsed.data.originalFileName,
       rawContent: parsed.data.rawContent,
-      subject: parsed.data.subject || candidate.subject,
-      htmlContent: candidate.htmlContent,
-      textContent: candidate.textContent,
+      subject,
+      htmlContent,
+      textContent,
       mappings: parsed.data.mappings,
+      conversion: parsed.data.conversion,
     })
     return NextResponse.json({ template })
   } catch (error) {
