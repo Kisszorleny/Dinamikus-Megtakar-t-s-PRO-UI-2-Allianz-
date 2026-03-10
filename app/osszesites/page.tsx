@@ -130,6 +130,17 @@ type OfferUntilStoragePayload = {
   editedOn: string
 }
 
+type SelectedTemplateByUserStoragePayload = Record<string, string>
+type LastSelectedTemplateStoragePayload = {
+  id: string
+  name?: string
+  ownerId?: string
+  isAdminView?: boolean
+  userId?: string
+  updatedAt?: number
+}
+type TemplateUploaderOpenByUserStoragePayload = Record<string, boolean>
+
 const TEMPLATE_FIELD_LABELS: Record<EmailTemplateFieldKey, string> = {
   name: "Név",
   amount: "Összeg",
@@ -145,6 +156,11 @@ const TEMPLATE_FIELD_LABELS: Record<EmailTemplateFieldKey, string> = {
 
 const RENDERED_SNAPSHOT_MARKER = "<!--dm-rendered-snapshot-->"
 const TEMPLATE_DRAFT_STORAGE_KEY = "summary-emailTemplateDraft-v1"
+const SELECTED_TEMPLATE_BY_USER_STORAGE_KEY = "summary-selectedTemplateByUser-v1"
+const LAST_SELECTED_TEMPLATE_STORAGE_KEY = "summary-lastSelectedTemplate-v1"
+const TEMPLATE_UPLOADER_OPEN_BY_USER_STORAGE_KEY = "summary-templateUploaderOpenByUser-v1"
+const LAST_SESSION_USER_ID_STORAGE_KEY = "summary-lastSessionUserId-v1"
+const LAST_TEMPLATE_ADMIN_VIEW_STORAGE_KEY = "summary-lastTemplateAdminView-v1"
 
 const DEFAULT_TEMPLATE_MAPPINGS: TemplateFieldMapping[] = [
   { key: "name", label: TEMPLATE_FIELD_LABELS.name, token: "{{name}}" },
@@ -275,6 +291,7 @@ export default function OsszesitesPage() {
   const [activeColumnInfoKey, setActiveColumnInfoKey] = useState<string | null>(null)
   const OFFER_UNTIL_STORAGE_KEY = "summary-emailOfferUntil"
   const FX_BASE_COLOR_STORAGE_KEY = "summary-emailFxBaseColor"
+  const EMAIL_CLIENT_NAME_STORAGE_KEY = "summary-emailClientName"
 
   const getDefaultOfferUntil = () => {
     const pad2 = (n: number) => String(n).padStart(2, "0")
@@ -301,7 +318,11 @@ export default function OsszesitesPage() {
   const [editingText, setEditingText] = useState<string>("")
   const [isActivelyEditing, setIsActivelyEditing] = useState(false)
 
-  const [emailClientName, setEmailClientName] = useState("Viktor")
+  const [emailClientName, setEmailClientName] = useState(() => {
+    if (typeof window === "undefined") return "Viktor"
+    const stored = localStorage.getItem(EMAIL_CLIENT_NAME_STORAGE_KEY)
+    return stored !== null ? stored : "Viktor"
+  })
   const [emailRecipient, setEmailRecipient] = useState("")
   const [emailOfferUntil, setEmailOfferUntil] = useState(() => {
     // Avoid SSR/client timezone mismatch: compute only in browser.
@@ -336,8 +357,57 @@ export default function OsszesitesPage() {
   const [variantBundleMessage, setVariantBundleMessage] = useState("")
   const [emailTegezo, setEmailTegezo] = useState(false)
   const [emailTemplates, setEmailTemplates] = useState<StoredEmailTemplate[]>([])
-  const [isTemplateAdminView, setIsTemplateAdminView] = useState(false)
-  const [selectedTemplateId, setSelectedTemplateId] = useState("")
+  const [isTemplateAdminView, setIsTemplateAdminView] = useState(() => {
+    if (typeof window === "undefined") return false
+    try {
+      return localStorage.getItem(LAST_TEMPLATE_ADMIN_VIEW_STORAGE_KEY) === "1"
+    } catch {
+      return false
+    }
+  })
+  const [sessionUserId, setSessionUserId] = useState(() => {
+    if (typeof window === "undefined") return ""
+    try {
+      const stored = localStorage.getItem(LAST_SESSION_USER_ID_STORAGE_KEY)
+      return typeof stored === "string" ? stored.trim() : ""
+    } catch {
+      return ""
+    }
+  })
+  const [isTemplateListLoading, setIsTemplateListLoading] = useState(true)
+  const [selectedTemplateId, setSelectedTemplateId] = useState(() => {
+    if (typeof window === "undefined") return ""
+    try {
+      const raw = localStorage.getItem(LAST_SELECTED_TEMPLATE_STORAGE_KEY)
+      if (!raw) return ""
+      const parsed = JSON.parse(raw) as Partial<LastSelectedTemplateStoragePayload>
+      return typeof parsed.id === "string" ? parsed.id.trim() : ""
+    } catch {
+      return ""
+    }
+  })
+  const [selectedTemplateNameHint, setSelectedTemplateNameHint] = useState(() => {
+    if (typeof window === "undefined") return ""
+    try {
+      const raw = localStorage.getItem(LAST_SELECTED_TEMPLATE_STORAGE_KEY)
+      if (!raw) return ""
+      const parsed = JSON.parse(raw) as Partial<LastSelectedTemplateStoragePayload>
+      return typeof parsed.name === "string" ? parsed.name.trim() : ""
+    } catch {
+      return ""
+    }
+  })
+  const [selectedTemplateOwnerHint, setSelectedTemplateOwnerHint] = useState(() => {
+    if (typeof window === "undefined") return ""
+    try {
+      const raw = localStorage.getItem(LAST_SELECTED_TEMPLATE_STORAGE_KEY)
+      if (!raw) return ""
+      const parsed = JSON.parse(raw) as Partial<LastSelectedTemplateStoragePayload>
+      return typeof parsed.ownerId === "string" ? parsed.ownerId.trim() : ""
+    } catch {
+      return ""
+    }
+  })
   const [templateSourceType, setTemplateSourceType] = useState<EmailTemplateSourceType>("html")
   const [templateRawContent, setTemplateRawContent] = useState("")
   const [templatePreviewHtml, setTemplatePreviewHtml] = useState("")
@@ -355,7 +425,20 @@ export default function OsszesitesPage() {
   const [templateSelectedSnippet, setTemplateSelectedSnippet] = useState("")
   const [templateSelectedTableSnippet, setTemplateSelectedTableSnippet] = useState("")
   const [isFxColorPickerOpen, setIsFxColorPickerOpen] = useState(false)
-  const [isTemplateUploaderOpen, setIsTemplateUploaderOpen] = useState(true)
+  const [isTemplateUploaderOpen, setIsTemplateUploaderOpen] = useState(() => {
+    if (typeof window === "undefined") return true
+    try {
+      const userId = (localStorage.getItem(LAST_SESSION_USER_ID_STORAGE_KEY) || "").trim()
+      if (!userId) return true
+      const raw = localStorage.getItem(TEMPLATE_UPLOADER_OPEN_BY_USER_STORAGE_KEY)
+      if (!raw) return true
+      const byUser = JSON.parse(raw) as TemplateUploaderOpenByUserStoragePayload
+      if (typeof byUser[userId] === "boolean") return byUser[userId]
+      return true
+    } catch {
+      return true
+    }
+  })
   const [isTemplateMappingsOpen, setIsTemplateMappingsOpen] = useState(false)
   const [isTemplateDragActive, setIsTemplateDragActive] = useState(false)
   const [templateMappings, setTemplateMappings] = useState<TemplateFieldMapping[]>(() => cloneDefaultTemplateMappings())
@@ -389,6 +472,11 @@ export default function OsszesitesPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return
+    localStorage.setItem(EMAIL_CLIENT_NAME_STORAGE_KEY, emailClientName)
+  }, [emailClientName])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
     const raw = sessionStorage.getItem(TEMPLATE_DRAFT_STORAGE_KEY)
     if (!raw) return
     try {
@@ -400,7 +488,6 @@ export default function OsszesitesPage() {
         templateOriginalFileName: string
         templateSuggestedSubject: string
         templateMappings: TemplateFieldMapping[]
-        isTemplateUploaderOpen: boolean
         isTemplateMappingsOpen: boolean
       }>
       if (parsed.templateSourceType && ["html", "text", "eml"].includes(parsed.templateSourceType)) {
@@ -411,7 +498,6 @@ export default function OsszesitesPage() {
       if (typeof parsed.templateName === "string") setTemplateName(parsed.templateName)
       if (typeof parsed.templateOriginalFileName === "string") setTemplateOriginalFileName(parsed.templateOriginalFileName)
       if (typeof parsed.templateSuggestedSubject === "string") setTemplateSuggestedSubject(parsed.templateSuggestedSubject)
-      if (typeof parsed.isTemplateUploaderOpen === "boolean") setIsTemplateUploaderOpen(parsed.isTemplateUploaderOpen)
       if (typeof parsed.isTemplateMappingsOpen === "boolean") setIsTemplateMappingsOpen(parsed.isTemplateMappingsOpen)
       setTemplateMappings(toSafeTemplateMappings(parsed.templateMappings))
     } catch {
@@ -437,7 +523,6 @@ export default function OsszesitesPage() {
       templateOriginalFileName,
       templateSuggestedSubject,
       templateMappings,
-      isTemplateUploaderOpen,
       isTemplateMappingsOpen,
       updatedAt: Date.now(),
     }
@@ -454,20 +539,63 @@ export default function OsszesitesPage() {
     templateOriginalFileName,
     templateSuggestedSubject,
     templateMappings,
-    isTemplateUploaderOpen,
     isTemplateMappingsOpen,
   ])
 
   const loadEmailTemplates = async () => {
+    setIsTemplateListLoading(true)
     try {
       const response = await fetch("/api/email-templates")
       const result = await response.json().catch(() => ({}))
       if (!response.ok) return
       const templates = Array.isArray(result?.templates) ? (result.templates as StoredEmailTemplate[]) : []
+      const userId = typeof result?.userId === "string" ? result.userId.trim() : ""
+      setSessionUserId(userId)
+      if (typeof window !== "undefined" && userId) {
+        try {
+          localStorage.setItem(LAST_SESSION_USER_ID_STORAGE_KEY, userId)
+        } catch {
+          // ignore local storage errors
+        }
+      }
       setEmailTemplates(templates)
-      setIsTemplateAdminView(Boolean(result?.isAdmin))
+      const isAdmin = Boolean(result?.isAdmin)
+      setIsTemplateAdminView(isAdmin)
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(LAST_TEMPLATE_ADMIN_VIEW_STORAGE_KEY, isAdmin ? "1" : "0")
+        } catch {
+          // ignore local storage errors
+        }
+      }
+      if (typeof window !== "undefined" && userId) {
+        try {
+          const raw = localStorage.getItem(SELECTED_TEMPLATE_BY_USER_STORAGE_KEY)
+          if (raw) {
+            const byUser = JSON.parse(raw) as SelectedTemplateByUserStoragePayload
+            const rememberedTemplateId = typeof byUser?.[userId] === "string" ? byUser[userId].trim() : ""
+            if (rememberedTemplateId && templates.some((template) => template.id === rememberedTemplateId)) {
+              setSelectedTemplateId((current) => (current.trim() ? current : rememberedTemplateId))
+              setSelectedTemplateNameHint((current) => {
+                if (current.trim()) return current
+                const remembered = templates.find((template) => template.id === rememberedTemplateId)
+                return remembered?.name || current
+              })
+              setSelectedTemplateOwnerHint((current) => {
+                if (current.trim()) return current
+                const remembered = templates.find((template) => template.id === rememberedTemplateId)
+                return remembered?.ownerId || current
+              })
+            }
+          }
+        } catch {
+          // ignore malformed local storage payload
+        }
+      }
     } catch {
       // ignore list errors in main page flow
+    } finally {
+      setIsTemplateListLoading(false)
     }
   }
 
@@ -484,7 +612,6 @@ export default function OsszesitesPage() {
 
     let cancelled = false
     const loadSelectedTemplateDetails = async () => {
-      setIsTemplateUploaderOpen(true)
       setTemplateStatus("loading")
       setTemplateError("")
       try {
@@ -543,6 +670,54 @@ export default function OsszesitesPage() {
     setVariantBundleMessage("")
     setIsVariantBundleOpen(false)
   }, [selectedTemplateId])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const userId = sessionUserId.trim()
+    if (!userId) return
+    try {
+      const raw = localStorage.getItem(SELECTED_TEMPLATE_BY_USER_STORAGE_KEY)
+      const byUser = raw ? (JSON.parse(raw) as SelectedTemplateByUserStoragePayload) : {}
+      const selectedId = selectedTemplateId.trim()
+      if (selectedId) {
+        byUser[userId] = selectedId
+      } else {
+        delete byUser[userId]
+      }
+      localStorage.setItem(SELECTED_TEMPLATE_BY_USER_STORAGE_KEY, JSON.stringify(byUser))
+    } catch {
+      // ignore local storage errors
+    }
+  }, [sessionUserId, selectedTemplateId])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const userId = sessionUserId.trim()
+    if (!userId) return
+    try {
+      const raw = localStorage.getItem(TEMPLATE_UPLOADER_OPEN_BY_USER_STORAGE_KEY)
+      const byUser = raw ? (JSON.parse(raw) as TemplateUploaderOpenByUserStoragePayload) : {}
+      if (typeof byUser[userId] === "boolean") {
+        setIsTemplateUploaderOpen(byUser[userId])
+      }
+    } catch {
+      // ignore malformed local storage payload
+    }
+  }, [sessionUserId])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const userId = sessionUserId.trim()
+    if (!userId) return
+    try {
+      const raw = localStorage.getItem(TEMPLATE_UPLOADER_OPEN_BY_USER_STORAGE_KEY)
+      const byUser = raw ? (JSON.parse(raw) as TemplateUploaderOpenByUserStoragePayload) : {}
+      byUser[userId] = isTemplateUploaderOpen
+      localStorage.setItem(TEMPLATE_UPLOADER_OPEN_BY_USER_STORAGE_KEY, JSON.stringify(byUser))
+    } catch {
+      // ignore local storage errors
+    }
+  }, [sessionUserId, isTemplateUploaderOpen])
 
   const upsertTemplateMapping = (mapping: TemplateFieldMapping) => {
     setTemplateMappings((current) => {
@@ -749,7 +924,6 @@ export default function OsszesitesPage() {
         return
       }
       const savedTemplateId = typeof result.template?.id === "string" ? result.template.id : ""
-      setIsTemplateUploaderOpen(true)
       await loadEmailTemplates()
       if (savedTemplateId) {
         setSelectedTemplateId(savedTemplateId)
@@ -981,14 +1155,55 @@ export default function OsszesitesPage() {
     () => emailTemplates.find((template) => template.id === selectedTemplateId) ?? null,
     [emailTemplates, selectedTemplateId],
   )
+  const hasSelectedTemplateInList = useMemo(() => {
+    const id = selectedTemplateId.trim()
+    if (!id) return false
+    return emailTemplates.some((template) => template.id === id)
+  }, [emailTemplates, selectedTemplateId])
 
   useEffect(() => {
+    if (!selectedTemplate?.name) return
+    setSelectedTemplateNameHint(selectedTemplate.name)
+  }, [selectedTemplate])
+
+  useEffect(() => {
+    if (!selectedTemplate?.ownerId) return
+    setSelectedTemplateOwnerHint(selectedTemplate.ownerId)
+  }, [selectedTemplate])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const id = selectedTemplateId.trim()
+    if (!id) {
+      localStorage.removeItem(LAST_SELECTED_TEMPLATE_STORAGE_KEY)
+      return
+    }
+    const name = selectedTemplate?.name || selectedTemplateNameHint
+    const ownerId = selectedTemplate?.ownerId || selectedTemplateOwnerHint
+    const payload: LastSelectedTemplateStoragePayload = {
+      id,
+      name: name || undefined,
+      ownerId: ownerId || undefined,
+      isAdminView: isTemplateAdminView,
+      userId: sessionUserId.trim() || undefined,
+      updatedAt: Date.now(),
+    }
+    try {
+      localStorage.setItem(LAST_SELECTED_TEMPLATE_STORAGE_KEY, JSON.stringify(payload))
+    } catch {
+      // ignore local storage errors
+    }
+  }, [selectedTemplateId, selectedTemplate, selectedTemplateNameHint, selectedTemplateOwnerHint, sessionUserId, isTemplateAdminView])
+
+  useEffect(() => {
+    if (isTemplateListLoading) return
     if (!selectedTemplateId.trim()) return
     const exists = emailTemplates.some((template) => template.id === selectedTemplateId)
     if (!exists) {
       setSelectedTemplateId("")
+      setSelectedTemplateNameHint("")
     }
-  }, [emailTemplates, selectedTemplateId])
+  }, [emailTemplates, selectedTemplateId, isTemplateListLoading])
   const fxSummaryPalette = useMemo(() => {
     const base = normalizeHexColorInput(fxBaseColor) ?? "#c55a11"
     return {
@@ -2504,10 +2719,20 @@ export default function OsszesitesPage() {
                       setSelectedTemplateId(e.target.value)
                       setVariantBundleStatus("idle")
                       setVariantBundleMessage("")
-                      setIsTemplateUploaderOpen(true)
                     }}
                   >
                     <option value="">Beépített sablon (jelenlegi)</option>
+                    {selectedTemplateId.trim() && !hasSelectedTemplateInList ? (
+                      <option value={selectedTemplateId}>
+                        {selectedTemplateNameHint
+                          ? isTemplateAdminView && selectedTemplateOwnerHint
+                            ? `${selectedTemplateNameHint} - készítette: ${selectedTemplateOwnerHint}`
+                            : selectedTemplateNameHint
+                          : isTemplateListLoading
+                            ? "Korabban valasztott sablon (betoltes...)"
+                            : "Korabban valasztott sablon"}
+                      </option>
+                    ) : null}
                     {emailTemplates.map((template) => (
                       <option key={template.id} value={template.id}>
                         {isTemplateAdminView ? `${template.name} - készítette: ${template.ownerId}` : template.name}

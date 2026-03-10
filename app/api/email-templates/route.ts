@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "Nincs jogosultság." }, { status: 401 })
   }
   const templates = await listEmailTemplates(session)
-  return NextResponse.json({ templates, isAdmin: session.isAdmin })
+  return NextResponse.json({ templates, isAdmin: session.isAdmin, userId: session.userId })
 }
 
 export async function POST(request: NextRequest) {
