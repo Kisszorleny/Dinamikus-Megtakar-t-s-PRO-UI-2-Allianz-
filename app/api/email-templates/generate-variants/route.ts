@@ -10,6 +10,7 @@ import { getFixedAmountValues } from "@/lib/email-templates/fixed-amounts"
 import { buildEmlMessage, slugifyVariantFileName } from "@/lib/email-templates/eml"
 import { buildStandaloneHtmlEmail } from "@/lib/email-templates/html-export"
 import type { TemplateVariantItem } from "@/lib/email-templates/types"
+import { buildStoredTemplateVariantArtifacts } from "@/lib/email-templates/variant-runtime"
 
 const renderedSnapshotMarker = "<!--dm-rendered-snapshot-->"
 
@@ -40,6 +41,8 @@ const payloadSchema = z.object({
   values: valuesSchema,
   fromAddress: z.string().trim().optional(),
   toAddress: z.string().trim().optional(),
+  skipZip: z.boolean().optional().default(false),
+  includeVariants: z.boolean().optional().default(false),
 })
 
 type VariantConfig = {
@@ -95,6 +98,31 @@ function getAllVariants(): VariantConfig[] {
   return variants
 }
 
+function stripRenderedSnapshotMarker(input: string): string {
+  return input.replace(renderedSnapshotMarker, "").trim()
+}
+
+function resolveVariantTemplateSource(
+  template: Awaited<ReturnType<typeof getEmailTemplateById>> extends infer T ? Exclude<T, null> : never,
+  variant: VariantConfig,
+) {
+  const baseHtml = (template.htmlContent || "").includes(renderedSnapshotMarker)
+    ? stripRenderedSnapshotMarker(template.htmlContent || "")
+    : template.htmlContent || ""
+  const tegezoHtml = template.convertedHtmlContent || baseHtml
+  const tegezoText = template.convertedTextContent || template.textContent || ""
+  if (variant.tone === "tegezo") {
+    return {
+      htmlContent: tegezoHtml,
+      textContent: tegezoText,
+    }
+  }
+  return {
+    htmlContent: baseHtml,
+    textContent: template.textContent || "",
+  }
+}
+
 export async function POST(request: NextRequest) {
   const session = getSessionUser(request)
   if (!session) {
@@ -114,34 +142,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "A kiválasztott sablon nem található." }, { status: 404 })
     }
 
-    const baseSubject = payload.subject || template.subject || "Megtakarítási ajánlat"
-    const tableMapping = template.mappings.find((mapping) => mapping.key === "calculator_table")
-    const calculatorTableHtml = buildCalculatorTableHtmlFromTemplate(payload.values, tableMapping?.sourceSnippet)
-    const calculatorTablePlain = buildCalculatorTablePlain(payload.values)
-    const sourceHtml = (template.htmlContent || "").includes(renderedSnapshotMarker)
-      ? (template.htmlContent || "").replace(renderedSnapshotMarker, "").trim()
-      : template.htmlContent || ""
+    const baseSubject = template.subject || payload.subject || "Megtakarítási ajánlat"
     const variants = getAllVariants()
-    const zip = new JSZip()
     const variantItems: TemplateVariantItem[] = []
     const now = new Date()
     const fromAddress = payload.fromAddress || "Dinamikus Megtakarítás <noreply@dinamikus.local>"
     const toAddress = payload.toAddress || "ugyfel@example.com"
+    const structuralCalculatorTableHtml = "{{calculator_table}}"
+    const structuralCalculatorTablePlain = "{{calculator_table}}"
 
     for (const variant of variants) {
-      const templateCurrencyLabel = toTemplateCurrencyLabel(variant.currency)
+      const structuralSource = resolveVariantTemplateSource(template, variant)
       const fixedAmounts = getFixedAmountValues(variant.currency)
       const rendered = renderEmailTemplate({
         template: {
-          htmlContent: sourceHtml,
-          textContent: template.textContent || "",
+          htmlContent: structuralSource.htmlContent,
+          textContent: structuralSource.textContent,
           mappings: template.mappings || [],
         },
         values: {
-          name: payload.safeName,
-          amount: payload.values.monthlyPayment,
-          deadline: payload.safeUntil,
-          currency: templateCurrencyLabel,
+          name: "{{name}}",
+          amount: "{{amount}}",
+          deadline: "{{deadline}}",
+          currency: "{{currency}}",
           tone: variant.tone === "tegezo" ? "Kedves" : "Tisztelt",
           calculator_table: "{{calculator_table}}",
           fixed_small_amount: fixedAmounts.fixedSmallAmount,
@@ -149,8 +172,8 @@ export async function POST(request: NextRequest) {
           retirement_section: "{{retirement_section}}",
           bonus_section: "{{bonus_section}}",
         },
-        calculatorTableHtml,
-        calculatorTablePlain,
+        calculatorTableHtml: structuralCalculatorTableHtml,
+        calculatorTablePlain: structuralCalculatorTablePlain,
         accountGoalPhrase: getVariantGoal(variant.goal),
         isAllianzEletprogram: variant.product === "allianz_eletprogram",
       })
@@ -159,8 +182,12 @@ export async function POST(request: NextRequest) {
       const toneLabel = getVariantToneLabel(variant.tone)
       const fileBase = slugifyVariantFileName(`${toneLabel}-${variantName}`)
       const subject = `${baseSubject} | ${toneLabel} | ${variantName}`
-      const html = rendered.html || sourceHtml || template.htmlContent || ""
-      const plain = rendered.plain || template.textContent || ""
+      const html = rendered.html || structuralSource.htmlContent || ""
+      const plain = rendered.plain || structuralSource.textContent || ""
+      const standaloneHtml = buildStandaloneHtmlEmail({
+        subject,
+        htmlBody: html,
+      })
       const eml = buildEmlMessage({
         from: fromAddress,
         to: toAddress,
@@ -169,13 +196,6 @@ export async function POST(request: NextRequest) {
         plain,
         date: now,
       })
-
-      const standaloneHtml = buildStandaloneHtmlEmail({
-        subject,
-        htmlBody: html,
-      })
-      zip.file(`eml/${fileBase}.eml`, eml)
-      zip.file(`html/${fileBase}.html`, standaloneHtml)
       variantItems.push({
         id: randomUUID(),
         name: `${toneLabel} - ${variantName}`,
@@ -193,6 +213,37 @@ export async function POST(request: NextRequest) {
     }
     const savedBundle = await upsertTemplateVariantBundle(session, template.id, variantItems)
 
+    if (payload.skipZip) {
+      return NextResponse.json({
+        ok: true,
+        createdCount: variantItems.length,
+        variantBundleUpdatedAt: savedBundle.updatedAt,
+        variants: payload.includeVariants ? variantItems : undefined,
+      })
+    }
+
+    const zip = new JSZip()
+    const tableMapping = template.mappings.find((mapping) => mapping.key === "calculator_table")
+    const calculatorTableHtml = buildCalculatorTableHtmlFromTemplate(payload.values, tableMapping?.sourceSnippet)
+    const calculatorTablePlain = buildCalculatorTablePlain(payload.values)
+    for (const variant of variantItems) {
+      const materialized = buildStoredTemplateVariantArtifacts({
+        variant,
+        mappings: template.mappings || [],
+        safeName: payload.safeName,
+        safeUntil: payload.safeUntil,
+        displayCurrency: variant.currency,
+        values: payload.values,
+        calculatorTableHtml,
+        calculatorTablePlain,
+        subject: variant.subject,
+        fromAddress,
+        toAddress,
+        date: now,
+      })
+      zip.file(`eml/${variant.emlFileName}`, materialized.eml)
+      zip.file(`html/${variant.htmlFileName}`, materialized.standaloneHtml)
+    }
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" })
     const zipBase64 = zipBuffer.toString("base64")
     const zipFileName = `eml-varians-csomag-${slugifyVariantFileName(template.name)}.zip`

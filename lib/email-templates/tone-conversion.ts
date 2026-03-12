@@ -197,7 +197,8 @@ function applyFormalToInformalRulesText(input: string): string {
   output = output.replace(/\bte is tudja\b/gi, "te is tudod")
   output = output.replace(/\bkeressen bizalommal\b/gi, "keress bizalommal")
   output = output.replace(/\btudja a befektetését\b/gi, "tudod a befektetésedet")
-  output = output.replace(/\s{2,}/g, " ")
+  // Keep existing line layout intact; only collapse repeated inline whitespace.
+  output = output.replace(/[^\S\r\n]{2,}/g, " ")
   return output
 }
 
@@ -358,24 +359,44 @@ function parseHtmlNodeMapPayload(
   return { values: output, matchedCount }
 }
 
-function applyHtmlNodeMapPayload(template: string, values: Record<string, string>): string {
+function applyHtmlNodeMapPayload(
+  template: string,
+  values: Record<string, string>,
+  entries: Array<{ placeholder: string; original: string }>,
+): string {
   const decodeCommonEntities = (input: string): string =>
     input
-      .replace(/&nbsp;/gi, " ")
+      .replace(/&nbsp;/gi, "\u00a0")
       .replace(/&amp;/gi, "&")
       .replace(/&lt;/gi, "<")
       .replace(/&gt;/gi, ">")
       .replace(/&quot;/gi, '"')
       .replace(/&#39;/gi, "'")
+  const preserveEdgeWhitespace = (original: string, nextValue: string): string => {
+    let next = nextValue
+    const leadingWhitespace = original.match(/^\s+/)?.[0] || ""
+    const trailingWhitespace = original.match(/\s+$/)?.[0] || ""
+    if (leadingWhitespace) {
+      next = `${leadingWhitespace}${next.replace(/^\s+/, "")}`
+    }
+    if (trailingWhitespace) {
+      next = `${next.replace(/\s+$/, "")}${trailingWhitespace}`
+    }
+    return next
+  }
   const escapeHtmlText = (input: string): string =>
     input
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
+      .replace(/\u00a0/g, "&nbsp;")
+  const originalByPlaceholder = new Map(entries.map((entry) => [entry.placeholder, entry.original]))
   let output = template
   for (const [placeholder, value] of Object.entries(values)) {
     // Protect HTML structure: replace only text node content, never allow injected tags.
-    output = output.replace(new RegExp(escapeRegExp(placeholder), "g"), escapeHtmlText(decodeCommonEntities(value)))
+    const originalValue = originalByPlaceholder.get(placeholder)
+    const normalizedValue = originalValue ? preserveEdgeWhitespace(originalValue, decodeCommonEntities(value)) : decodeCommonEntities(value)
+    output = output.replace(new RegExp(escapeRegExp(placeholder), "g"), escapeHtmlText(normalizedValue))
   }
   return output
 }
@@ -667,7 +688,7 @@ export async function buildTegezoConversionSuggestion(
     // Keep AI output as source of truth, but apply minimal post-correction for leftover formal forms.
     const aiSubject = aiSubjectRaw ? applyFormalToInformalRulesText(aiSubjectRaw) : undefined
     const aiText = applyFormalToInformalRulesText(aiTextRaw)
-    const rebuiltSafeHtml = skipHtmlNodeMapForAi ? "" : applyHtmlNodeMapPayload(htmlNodeMap.htmlTemplate, mappedHtml.values)
+    const rebuiltSafeHtml = skipHtmlNodeMapForAi ? "" : applyHtmlNodeMapPayload(htmlNodeMap.htmlTemplate, mappedHtml.values, htmlNodeMap.entries)
     const aiHtmlWithRestoredBlocks = unmaskKeepBlocks(
       unmaskKeepBlocks(rebuiltSafeHtml, "HTML_IMG", llmSafeHtml.imageMasked),
       "HTML_TABLE",

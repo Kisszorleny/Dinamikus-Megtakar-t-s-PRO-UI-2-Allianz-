@@ -389,6 +389,14 @@ const TAX_CREDIT_KEYWORDS = [
   "szemelyi jovedelemadojabol",
 ]
 
+const RETIREMENT_CONTINUATION_KEYWORDS = [
+  "jogszabalyvedelem a jovore nezve",
+  "nyugdijkorhatar",
+  "hozzaferhetsz a penzedhez",
+  "40 ev jogosultsagi",
+  "nok eseten",
+]
+
 const BONUS_BLOCK_KEYWORDS = [
   "fix bonusz jovairas a hozamokon felul",
   "eves bonusz jovairas",
@@ -428,6 +436,28 @@ function containsAnyNormalizedKeyword(input: string, keywords: string[]): boolea
   return keywords.some((keyword) => normalized.includes(keyword))
 }
 
+function containsAnyComparableKeyword(input: string, keywords: string[]): boolean {
+  const normalized = normalizeComparableText(input)
+  return keywords.some((keyword) => normalized.includes(keyword))
+}
+
+function isRetirementHeadingComparable(normalized: string): boolean {
+  if (!normalized) return false
+  return (
+    RETIREMENT_BLOCK_KEYWORDS.some((keyword) => normalized.includes(keyword)) ||
+    (normalized.includes("nyugdij") && normalized.includes("megtakaritas"))
+  )
+}
+
+function isRetirementContinuationComparable(normalized: string): boolean {
+  if (!normalized) return false
+  return (
+    isRetirementHeadingComparable(normalized) ||
+    TAX_CREDIT_KEYWORDS.some((keyword) => normalized.includes(keyword)) ||
+    RETIREMENT_CONTINUATION_KEYWORDS.some((keyword) => normalized.includes(keyword))
+  )
+}
+
 function isBonusContinuationBlock(input: string): boolean {
   const normalized = normalizeHunComparable(input)
   if (!normalized) return false
@@ -460,13 +490,112 @@ function removeTaxCreditSentences(input: string): string {
     .replace(/[^.!?\n]*alanyi\s+jogon[^.!?\n]*[.!?]?/gi, "")
 }
 
+type SectionBlock = {
+  raw: string
+  normalized: string
+  isHeading: boolean
+}
+
+function extractNumberedHeadingFromHtmlBlock(raw: string): HeadingMatch | null {
+  const normalized = normalizeComparableText(raw)
+  if (!normalized) return null
+  return extractFirstNumberedHeadingFromText(normalized)
+}
+
+function toSectionBlock(raw: string): SectionBlock {
+  const normalized = normalizeComparableText(raw)
+  return {
+    raw,
+    normalized,
+    isHeading: Boolean(extractNumberedHeadingFromHtmlBlock(raw)),
+  }
+}
+
+function removeRetirementSectionsHtml(input: string): string {
+  const blockPattern = /<(div|p|li|h[1-6]|section)\b[^>]*>[\s\S]*?<\/\1>/gi
+  const matches = Array.from(input.matchAll(blockPattern))
+  if (matches.length === 0) return input
+
+  const blocks = matches.map((match) => toSectionBlock(match[0]))
+  const removeIndexes = new Set<number>()
+
+  for (let idx = 0; idx < blocks.length; idx += 1) {
+    const current = blocks[idx]
+    if (!current.isHeading || !isRetirementHeadingComparable(current.normalized)) continue
+
+    let end = idx + 1
+    while (end < blocks.length && !blocks[end].isHeading) {
+      if (!blocks[end].normalized.trim() || isRetirementContinuationComparable(blocks[end].normalized)) {
+        removeIndexes.add(end)
+        end += 1
+        continue
+      }
+      break
+    }
+
+    for (let removeIdx = idx; removeIdx < end; removeIdx += 1) {
+      removeIndexes.add(removeIdx)
+    }
+    idx = end - 1
+  }
+
+  if (removeIndexes.size === 0) return input
+
+  let cursor = 0
+  let result = ""
+  for (let idx = 0; idx < matches.length; idx += 1) {
+    const match = matches[idx]
+    const start = match.index ?? 0
+    const original = match[0]
+    result += input.slice(cursor, start)
+    if (!removeIndexes.has(idx)) result += original
+    cursor = start + original.length
+  }
+  result += input.slice(cursor)
+  return result
+}
+
+function removeRetirementSectionsPlain(input: string): string {
+  const lines = input.split("\n")
+  const removeIndexes = new Set<number>()
+
+  for (let idx = 0; idx < lines.length; idx += 1) {
+    const normalized = normalizeComparableText(lines[idx] || "")
+    if (!extractFirstNumberedHeadingFromText(lines[idx] || "") || !isRetirementHeadingComparable(normalized)) continue
+
+    let end = idx + 1
+    while (end < lines.length && !extractFirstNumberedHeadingFromText(lines[end] || "")) {
+      const continuationLine = normalizeComparableText(lines[end] || "")
+      if (!continuationLine.trim() || isRetirementContinuationComparable(continuationLine)) {
+        removeIndexes.add(end)
+        end += 1
+        continue
+      }
+      break
+    }
+
+    for (let removeIdx = idx; removeIdx < end; removeIdx += 1) {
+      removeIndexes.add(removeIdx)
+    }
+    idx = end - 1
+  }
+
+  if (removeIndexes.size === 0) return input
+  return lines.filter((_, index) => !removeIndexes.has(index)).join("\n")
+}
+
 function removeRetirementSectionHeuristic(input: string, htmlMode: boolean): string {
   if (!RETIREMENT_FAST_PATTERN.test(input)) {
     return input
   }
 
+  const sectionRemoved = htmlMode ? removeRetirementSectionsHtml(input) : removeRetirementSectionsPlain(input)
+  if (sectionRemoved !== input) {
+    return removeTaxCreditSentences(sectionRemoved)
+  }
+
   const shouldRemoveBlock = (block: string) =>
-    containsAnyNormalizedKeyword(block, RETIREMENT_BLOCK_KEYWORDS) || containsAnyNormalizedKeyword(block, TAX_CREDIT_KEYWORDS)
+    containsAnyComparableKeyword(block, RETIREMENT_BLOCK_KEYWORDS) || containsAnyComparableKeyword(block, TAX_CREDIT_KEYWORDS)
 
   let output = htmlMode ? removeHtmlBlocksByPredicate(input, shouldRemoveBlock) : removePlainLinesByPredicate(input, shouldRemoveBlock)
 
@@ -561,10 +690,7 @@ function renumberSectionHeadingsHtml(input: string): string {
 
   for (let idx = 0; idx < blocks.length; idx += 1) {
     const block = blocks[idx][0]
-    const parts = block.split(/(<[^>]+>)/g)
-    const firstText = readFirstTextChunk(parts)
-    if (!firstText) continue
-    const parsed = extractFirstNumberedHeadingFromText(firstText.text)
+    const parsed = extractNumberedHeadingFromHtmlBlock(block)
     if (!parsed) continue
     headingIndexes.push(idx)
     headingNumbers.push(parsed.number)
@@ -684,10 +810,6 @@ export function renderEmailTemplate({
           htmlOutput = htmlOutput.replace(tokenPattern, "")
           plainOutput = plainOutput.replace(tokenPattern, "")
         }
-        if (snippet) {
-          htmlOutput = replaceFirst(htmlOutput, snippet, "")
-          plainOutput = replaceFirst(plainOutput, snippet, "")
-        }
       }
       continue
     }
@@ -774,14 +896,16 @@ export function renderEmailTemplate({
   }
 
   const goalPhrase = toGoalPhrase(accountGoalPhrase)
-  if (goalPhrase) {
-    htmlOutput = replaceOutsideTables(htmlOutput, (segment) => replaceSavingsGoalPhrase(segment, escapeHtml(goalPhrase)))
-    plainOutput = replaceSavingsGoalPhrase(plainOutput, goalPhrase)
-  }
-
   if (!retirementEnabled && hasConfiguredRetirementSection) {
     htmlOutput = removeRetirementSectionHeuristic(htmlOutput, true)
     plainOutput = removeRetirementSectionHeuristic(plainOutput, false)
+    htmlOutput = renumberSectionHeadingsHtml(htmlOutput)
+    plainOutput = renumberSectionHeadingsPlain(plainOutput)
+  }
+
+  if (goalPhrase) {
+    htmlOutput = replaceOutsideTables(htmlOutput, (segment) => replaceSavingsGoalPhrase(segment, escapeHtml(goalPhrase)))
+    plainOutput = replaceSavingsGoalPhrase(plainOutput, goalPhrase)
   }
 
   if (!isEurCurrency(String(values.currency ?? ""))) {

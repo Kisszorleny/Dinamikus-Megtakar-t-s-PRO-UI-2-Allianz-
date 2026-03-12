@@ -7,11 +7,21 @@ import { buildTegezoConversionSuggestion } from "@/lib/email-templates/tone-conv
 import {
   buildCalculatorTableHtml,
   buildCalculatorTableHtmlFromTemplate,
+  buildCompactCalculatorTableHtml,
+  buildCompactCalculatorTableHtmlFromTemplate,
+  buildCompactCalculatorTablePlain,
   buildCalculatorTablePlain,
 } from "@/lib/email-templates/calculator-table"
+import { convertExtraEmailTablePaymentAmount } from "@/lib/email-templates/extra-email-table"
 import { buildEmlMessage, slugifyVariantFileName } from "@/lib/email-templates/eml"
 import { buildStandaloneHtmlEmail } from "@/lib/email-templates/html-export"
 import { buildPdfFromEmail } from "@/lib/email-templates/pdf"
+import {
+  applyClosingSectionPolicyToDocument,
+  stripClosingSectionFromHtml,
+  stripClosingSectionFromText,
+} from "@/lib/email-templates/closing-section"
+import { buildStoredTemplateVariantArtifacts, renderStoredTemplateVariant } from "@/lib/email-templates/variant-runtime"
 
 describe("email-template tools", () => {
   it("parses LLM JSON wrapped in markdown fences", async () => {
@@ -185,6 +195,83 @@ describe("email-template tools", () => {
     }
   })
 
+  it("preserves whitespace around html node boundaries in ai tegezo html", async () => {
+    const prevApiKey = process.env.OPENAI_API_KEY
+    const prevModel = process.env.OPENAI_TONE_CONVERSION_MODEL
+    process.env.OPENAI_API_KEY = "sk-test"
+    process.env.OPENAI_TONE_CONVERSION_MODEL = "gpt-5.2"
+    const fetchSpy = vi.spyOn(globalThis, "fetch" as never).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content:
+                '```json\n{"subject":"Kedves {{name}}!","htmlContent":{"[[DM_HTML_TEXT_0]]":"Segíteni fogok","[[DM_HTML_TEXT_1]]":"neked","[[DM_HTML_TEXT_2]]":", hogy sikerüljön."},"textContent":"Segíteni fogok neked, hogy sikerüljön."}\n```',
+            },
+          },
+        ],
+      }),
+    } as never)
+    try {
+      const doc = parseTemplateContent("html", "<p>Segíteni fogok <b>Önnek</b>, hogy sikerüljön.</p>")
+      const suggestion = await buildTegezoConversionSuggestion(doc)
+      expect(suggestion).toBeTruthy()
+      expect(suggestion?.convertedHtmlContent).toContain("fogok <b>neked</b>, hogy")
+    } finally {
+      fetchSpy.mockRestore()
+      if (prevApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY
+      } else {
+        process.env.OPENAI_API_KEY = prevApiKey
+      }
+      if (prevModel === undefined) {
+        delete process.env.OPENAI_TONE_CONVERSION_MODEL
+      } else {
+        process.env.OPENAI_TONE_CONVERSION_MODEL = prevModel
+      }
+    }
+  })
+
+  it("preserves nbsp spacer blocks in ai tegezo html", async () => {
+    const prevApiKey = process.env.OPENAI_API_KEY
+    const prevModel = process.env.OPENAI_TONE_CONVERSION_MODEL
+    process.env.OPENAI_API_KEY = "sk-test"
+    process.env.OPENAI_TONE_CONVERSION_MODEL = "gpt-5.2"
+    const fetchSpy = vi.spyOn(globalThis, "fetch" as never).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content:
+                '```json\n{"subject":"Kedves {{name}}!","htmlContent":{"[[DM_HTML_TEXT_0]]":"&nbsp;","[[DM_HTML_TEXT_1]]":"Segíteni fogok neked.","[[DM_HTML_TEXT_2]]":"&nbsp;"},"textContent":"Segíteni fogok neked."}\n```',
+            },
+          },
+        ],
+      }),
+    } as never)
+    try {
+      const doc = parseTemplateContent("html", "<div>&nbsp;</div><div>Segíteni fogok Önnek.</div><div>&nbsp;</div>")
+      const suggestion = await buildTegezoConversionSuggestion(doc)
+      expect(suggestion).toBeTruthy()
+      expect(suggestion?.convertedHtmlContent).toContain("<div>&nbsp;</div>")
+      expect(suggestion?.convertedHtmlContent).toContain("Segíteni fogok neked.")
+    } finally {
+      fetchSpy.mockRestore()
+      if (prevApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY
+      } else {
+        process.env.OPENAI_API_KEY = prevApiKey
+      }
+      if (prevModel === undefined) {
+        delete process.env.OPENAI_TONE_CONVERSION_MODEL
+      } else {
+        process.env.OPENAI_TONE_CONVERSION_MODEL = prevModel
+      }
+    }
+  })
+
   it("keeps template tokens unchanged during tegezo conversion", async () => {
     const doc = parseTemplateContent("html", "<p>Tisztelt {{name}}!</p><p>Kérjük, hogy az Ön összege: {{amount}}</p>")
     const suggestion = await buildTegezoConversionSuggestion(doc, { mode: "builtin" })
@@ -208,6 +295,30 @@ describe("email-template tools", () => {
     expect(suggestion).toBeTruthy()
     expect(suggestion?.convertedTextContent).toContain("neked")
     expect(suggestion?.convertedTextContent).not.toContain("Önnek")
+  })
+
+  it("preserves paragraph breaks in builtin tegezo text conversion", async () => {
+    const doc = parseTemplateContent(
+      "text",
+      "Tisztelt Ügyfelünk!\n\nKérjük, hogy az Ön befizetését rendezze.\n\nKeressen bizalommal.",
+    )
+    const suggestion = await buildTegezoConversionSuggestion(doc, { mode: "builtin" })
+    expect(suggestion).toBeTruthy()
+    expect(suggestion?.convertedTextContent).toContain("\n\n")
+    expect(suggestion?.convertedTextContent).toContain("Kérlek,")
+    expect(suggestion?.convertedTextContent).toContain("a te befizetését")
+  })
+
+  it("preserves html text-node line breaks in builtin tegezo conversion", async () => {
+    const doc = parseTemplateContent(
+      "html",
+      "<div>Tisztelt Ügyfelünk!\n\nKérjük, hogy az Ön befizetését rendezze.\n\nKeressen bizalommal.</div>",
+    )
+    const suggestion = await buildTegezoConversionSuggestion(doc, { mode: "builtin" })
+    expect(suggestion).toBeTruthy()
+    expect(suggestion?.convertedHtmlContent).toContain("\n\n")
+    expect(suggestion?.convertedHtmlContent).toContain("Kérlek,")
+    expect(suggestion?.convertedHtmlContent).toContain("a te befizetését")
   })
 
   it("parses html into html and text", () => {
@@ -259,6 +370,113 @@ describe("email-template tools", () => {
       htmlBody: fullDoc,
     })
     expect(html).toBe(fullDoc)
+  })
+
+  it("materializes structural variants with current runtime values", () => {
+    const rendered = renderStoredTemplateVariant({
+      variant: {
+        id: "variant-1",
+        name: "Tegező - Allianz Életprogram Nyugdíj Forintos",
+        tone: "tegezo",
+        product: "allianz_eletprogram",
+        currency: "HUF",
+        goal: "nyugdij",
+        emlFileName: "variant-1.eml",
+        htmlFileName: "variant-1.html",
+        subject: "Teszt sablon",
+        htmlContent: "<p>Kedves {{name}}!</p><div>{{calculator_table}}</div><p>{{amount}}</p><p>{{deadline}}</p>",
+        plainContent: "Kedves {{name}}!\n{{calculator_table}}\n{{amount}}\n{{deadline}}",
+        emlContent: "",
+      },
+      mappings: [
+        { key: "name", label: "Név", token: "{{name}}" },
+        { key: "amount", label: "Összeg", token: "{{amount}}" },
+        { key: "deadline", label: "Határidő", token: "{{deadline}}" },
+        { key: "calculator_table", label: "Kalkulátor táblázat", token: "{{calculator_table}}" },
+      ],
+      safeName: "Kevin",
+      safeUntil: "2026.03.17",
+      displayCurrency: "HUF",
+      values: {
+        accountName: "Nyugdíj",
+        accountGoal: "nyugdíj",
+        monthlyPayment: "57 320 Ft",
+        yearlyPayment: "687 840 Ft",
+        years: "10 év",
+        totalContributions: "6 878 400 Ft",
+        strategy: "Vegyes",
+        annualYield: "6%",
+        totalReturn: "1 000 000 Ft",
+        totalTaxCredit: "0 Ft",
+        endBalance: "7 878 400 Ft",
+        totalBonus: "",
+        finalNet: "7 878 400 Ft",
+      },
+      calculatorTableHtml: "<table><tr><td>teszt sor</td></tr></table>",
+      calculatorTablePlain: "teszt sor",
+      subject: "Teszt sablon",
+    })
+
+    expect(rendered.html).toContain("Kevin")
+    expect(rendered.html).toContain("57 320 Ft")
+    expect(rendered.html).toContain("2026.03.17")
+    expect(rendered.html).toContain("<table><tr><td>teszt sor</td></tr></table>")
+    expect(rendered.html).not.toContain("{{name}}")
+    expect(rendered.plain).toContain("Kevin")
+    expect(rendered.plain).toContain("teszt sor")
+  })
+
+  it("builds downloadable artifacts from structural variants", () => {
+    const artifacts = buildStoredTemplateVariantArtifacts({
+      variant: {
+        id: "variant-2",
+        name: "Magázó - Allianz Bónusz Életprogram Eurós",
+        tone: "magazo",
+        product: "allianz_bonusz_eletprogram",
+        currency: "EUR",
+        goal: "tokenoveles",
+        emlFileName: "variant-2.eml",
+        htmlFileName: "variant-2.html",
+        subject: "Teszt ajánlat",
+        htmlContent: "<p>Tisztelt {{name}}!</p><p>{{fixed_small_amount}}</p>",
+        plainContent: "Tisztelt {{name}}!\n{{fixed_small_amount}}",
+        emlContent: "",
+      },
+      mappings: [
+        { key: "name", label: "Név", token: "{{name}}" },
+        { key: "fixed_small_amount", label: "Fix kis összeg", token: "{{fixed_small_amount}}" },
+      ],
+      safeName: "Réka",
+      safeUntil: "2026.03.17",
+      displayCurrency: "EUR",
+      values: {
+        accountName: "Tőkenövelés",
+        accountGoal: "tőkenövelés",
+        monthlyPayment: "100 EUR",
+        yearlyPayment: "1200 EUR",
+        years: "10 év",
+        totalContributions: "12 000 EUR",
+        strategy: "Vegyes",
+        annualYield: "6%",
+        totalReturn: "2 000 EUR",
+        totalTaxCredit: "",
+        endBalance: "14 000 EUR",
+        totalBonus: "500 EUR",
+        finalNet: "14 500 EUR",
+      },
+      calculatorTableHtml: "{{calculator_table}}",
+      calculatorTablePlain: "{{calculator_table}}",
+      subject: "Teszt ajánlat",
+      fromAddress: "DM PRO <noreply@example.com>",
+      toAddress: "ugyfel@example.com",
+      date: new Date("2026-03-08T12:00:00Z"),
+    })
+
+    expect(artifacts.html).toContain("Réka")
+    expect(artifacts.html).toContain("3.3 Euro")
+    expect(artifacts.standaloneHtml).toContain("<title>Teszt ajánlat</title>")
+    expect(artifacts.eml).toContain("MIME-Version: 1.0")
+    expect(artifacts.eml).toContain("Réka")
   })
 
   it("builds pdf bytes for email content", async () => {
@@ -349,6 +567,62 @@ describe("email-template tools", () => {
     const parsed = parseTemplateContent("eml", eml)
     expect(parsed.htmlContent).toContain('src="data:image/png;base64,')
     expect(parsed.htmlContent).not.toContain("cid:image001.png@01D")
+  })
+
+  it("strips closing section from plain text signatures", () => {
+    const result = stripClosingSectionFromText("Kedves Ügyfél!\nItt az ajánlat.\n\nTisztelettel:\nMinta Tanácsadó\n+36...")
+    expect(result.stripped).toBe(true)
+    expect(result.content).toContain("Itt az ajánlat.")
+    expect(result.content).toContain("Tisztelettel:")
+    expect(result.content).not.toContain("Minta Tanácsadó")
+  })
+
+  it("strips closing section from html signatures", () => {
+    const result = stripClosingSectionFromHtml("<p>Kedves Ügyfél!</p><p>Itt az ajánlat.</p><p>Üdvözlettel:</p><div>Tanácsadó</div>")
+    expect(result.stripped).toBe(true)
+    expect(result.content).toContain("Itt az ajánlat.")
+    expect(result.content).toContain("Üdvözlettel:")
+    expect(result.content).not.toContain("Tanácsadó")
+  })
+
+  it("keeps eml raw source but strips rendered document content when requested", () => {
+    const eml = [
+      "Subject: Teszt sablon",
+      "Content-Type: text/html; charset=utf-8",
+      "",
+      "<html><body><p>Kedves Ügyfél!</p><p>Itt az ajánlat.</p><p>Tisztelettel:</p><div>Tanácsadó</div></body></html>",
+    ].join("\n")
+    const parsed = parseTemplateContent("eml", eml)
+    const result = applyClosingSectionPolicyToDocument(parsed, {
+      removeClosingSection: true,
+      markHtml: true,
+    })
+    expect(result.document.rawContent).toContain("Subject: Teszt sablon")
+    expect(result.document.htmlContent).toContain("Kedves Ügyfél!")
+    expect(result.document.htmlContent).not.toContain("Tanácsadó")
+    expect(result.document.textContent).not.toContain("Tanácsadó")
+  })
+
+  it("strips outlook-style signature block without explicit udvozlettel marker", () => {
+    const html = [
+      "<html><body>",
+      "<p>Hiszem, hogy a folyamatos kommunikáció a siker alapja.</p>",
+      "<p>További információért vagy bármilyen kérdés esetén keressen bizalommal:</p>",
+      '<div id="Signature">',
+      "<p><b>Bogdány Barnabás</b></p>",
+      "<p>Allianz Tanácsadó</p>",
+      "<p>Allianz Hungária Zrt. | Aquincum Területi Igazgatóság | 1087 Budapest | Könyves Kálmán krt. 48-52.</p>",
+      '<p>| Mobil: +36-20-33-22518 | <a href="mailto:barnabas.bogdany@allianztanacsado.hu">barnabas.bogdany@allianztanacsado.hu</a></p>',
+      '<p>[cid:image-1][cid:image-2]</p>',
+      "</div>",
+      "</body></html>",
+    ].join("")
+    const doc = parseTemplateContent("html", html)
+    const result = applyClosingSectionPolicyToDocument(doc, { removeClosingSection: true })
+    expect(result.document.htmlContent).toContain("További információért")
+    expect(result.document.htmlContent).not.toContain("Bogdány Barnabás")
+    expect(result.document.htmlContent).not.toContain("Allianz Tanácsadó")
+    expect(result.document.textContent).not.toContain("Mobil:")
   })
 
   it("suggests name, amount and deadline mappings", () => {
@@ -557,6 +831,112 @@ describe("email-template tools", () => {
     expect(rendered.html).toContain("<table")
     expect(rendered.html).toContain("Nyugdíj számla")
     expect(rendered.plain).toContain("Megtakarítási havi összeg: 20 000 Ft")
+  })
+
+  it("builds compact calculator table html and plain outputs", () => {
+    const html = buildCompactCalculatorTableHtml({
+      accountName: "Allianz Életprogram",
+      currency: "EUR",
+      paymentFrequency: "havi",
+      paymentAmount: "20 000 Ft",
+      yearlyPayment: "240 000 Ft",
+      years: "10 év",
+      annualYield: "4,85%",
+      taxCreditEnabled: true,
+      totalTaxCredit: "240 000 Ft",
+      totalContributions: "2 400 000 Ft",
+      totalReturn: "850 000 Ft",
+      finalNet: "3 490 000 Ft",
+    })
+    const plain = buildCompactCalculatorTablePlain({
+      accountName: "Allianz Életprogram",
+      currency: "EUR",
+      paymentFrequency: "havi",
+      paymentAmount: "20 000 Ft",
+      yearlyPayment: "240 000 Ft",
+      years: "10 év",
+      annualYield: "4,85%",
+      taxCreditEnabled: true,
+      totalTaxCredit: "240 000 Ft",
+      totalContributions: "2 400 000 Ft",
+      totalReturn: "850 000 Ft",
+      finalNet: "3 490 000 Ft",
+    })
+    expect(html).toContain("Befizetés gyakorisága")
+    expect(html).toContain("Adójóváírás")
+    expect(html).toContain("Befizetés összege")
+    expect(html).toContain("Teljes megtakarítás nettó értéke")
+    expect(plain).toContain("Deviza: EUR")
+    expect(plain).toContain("Adójóváírás: Igen")
+    expect(plain).toContain("Teljes megtakarítás nettó értéke: 3 490 000 Ft")
+  })
+
+  it("builds compact calculator table from template style", () => {
+    const templateTable =
+      '<table style="font-family:Calibri; width:760px; border-collapse:collapse;"><tr><td style="background:#ED7D31;color:#fff;font-size:16px">Megtakarítási havi összeg:</td><td style="background:#2F5597;color:#fff;font-size:16px">0 Ft</td></tr><tr><td style="background:#ED7D31;color:#fff;font-size:16px">Teljes megtakarítás nettó értéke:</td><td style="background:#C55A11;color:#fff;font-size:16px">0 Ft</td></tr></table>'
+    const html = buildCompactCalculatorTableHtmlFromTemplate(
+      {
+        accountName: "Allianz Életprogram",
+        currency: "Ft",
+        paymentFrequency: "Havi",
+        paymentAmount: "50 000 Ft",
+        yearlyPayment: "600 000 Ft",
+        years: "10 év",
+        annualYield: "12%",
+        taxCreditEnabled: false,
+        totalTaxCredit: "",
+        totalContributions: "6 000 000 Ft",
+        totalReturn: "4 106 761 Ft",
+        finalNet: "10 985 101 Ft",
+      },
+      templateTable,
+    )
+    expect(html).toContain("font-family:Calibri")
+    expect(html).toContain("background:#ED7D31")
+    expect(html).toContain("Befizetés összege")
+    expect(html).toContain("50 000 Ft")
+  })
+
+  it("converts extra table payment amount between huf and eur", () => {
+    expect(convertExtraEmailTablePaymentAmount(50_000, "HUF", "EUR", 400)).toBe(125)
+    expect(convertExtraEmailTablePaymentAmount(125, "EUR", "HUF", 400)).toBe(50_000)
+  })
+
+  it("builds full styled table output for eur extra table values", () => {
+    const templateTable =
+      '<table style="font-family:Calibri; width:760px; border-collapse:collapse;"><tr><td style="background:#ED7D31;color:#fff;">Megtakarítási havi összeg:</td><td style="background:#2F5597;color:#fff;">0 €</td></tr><tr><td style="background:#ED7D31;color:#fff;">Tervezett időtartam:</td><td style="background:#2F5597;color:#fff;">0 év</td></tr><tr><td style="background:#ED7D31;color:#fff;">Teljes megtakarítás nettó értéke:</td><td style="background:#C55A11;color:#fff;">0 €</td></tr><tr><td style="background:#ED7D31;color:#fff;">500 Ft-os Euróval számolva:</td><td style="background:#A64D79;color:#fff;">0 Ft</td></tr></table>'
+    const values = {
+      accountName: "Allianz Életprogram",
+      accountGoal: "Tőkenövelés",
+      monthlyPayment: "125 €",
+      yearlyPayment: "1 500 €",
+      years: "10 év",
+      totalContributions: "15 000 €",
+      strategy: "Vegyes",
+      annualYield: "12%",
+      totalReturn: "12 463 €",
+      endBalance: "27 463 €",
+      finalNet: "27 463 €",
+      endBalanceHufCurrent: "10 985 101 Ft",
+      endBalanceEUR500: "13 731 500 Ft",
+      endBalanceEUR600: "16 477 800 Ft",
+    }
+    const html = buildCalculatorTableHtmlFromTemplate(values, templateTable)
+    const plain = buildCalculatorTablePlain(values)
+
+    expect(html).toContain("font-family:Calibri")
+    expect(html).toContain("Tervezett időtartam")
+    expect(html).toContain("10 év")
+    expect(html).not.toContain("Adójóváírás a tartam alatt összesen")
+    expect(html).toContain("Jelen árfolyamon számolva")
+    expect(html).toContain("500 Ft-os Euróval számolva")
+    expect(html).toContain("600 Ft-os Euróval számolva")
+
+    expect(plain).toContain("Tervezett időtartam: 10 év")
+    expect(plain).not.toContain("Adójóváírás a tartam alatt összesen")
+    expect(plain).toContain("Jelen árfolyamon számolva: 10 985 101 Ft")
+    expect(plain).toContain("500 Ft-os Euróval számolva: 13 731 500 Ft")
+    expect(plain).toContain("600 Ft-os Euróval számolva: 16 477 800 Ft")
   })
 
   it("replaces selected snippet with calculator table when token is absent", () => {
@@ -1124,6 +1504,101 @@ describe("email-template tools", () => {
     expect(rendered.html).toContain("Jogszabályvédelem")
     expect(rendered.html).toContain("maradjon")
     expect(rendered.plain).toContain("Jogszabályvédelem")
+  })
+
+  it("removes full retirement section with continuation blocks and renumbers headings", () => {
+    const rendered = renderEmailTemplate({
+      template: {
+        htmlContent: [
+          "<div>5, Előző szekció</div>",
+          "<div>Rendes tartalom</div>",
+          "<div>6, Gondoskodjon a jövőjéről ma – nyugdíjcélú megtakarítás az Allianz-nál</div>",
+          "<div>✅ Jogszabályvédelem a jövőre nézve:</div>",
+          "<p>A szerződéskötéskor érvényes szabályok garantáltak, akkor is hozzáférhetsz a pénzedhez 65 évesen.</p>",
+          "<div>✅ Állami támogatás:</div>",
+          "<p>Az állam évente fix 20% adójóváírást biztosít, alanyi jogon.</p>",
+          "<div>7, Következő szekció</div>",
+          "<div>Utólag is maradó tartalom</div>",
+        ].join(""),
+        textContent: [
+          "5, Előző szekció",
+          "Rendes tartalom",
+          "6, Gondoskodjon a jövőjéről ma – nyugdíjcélú megtakarítás az Allianz-nál",
+          "✅ Jogszabályvédelem a jövőre nézve:",
+          "A szerződéskötéskor érvényes szabályok garantáltak, akkor is hozzáférhetsz a pénzedhez 65 évesen.",
+          "✅ Állami támogatás:",
+          "Az állam évente fix 20% adójóváírást biztosít, alanyi jogon.",
+          "7, Következő szekció",
+          "Utólag is maradó tartalom",
+        ].join("\n"),
+        mappings: [
+          {
+            key: "retirement_section",
+            label: "Nyugdíj szekció",
+            token: "{{retirement_section}}",
+            sourceSnippet: "6, Gondoskodjon a jövőjéről ma – nyugdíjcélú megtakarítás az Allianz-nál ✅ Állami támogatás",
+          },
+        ],
+      },
+      values: {},
+      accountGoalPhrase: "Tőkenövelés",
+    })
+
+    expect(rendered.html).toContain("5, Előző szekció")
+    expect(rendered.html).toContain("6, Következő szekció")
+    expect(rendered.html).not.toContain("7, Következő szekció")
+    expect(rendered.html).not.toContain("nyugdíjcélú megtakarítás")
+    expect(rendered.html).not.toContain("Jogszabályvédelem")
+    expect(rendered.html).not.toContain("adójóváírást biztosít")
+    expect(rendered.html).toContain("Utólag is maradó tartalom")
+
+    expect(rendered.plain).toContain("5, Előző szekció")
+    expect(rendered.plain).toContain("6, Következő szekció")
+    expect(rendered.plain).not.toContain("7, Következő szekció")
+    expect(rendered.plain).not.toContain("nyugdíjcélú megtakarítás")
+    expect(rendered.plain).not.toContain("Jogszabályvédelem")
+    expect(rendered.plain).not.toContain("adójóváírást biztosít")
+  })
+
+  it("removes retirement section before goal phrase replacement when heading markup is fragmented", () => {
+    const rendered = renderEmailTemplate({
+      template: {
+        htmlContent: [
+          "<div>Bevezető a nyugdíj célú megtakarítás részleteiről.</div>",
+          "<div>6, <strong>Gondoskodjon</strong> a <span>jövőjéről</span> ma – <span>nyugdíjcélú</span> megtakarítás az Allianz-nál</div>",
+          "<div>✅ Jogszabályvédelem a jövőre nézve:</div>",
+          "<p>Nők esetében a 40 év jogosultsági idő is megőrződik.</p>",
+          "<div>7, Következő szekció</div>",
+        ].join(""),
+        textContent: [
+          "Bevezető a nyugdíj célú megtakarítás részleteiről.",
+          "6, Gondoskodjon a jövőjéről ma – nyugdíjcélú megtakarítás az Allianz-nál",
+          "✅ Jogszabályvédelem a jövőre nézve:",
+          "Nők esetében a 40 év jogosultsági idő is megőrződik.",
+          "7, Következő szekció",
+        ].join("\n"),
+        mappings: [
+          {
+            key: "retirement_section",
+            label: "Nyugdíj szekció",
+            token: "{{retirement_section}}",
+            sourceSnippet: "6, Gondoskodjon a jövőjéről ma – nyugdíjcélú megtakarítás az Allianz-nál",
+          },
+        ],
+      },
+      values: {},
+      accountGoalPhrase: "Tőkenövelés",
+    })
+
+    expect(rendered.html).toContain("tőkenövelés célú megtakarítás részleteiről")
+    expect(rendered.html).not.toContain("tőkenövelési célú megtakarítás az Allianz-nál")
+    expect(rendered.html).not.toContain("Jogszabályvédelem")
+    expect(rendered.html).toContain("7, Következő szekció")
+
+    expect(rendered.plain).toContain("tőkenövelés célú megtakarítás részleteiről")
+    expect(rendered.plain).not.toContain("tőkenövelési célú megtakarítás az Allianz-nál")
+    expect(rendered.plain).not.toContain("Jogszabályvédelem")
+    expect(rendered.plain).toContain("7, Következő szekció")
   })
 
   it("removes mapped bonus section snippet only for Allianz Életprogram", () => {

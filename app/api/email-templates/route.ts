@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { getSessionUser } from "@/lib/auth-session"
 import { buildParsedTemplateCandidate } from "@/lib/email-templates/auto-detect"
+import { applyClosingSectionPolicyToDocument } from "@/lib/email-templates/closing-section"
 import { parseTemplateContent } from "@/lib/email-templates/parser"
 import { createEmailTemplate, listEmailTemplates } from "@/lib/email-templates/repository"
 
@@ -31,6 +32,7 @@ const createTemplateSchema = z.object({
   sourceType: sourceTypeSchema,
   originalFileName: z.string().trim().optional(),
   rawContent: z.string().min(1),
+  removeClosingSection: z.boolean().optional(),
   subject: z.string().trim().optional(),
   mappings: z.array(mappingSchema).min(1),
   conversion: z
@@ -67,17 +69,20 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const document = parseTemplateContent(parsed.data.sourceType, parsed.data.rawContent)
+    const baseDocument = parseTemplateContent(parsed.data.sourceType, parsed.data.rawContent)
+    const { document } = applyClosingSectionPolicyToDocument(baseDocument, {
+      removeClosingSection: parsed.data.removeClosingSection,
+      markHtml: parsed.data.sourceType === "eml",
+    })
     const candidate = buildParsedTemplateCandidate(document)
-    const approvedConversion = parsed.data.conversion?.status === "approved" ? parsed.data.conversion : undefined
-    const subject = approvedConversion?.convertedSubject || parsed.data.subject || candidate.subject
-    const htmlContent = approvedConversion?.convertedHtmlContent || candidate.htmlContent
-    const textContent = approvedConversion?.convertedTextContent || candidate.textContent
+    const subject = parsed.data.subject || candidate.subject
+    const htmlContent = candidate.htmlContent
+    const textContent = candidate.textContent
     const template = await createEmailTemplate(session, {
       name: parsed.data.name,
       sourceType: parsed.data.sourceType,
       originalFileName: parsed.data.originalFileName,
-      rawContent: parsed.data.rawContent,
+      rawContent: document.rawContent,
       subject,
       htmlContent,
       textContent,

@@ -21,6 +21,118 @@ export type CalculatorTableStyleOptions = {
   fxBaseColor?: string
 }
 
+export type CompactCalculatorTableValues = {
+  accountName: string
+  currency: string
+  paymentFrequency: string
+  paymentAmount: string
+  yearlyPayment: string
+  years: string
+  annualYield: string
+  taxCreditEnabled: boolean
+  totalTaxCredit?: string
+  totalContributions: string
+  totalReturn: string
+  finalNet: string
+}
+
+type CompactCanonicalTableRow = {
+  label: string
+  value: string
+  type: "standard" | "final"
+  include: boolean
+  matchers: string[]
+}
+
+function buildCompactCanonicalRows(values: CompactCalculatorTableValues): CompactCanonicalTableRow[] {
+  return [
+    {
+      label: "Megtakarítási számla megnevezése",
+      value: values.accountName,
+      type: "standard",
+      include: true,
+      matchers: ["megtakaritasi szamla megnevezese"],
+    },
+    {
+      label: "Deviza",
+      value: values.currency,
+      type: "standard",
+      include: true,
+      matchers: ["penznem"],
+    },
+    {
+      label: "Befizetés gyakorisága",
+      value: values.paymentFrequency,
+      type: "standard",
+      include: true,
+      matchers: ["megtakaritasi eves osszeg"],
+    },
+    {
+      label: "Befizetés összege",
+      value: values.paymentAmount,
+      type: "standard",
+      include: true,
+      matchers: ["megtakaritasi havi osszeg"],
+    },
+    {
+      label: "Megtakarítási éves összeg",
+      value: values.yearlyPayment,
+      type: "standard",
+      include: true,
+      matchers: ["megtakaritasi eves osszeg"],
+    },
+    {
+      label: "Tervezett időtartam",
+      value: values.years,
+      type: "standard",
+      include: true,
+      matchers: ["tervezett idotartam"],
+    },
+    {
+      label: "Éves nettó hozam",
+      value: values.annualYield,
+      type: "standard",
+      include: true,
+      matchers: ["eves netto hozam"],
+    },
+    {
+      label: "Adójóváírás",
+      value: values.taxCreditEnabled ? "Igen" : "Nem",
+      type: "standard",
+      include: true,
+      matchers: ["adojovairas a tartam alatt osszesen"],
+    },
+    {
+      label: "Adójóváírás a tartam alatt összesen",
+      value: values.totalTaxCredit ?? "",
+      type: "standard",
+      include: Boolean(values.totalTaxCredit?.trim()),
+      matchers: ["adojovairas a tartam alatt osszesen"],
+    },
+    {
+      label: "Teljes befizetés",
+      value: values.totalContributions,
+      type: "standard",
+      include: true,
+      matchers: ["teljes befizetes"],
+    },
+    {
+      label: "Várható hozam",
+      value: values.totalReturn,
+      type: "standard",
+      include: true,
+      matchers: ["varhato hozam"],
+    },
+    {
+      label: "Teljes megtakarítás nettó értéke",
+      value: values.finalNet,
+      type: "final",
+      include: true,
+      matchers: ["teljes megtakaritas netto erteke", "megtakaritasi szamlan varhato osszeg"],
+    },
+  ]
+}
+
 function esc(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -697,5 +809,82 @@ export function buildCalculatorTablePlain(values: CalculatorTableValues): string
   if (values.endBalanceEUR600?.trim()) {
     lines.push(`600 Ft-os Euróval számolva: ${values.endBalanceEUR600}`)
   }
+  return lines.join("\n")
+}
+
+export function buildCompactCalculatorTableHtml(values: CompactCalculatorTableValues): string {
+  const rows = [
+    row("Megtakarítási számla megnevezése", values.accountName),
+    row("Deviza", values.currency),
+    row("Befizetés gyakorisága", values.paymentFrequency),
+    row("Befizetés összege", values.paymentAmount),
+    row("Megtakarítási éves összeg", values.yearlyPayment),
+    row("Tervezett időtartam", values.years),
+    row("Éves nettó hozam", values.annualYield),
+    row("Adójóváírás", values.taxCreditEnabled ? "Igen" : "Nem"),
+    ...(values.totalTaxCredit?.trim() ? [row("Adójóváírás a tartam alatt összesen", values.totalTaxCredit)] : []),
+    row("Teljes befizetés", values.totalContributions),
+    row("Várható hozam", values.totalReturn),
+    `<tr><td style="padding:9px 10px; border:1px solid #9ca3af; text-align:left; font-size:14px; color:#111827; font-weight:700; background:#f3f4f6;">Teljes megtakarítás nettó értéke</td><td style="padding:9px 10px; border:1px solid #9ca3af; text-align:right; font-size:14px; color:#111827; font-weight:700; background:#f3f4f6;">${esc(values.finalNet)}</td></tr>`,
+  ]
+  return `<table cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; margin:12px 0; font-family:Arial, Helvetica, sans-serif;">${rows.join("")}</table>`
+}
+
+export function buildCompactCalculatorTableHtmlFromTemplate(
+  values: CompactCalculatorTableValues,
+  tableTemplateHtml?: string,
+): string {
+  const baseTemplate = String(tableTemplateHtml ?? "").trim()
+  if (!baseTemplate || !/<table\b/i.test(baseTemplate)) {
+    return buildCompactCalculatorTableHtml(values)
+  }
+  const tableMatch = /<table\b[\s\S]*?<\/table>/i.exec(baseTemplate)
+  if (!tableMatch) return buildCompactCalculatorTableHtml(values)
+  const tableHtml = tableMatch[0]
+  const templateRows = extractTemplateRows(tableHtml)
+  if (templateRows.length === 0) return buildCompactCalculatorTableHtml(values)
+
+  const standardTemplate =
+    findTemplateRowByMatchers(templateRows, ["megtakaritasi havi osszeg"]) ??
+    findTemplateRowByMatchers(templateRows, ["teljes befizetes"]) ??
+    templateRows.find((row) => !row.normalizedLabel.includes("teljes megtakaritas netto erteke")) ??
+    templateRows[0]
+  const finalTemplate =
+    templateRows.find((row) => row.normalizedLabel.includes("teljes megtakaritas netto erteke")) ??
+    templateRows.find((row) => row.normalizedLabel.includes("megtakaritasi szamlan varhato osszeg")) ??
+    standardTemplate
+
+  const renderedRows = buildCompactCanonicalRows(values)
+    .filter((item) => item.include)
+    .map((item) => {
+      const exact = findTemplateRowByMatchers(templateRows, item.matchers)
+      const templateRow = item.type === "final" ? exact ?? finalTemplate ?? standardTemplate : exact ?? standardTemplate ?? finalTemplate
+      if (!templateRow) return ""
+      return buildInsertedRowFromReference(templateRow.rowHtml, item.label, item.value)
+    })
+    .filter(Boolean)
+
+  if (renderedRows.length === 0) return buildCompactCalculatorTableHtml(values)
+  const rebuiltTable = replaceTableRows(tableHtml, renderedRows)
+  const start = tableMatch.index ?? 0
+  const end = start + tableMatch[0].length
+  return `${baseTemplate.slice(0, start)}${rebuiltTable}${baseTemplate.slice(end)}`
+}
+
+export function buildCompactCalculatorTablePlain(values: CompactCalculatorTableValues): string {
+  const lines = [
+    `Megtakarítási számla megnevezése: ${values.accountName}`,
+    `Deviza: ${values.currency}`,
+    `Befizetés gyakorisága: ${values.paymentFrequency}`,
+    `Befizetés összege: ${values.paymentAmount}`,
+    `Megtakarítási éves összeg: ${values.yearlyPayment}`,
+    `Tervezett időtartam: ${values.years}`,
+    `Éves nettó hozam: ${values.annualYield}`,
+    `Adójóváírás: ${values.taxCreditEnabled ? "Igen" : "Nem"}`,
+    ...(values.totalTaxCredit?.trim() ? [`Adójóváírás a tartam alatt összesen: ${values.totalTaxCredit}`] : []),
+    `Teljes befizetés: ${values.totalContributions}`,
+    `Várható hozam: ${values.totalReturn}`,
+    `Teljes megtakarítás nettó értéke: ${values.finalNet}`,
+  ]
   return lines.join("\n")
 }

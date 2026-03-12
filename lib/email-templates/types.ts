@@ -63,6 +63,25 @@ export type TemplateVariantBundle = {
   updatedAt: string
 }
 
+export type TemplateVariantRuntimeValues = {
+  accountName: string
+  accountGoal: string
+  monthlyPayment: string
+  yearlyPayment: string
+  years: string
+  totalContributions: string
+  strategy: string
+  annualYield: string
+  totalReturn: string
+  totalTaxCredit?: string
+  endBalance: string
+  totalBonus?: string
+  finalNet: string
+  endBalanceHufCurrent?: string
+  endBalanceEUR500?: string
+  endBalanceEUR600?: string
+}
+
 export type ToneConversionPayload = {
   status: ToneConversionStatus
   targetTone?: ToneConversionTarget

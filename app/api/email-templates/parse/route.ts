@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { getSessionUser } from "@/lib/auth-session"
 import { buildParsedTemplateCandidate } from "@/lib/email-templates/auto-detect"
+import { applyClosingSectionPolicyToDocument } from "@/lib/email-templates/closing-section"
 import { parseTemplateContent } from "@/lib/email-templates/parser"
 import { buildTegezoConversionSuggestion } from "@/lib/email-templates/tone-conversion"
 
 const parseSchema = z.object({
   sourceType: z.enum(["html", "text", "eml"]),
   rawContent: z.string().min(1),
+  removeClosingSection: z.boolean().optional(),
   conversionMode: z.enum(["ai_full", "builtin"]).optional(),
   aiContext: z
     .object({
@@ -31,7 +33,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const document = parseTemplateContent(parsed.data.sourceType, parsed.data.rawContent)
+    const baseDocument = parseTemplateContent(parsed.data.sourceType, parsed.data.rawContent)
+    const { document } = applyClosingSectionPolicyToDocument(baseDocument, {
+      removeClosingSection: parsed.data.removeClosingSection,
+    })
     const candidate = buildParsedTemplateCandidate(document)
     const conversionMode = parsed.data.conversionMode ?? "ai_full"
     // EML parsing + AI conversion can be slower because of multipart content and longer bodies.

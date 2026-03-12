@@ -8,12 +8,15 @@ import { getEmailTemplateById } from "@/lib/email-templates/repository"
 import { renderEmailTemplate } from "@/lib/email-templates/render"
 import { buildCalculatorTableHtmlFromTemplate, buildCalculatorTablePlain } from "@/lib/email-templates/calculator-table"
 import { getFixedAmountValues } from "@/lib/email-templates/fixed-amounts"
+import { selectTemplateVariant } from "@/lib/email-templates/variant-selection"
+import { renderStoredTemplateVariant } from "@/lib/email-templates/variant-runtime"
 
 type SummaryEmailPayload = {
   recipientEmail: string
   safeName: string
   safeUntil: string
   emailTegezo: boolean
+  enableTaxCredit?: boolean
   fxBaseColor?: string
   displayCurrency: Currency
   subject: string
@@ -37,6 +40,10 @@ type SummaryEmailPayload = {
   }
   templateId?: string
   selectedProduct?: string
+  htmlOverride?: string
+  plainOverride?: string
+  extraHtml?: string
+  extraPlain?: string
   dynamicValues?: {
     name?: string
     amount?: string
@@ -106,6 +113,7 @@ function parsePayload(raw: unknown): SummaryEmailPayload | null {
     safeName,
     safeUntil,
     emailTegezo,
+    enableTaxCredit: Boolean(candidate.enableTaxCredit),
     fxBaseColor,
     displayCurrency,
     subject,
@@ -129,6 +137,10 @@ function parsePayload(raw: unknown): SummaryEmailPayload | null {
     },
     templateId: String(candidate.templateId ?? "").trim() || undefined,
     selectedProduct: String(candidate.selectedProduct ?? "").trim() || undefined,
+    htmlOverride: String(candidate.htmlOverride ?? "").trim() || undefined,
+    plainOverride: String(candidate.plainOverride ?? "").trim() || undefined,
+    extraHtml: String(candidate.extraHtml ?? "").trim() || undefined,
+    extraPlain: String(candidate.extraPlain ?? "").trim() || undefined,
     dynamicValues:
       candidate.dynamicValues && typeof candidate.dynamicValues === "object"
         ? {
@@ -237,7 +249,10 @@ export async function POST(request: Request) {
     const { attachments, imageSlots } = await loadInlineImages()
     let html = ""
     let plain = ""
-    if (payload.templateId) {
+    if (payload.htmlOverride?.trim()) {
+      html = payload.htmlOverride
+      plain = payload.plainOverride?.trim() || payload.extraPlain?.trim() || ""
+    } else if (payload.templateId) {
       const session = getSessionUserFromRequest(request)
       if (!session) {
         return NextResponse.json({ ok: false, message: "Egyedi sablon küldéséhez bejelentkezés szükséges." }, { status: 401 })
@@ -246,12 +261,55 @@ export async function POST(request: Request) {
       if (!template) {
         return NextResponse.json({ ok: false, message: "A kiválasztott sablon nem található." }, { status: 404 })
       }
+      const selectedVariant = selectTemplateVariant(template.variantBundle, {
+        emailTegezo: payload.emailTegezo,
+        selectedProduct: payload.selectedProduct,
+        displayCurrency: payload.displayCurrency,
+        enableTaxCredit: payload.enableTaxCredit,
+      })
+      if (selectedVariant.status === "unsupported_currency") {
+        return NextResponse.json({ ok: false, message: selectedVariant.message }, { status: 400 })
+      }
+      const shouldHaveVariant =
+        (payload.selectedProduct === "allianz_eletprogram" || payload.selectedProduct === "allianz_bonusz_eletprogram") &&
+        (payload.displayCurrency === "HUF" || payload.displayCurrency === "EUR")
+      if (shouldHaveVariant && selectedVariant.status !== "selected") {
+        return NextResponse.json(
+          { ok: false, message: "Nem található megfelelő variáns sablon. Mentsd újra a sablont vagy készíts 16 variáns csomagot." },
+          { status: 400 },
+        )
+      }
+      if (selectedVariant.status === "selected") {
+        const tableMapping = template.mappings.find((mapping) => mapping.key === "calculator_table")
+        const calculatorTableHtml = buildCalculatorTableHtmlFromTemplate(payload.values, tableMapping?.sourceSnippet)
+        const calculatorTablePlain = buildCalculatorTablePlain(payload.values)
+        const materialized = renderStoredTemplateVariant({
+          variant: selectedVariant.variant,
+          mappings: template.mappings || [],
+          safeName: payload.dynamicValues?.name ?? payload.safeName,
+          safeUntil: payload.dynamicValues?.deadline ?? payload.safeUntil,
+          displayCurrency: payload.displayCurrency,
+          values: payload.values,
+          calculatorTableHtml,
+          calculatorTablePlain,
+          subject: payload.subject,
+        })
+        html = materialized.html
+        plain = materialized.plain
+      } else {
       const tableMapping = template.mappings.find((mapping) => mapping.key === "calculator_table")
       const calculatorTableHtml = buildCalculatorTableHtmlFromTemplate(payload.values, tableMapping?.sourceSnippet)
       const calculatorTablePlain = buildCalculatorTablePlain(payload.values)
       const fixedAmounts = getFixedAmountValues(payload.displayCurrency)
+      const resolvedTemplate = payload.emailTegezo && (template.convertedHtmlContent || template.convertedTextContent)
+        ? {
+            ...template,
+            htmlContent: template.convertedHtmlContent || template.htmlContent,
+            textContent: template.convertedTextContent || template.textContent,
+          }
+        : template
       const rendered = renderEmailTemplate({
-        template,
+        template: resolvedTemplate,
         values: {
           name: payload.dynamicValues?.name ?? payload.safeName,
           amount: payload.dynamicValues?.amount ?? payload.values.monthlyPayment,
@@ -271,6 +329,7 @@ export async function POST(request: Request) {
       })
       html = rendered.html
       plain = rendered.plain
+      }
     } else {
       const tone = getSummaryEmailTone(payload.emailTegezo)
       const email = buildSummaryEmailTemplate({
@@ -290,6 +349,13 @@ export async function POST(request: Request) {
       })
       html = email.html
       plain = email.plain
+    }
+
+    if (payload.extraHtml?.trim()) {
+      html = `${html}${payload.extraHtml}`
+    }
+    if (payload.extraPlain?.trim()) {
+      plain = [plain, payload.extraPlain].filter(Boolean).join("\n\n")
     }
 
     const resend = new Resend(resendApiKey)
