@@ -5919,6 +5919,8 @@ export function SavingsCalculator() {
           clientAccountEarnsYield: true,
           isAccountSplitOpen: true,
           isTaxBonusSeparateAccount: true,
+          investedShareByYear: investedShareConfig,
+          investedShareDefaultPercent: 20,
         }))
         setInvestedShareByYear(investedShareConfig)
         setAssetCostPercentByYear({})
@@ -13494,7 +13496,7 @@ export function SavingsCalculator() {
                                   // Per-számla nézet: az adott számlára allokált összeget mutatjuk szürkén
                                   <div className="flex items-center justify-end h-8 text-right tabular-nums text-muted-foreground">
                                     {(() => {
-                                      const investedPct = (investedShareByYear[row.year] ?? inputs.investedShareDefaultPercent ?? 100) / 100
+                                      const investedPct = (investedShareByYear[row.year] ?? inputs.investedShareByYear?.[row.year] ?? inputs.investedShareDefaultPercent ?? 100) / 100
                                       const allocatedPayment =
                                         effectiveYearlyViewMode === "invested"
                                           ? displayPaymentValue * investedPct
@@ -13555,7 +13557,7 @@ export function SavingsCalculator() {
                                     }
                                     // Per-számla kumulatív befizetés
                                     const totalContrib = sourceRow.totalContributions ?? 0
-                                    const investedPct = (investedShareByYear[row.year] ?? inputs.investedShareDefaultPercent ?? 100) / 100
+                                    const investedPct = (investedShareByYear[row.year] ?? inputs.investedShareByYear?.[row.year] ?? inputs.investedShareDefaultPercent ?? 100) / 100
                                     const allocatedCumulative =
                                       effectiveYearlyViewMode === "invested"
                                         ? totalContrib * investedPct
