@@ -1347,7 +1347,15 @@ function MobileYearCard({
   displayBalance = Math.max(0, preWithdrawalBalance - effectiveWithdrawn)
   const applyRealValue = (value: number) =>
     getRealValueForDays ? getRealValueForDays(value, Math.max(0, realValueElapsedDays ?? 0)) : value
-  const primaryDisplayValue = showSurrenderAsPrimary ? row.surrenderValue ?? displayBalance : displayBalance
+  // Nettó surrenderValue: adóztatjuk a surrenderValue hozam részét
+  let effectiveSurrenderValue = row.surrenderValue ?? displayBalance
+  if (enableNetting && netData) {
+    const grossSV = row.surrenderValue ?? displayBalance
+    const profit = Math.max(0, grossSV - (row.totalContributions ?? 0))
+    const tax = profit * netData.taxRate
+    effectiveSurrenderValue = grossSV - tax
+  }
+  const primaryDisplayValue = showSurrenderAsPrimary ? effectiveSurrenderValue : displayBalance
 
   const showBreakdown = isAccountSplitOpen || isRedemptionOpen
 
@@ -1379,7 +1387,7 @@ function MobileYearCard({
                         Visszavásárlási költség: {formatValue(applyRealValue(row.surrenderCharge), displayCurrency)}
                       </div>
                       <div className="text-orange-600 dark:text-orange-400">
-                        Visszavásárlási érték: {formatValue(applyRealValue(row.surrenderValue), displayCurrency)}
+                        Visszavásárlási érték: {formatValue(applyRealValue(effectiveSurrenderValue), displayCurrency)}
                       </div>
                     </>
                   )}
@@ -1388,7 +1396,7 @@ function MobileYearCard({
               {/* CASE B: Split is closed but redemption is open - show only redemption value */}
               {!isAccountSplitOpen && isRedemptionOpen && row.surrenderCharge > 0 && (
                 <div className="text-orange-600 dark:text-orange-400">
-                  Visszavásárlási érték: {formatValue(applyRealValue(row.surrenderValue), displayCurrency)}
+                  Visszavásárlási érték: {formatValue(applyRealValue(effectiveSurrenderValue), displayCurrency)}
                 </div>
               )}
             </div>
@@ -8431,7 +8439,15 @@ export function SavingsCalculator() {
   const showBonusColumns = !isAlfaExclusivePlus && selectedProduct !== "allianz_eletprogram"
   const activeTaxCreditPenaltyAmount = shouldApplyTaxCreditPenalty ? activeSummaryTotals.totalTaxCredit * 1.2 : 0
   const summaryBaseBalance = enableNetting && finalNetData ? finalNetData.netBalance : activeSummaryTotals.endBalance
-  const summaryBaseSurrenderValue = activeSummaryTotals.surrenderValue
+  // Nettó surrenderValue: adóztatjuk a surrenderValue hozam részét (surrenderValue - befizetések)
+  const summaryBaseSurrenderValue = enableNetting && finalNetData
+    ? (() => {
+        const grossSV = activeSummaryTotals.surrenderValue
+        const profit = Math.max(0, grossSV - activeSummaryTotals.totalContributions)
+        const tax = profit * finalNetData.taxRate
+        return grossSV - tax
+      })()
+    : activeSummaryTotals.surrenderValue
   const summaryBalanceWithPenalty = Math.max(0, summaryBaseBalance - activeTaxCreditPenaltyAmount)
   const summarySurrenderWithPenalty = Math.max(0, summaryBaseSurrenderValue - activeTaxCreditPenaltyAmount)
 
@@ -9699,6 +9715,50 @@ export function SavingsCalculator() {
     ((inputs.insuredEntryAge ?? 38) < GENERALI_KABALA_U91_PENSION_MIN_ENTRY_AGE ||
       (inputs.insuredEntryAge ?? 38) > GENERALI_KABALA_U91_PENSION_MAX_ENTRY_AGE)
 
+  // Díjszüneteltetési ÁSZF korlátok (Alfa Zen: max 3x, max 6 hó egybefüggően, 3. évforduló után)
+  const pauseWarnings: string[] = useMemo(() => {
+    const isAlfaZenProduct = selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur"
+    if (!isAlfaZenProduct) return []
+    const warnings: string[] = []
+    const totalYears = toYearsFromDuration(durationUnit, durationValue)
+    // Identify years with 0 payment (manual override)
+    const pausedYears: number[] = []
+    for (let y = 1; y <= totalYears; y++) {
+      if (paymentByYear[y] !== undefined && paymentByYear[y] <= 0) {
+        pausedYears.push(y)
+      }
+    }
+    if (pausedYears.length === 0) return []
+    // Check: no pause before year 4 (3. évforduló után)
+    const earlyPauses = pausedYears.filter(y => y <= 3)
+    if (earlyPauses.length > 0) {
+      warnings.push("ÁSZF: díjszüneteltetés csak a 3. évforduló után lehetséges")
+    }
+    // Count consecutive pause groups and check max duration
+    let groupCount = 0
+    let consecutiveCount = 0
+    let prevYear = -2
+    for (const y of pausedYears) {
+      if (y === prevYear + 1) {
+        consecutiveCount++
+      } else {
+        if (consecutiveCount > 0) groupCount++
+        consecutiveCount = 1
+      }
+      prevYear = y
+    }
+    if (consecutiveCount > 0) groupCount++
+    // Check if any year is paused - since yearly granularity = 12 months > 6 month ÁSZF limit
+    if (pausedYears.length > 0) {
+      warnings.push("ÁSZF: maximum 6 hónap folyamatos szüneteltetés engedélyezett (1 év = 12 hó > limit)")
+    }
+    // Max 3 pause periods
+    if (groupCount > 3) {
+      warnings.push(`ÁSZF: maximum 3 szüneteltetési időszak engedélyezett (jelenleg: ${groupCount})`)
+    }
+    return warnings
+  }, [selectedProduct, paymentByYear, durationUnit, durationValue])
+
   useEffect(() => {
     // If account split controls are hidden, force the table back to total mode
     // so we don't keep a stale "client/invested/taxBonus" view with seemingly zero rows.
@@ -10585,6 +10645,7 @@ export function SavingsCalculator() {
                     (selectedProduct === "alfa_premium_selection" && inputs.enableTaxCredit && !isSettingsEseti) ||
                     shouldWarnFortisAgeClamp ||
                     shouldWarnJovokepAgeClamp ||
+                    pauseWarnings.length > 0 ||
                     isSettingsEseti
                   ) && (
                     <div className={`flex flex-wrap items-center gap-3 text-xs ${isSettingsEseti ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
@@ -10695,6 +10756,9 @@ export function SavingsCalculator() {
                           A Kabala Nyugdíj variánsnál a belépési életkor 15-55 év között kerül figyelembe vételre.
                         </p>
                       )}
+                      {pauseWarnings.length > 0 && pauseWarnings.map((w, i) => (
+                        <p key={`pause-warn-${i}`} className="text-red-500 font-medium">{w}</p>
+                      ))}
                       {isSettingsEseti ? <p>Az eseti futamidő legfeljebb a fő számla futamideje lehet.</p> : null}
                     </div>
                   )}
@@ -13246,6 +13310,15 @@ export function SavingsCalculator() {
                             : 0
                         const cumulativeRow = sourceCumulativeRow
                         let displayBalance = enableNetting ? netData.netBalance : yearlyDisplayData.endBalance
+                        // Nettósított surrenderValue: adóztatjuk a surrenderValue hozam részét
+                        const effectiveSurrenderValueForRow = enableNetting && netData
+                          ? (() => {
+                              const grossSV = row.surrenderValue ?? yearlyDisplayData.endBalance
+                              const profit = Math.max(0, grossSV - (row.totalContributions ?? 0))
+                              const tax = profit * netData.taxRate
+                              return grossSV - tax
+                            })()
+                          : row.surrenderValue
 
                         const taxCreditCumulativeForRow =
                           sourceCumulativeByYear[row.year]?.taxCreditForYear ?? sourceRow.taxCreditForYear ?? 0
@@ -14290,7 +14363,7 @@ export function SavingsCalculator() {
                                                 <div className="text-orange-600 dark:text-orange-400">
                                                   Visszavásárlási érték:{" "}
                                                   {formatValue(
-                                                    applyRealValueForYear(row.surrenderValue),
+                                                    applyRealValueForYear(effectiveSurrenderValueForRow),
                                                     displayCurrency,
                                                   )}
                                                 </div>
@@ -14303,7 +14376,7 @@ export function SavingsCalculator() {
                                           <div className="text-orange-600 dark:text-orange-400">
                                             Visszavásárlási érték:{" "}
                                             {formatValue(
-                                              applyRealValueForYear(row.surrenderValue),
+                                              applyRealValueForYear(effectiveSurrenderValueForRow),
                                               displayCurrency,
                                             )}
                                           </div>
@@ -14320,7 +14393,7 @@ export function SavingsCalculator() {
                                       applyRealValueForYear(
                                         isAlfaExclusivePlus
                                         && !isEsetiView
-                                          ? (sourceYearRow.surrenderValue ?? row.surrenderValue ?? displayBalanceWithPenalty)
+                                          ? (enableNetting ? (effectiveSurrenderValueForRow ?? displayBalanceWithPenalty) : (sourceYearRow.surrenderValue ?? row.surrenderValue ?? displayBalanceWithPenalty))
                                           : displayBalanceWithPenalty,
                                       ),
                                       displayCurrency,

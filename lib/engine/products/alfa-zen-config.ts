@@ -8,7 +8,7 @@ export const ALFA_ZEN_NY23_PRODUCT_CODE = "NY23"
 export const ALFA_ZEN_PRODUCT_VARIANT_NY13 = "alfa_zen_ny13"
 export const ALFA_ZEN_PRODUCT_VARIANT_NY23 = "alfa_zen_ny23"
 
-export const ALFA_ZEN_MIN_DURATION_YEARS = 1
+export const ALFA_ZEN_MIN_DURATION_YEARS = 5
 export const ALFA_ZEN_MAX_DURATION_YEARS = 50
 export const ALFA_ZEN_MIN_EXTRAORDINARY_PAYMENT = 200
 export const ALFA_ZEN_REGULAR_ADMIN_FEE_PERCENT = 2
@@ -140,7 +140,8 @@ export function buildAlfaZenRedemptionSchedule(durationYears: number): Record<nu
   const out: Record<number, number> = {}
   const after120MonthsPercent = safeDuration <= 10 ? 100 : 15
   for (let year = 1; year <= safeDuration; year++) {
-    out[year] = year <= 10 ? 100 : after120MonthsPercent
+    // Lejáratkor (utolsó év) nincs visszavásárlási díj — teljes egyenleg kifizetésre kerül
+    out[year] = year === safeDuration ? 0 : year <= 10 ? 100 : after120MonthsPercent
   }
   return out
 }
