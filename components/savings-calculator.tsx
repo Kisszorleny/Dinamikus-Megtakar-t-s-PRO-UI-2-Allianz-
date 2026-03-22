@@ -12488,23 +12488,26 @@ export function SavingsCalculator() {
                       <span className={`text-sm font-semibold tabular-nums ${exitYear !== null && exitYear < totalYearsForPlan ? "text-orange-600" : ""}`}>
                         {exitYear !== null && exitYear < totalYearsForPlan
                           ? `${exitYear}. év (idő előtti)`
-                          : `${totalYearsForPlan}. év (lejárat)`}
+                          : exitYear !== null && exitYear > totalYearsForPlan
+                            ? `${totalYearsForPlan}. év (lejárat)`
+                            : `${totalYearsForPlan}. év (lejárat)`}
                       </span>
                     </div>
                     <input
                       type="range"
                       min={1}
-                      max={totalYearsForPlan}
+                      max={65}
                       value={exitYear ?? totalYearsForPlan}
                       onChange={(e) => {
                         const val = Number(e.target.value)
-                        setExitYear(val === totalYearsForPlan ? null : val)
+                        setExitYear(val >= totalYearsForPlan ? null : val)
                       }}
                       className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-orange-500"
                     />
                     <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
                       <span>1. év</span>
-                      <span>{totalYearsForPlan}. év</span>
+                      <span className="font-medium">{totalYearsForPlan}. év (lejárat)</span>
+                      <span>65. év</span>
                     </div>
                   </div>
                 )}
