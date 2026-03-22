@@ -2765,6 +2765,9 @@ export function SavingsCalculator() {
     return false
   })
 
+  // Kilépési év: null = lejárat (alapeset), szám = idő előtti kilépés éve
+  const [exitYear, setExitYear] = useState<number | null>(null)
+
   // Added isAccountSplitOpen and isRedemptionOpen state variables
   const [isAccountSplitOpen, setIsAccountSplitOpen] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -8144,8 +8147,12 @@ export function SavingsCalculator() {
 
   const finalNetData = useMemo(() => {
     if (yearlyNetCalculations.length === 0) return null
+    // Ha exitYear van, az adott év nettó adatait használjuk az összesítőhöz
+    if (exitYear !== null && exitYear < yearlyNetCalculations.length + 1) {
+      return yearlyNetCalculations[Math.min(exitYear - 1, yearlyNetCalculations.length - 1)]
+    }
     return yearlyNetCalculations[yearlyNetCalculations.length - 1]
-  }, [yearlyNetCalculations])
+  }, [yearlyNetCalculations, exitYear])
 
   const formatValue = (value: number, displayCurr: Currency) => {
     // When displaying in USD, use usdToHufRate; when displaying in EUR, use eurToHufRate
@@ -8326,71 +8333,123 @@ export function SavingsCalculator() {
   const taxCreditPenaltyAmount = shouldApplyTaxCreditPenalty ? results.totalTaxCredit * 1.2 : 0
   const endBalanceWithTaxCreditPenalty = Math.max(0, results.endBalance - taxCreditPenaltyAmount)
   const endBalanceWithoutTaxCredit = resultsWithoutTaxCredit.endBalance
+  // effectiveExitYear: null (lejárat) → utolsó sor, egyébként az adott év sora
+  const effectiveExitYear = exitYear ?? totalYearsForPlan
+
   const summaryTotalsByAccount = useMemo(
     () => {
-      const mainTotals = {
-        totalContributions: results.totalContributions,
-        totalCosts: results.totalCosts,
-        totalBonus: results.totalBonus,
-        totalTaxCredit: results.totalTaxCredit,
-        totalInterestNet: results.totalInterestNet,
-        endBalance: results.endBalance,
-        surrenderValue: results.yearlyBreakdown[results.yearlyBreakdown.length - 1]?.surrenderValue ?? results.endBalance,
-        totalRiskInsuranceCost: results.totalRiskInsuranceCost ?? 0,
+      // Helper: get totals up to a specific year from yearlyBreakdown
+      const getTotalsUpToYear = (breakdown: any[], fullResults: any, upToYear: number) => {
+        const targetIndex = Math.min(upToYear - 1, breakdown.length - 1)
+        const targetRow = breakdown[targetIndex]
+        if (!targetRow) {
+          return {
+            totalContributions: fullResults.totalContributions,
+            totalCosts: fullResults.totalCosts,
+            totalBonus: fullResults.totalBonus,
+            totalTaxCredit: fullResults.totalTaxCredit,
+            totalInterestNet: fullResults.totalInterestNet,
+            endBalance: fullResults.endBalance,
+            surrenderValue: breakdown[breakdown.length - 1]?.surrenderValue ?? fullResults.endBalance,
+            totalRiskInsuranceCost: fullResults.totalRiskInsuranceCost ?? 0,
+          }
+        }
+        // Cumulative values up to the target year
+        let totalContributions = 0
+        let totalCosts = 0
+        let totalBonus = 0
+        let totalTaxCredit = 0
+        let totalInterestNet = 0
+        let totalRiskInsuranceCost = 0
+        for (let i = 0; i <= targetIndex; i++) {
+          const row = breakdown[i]
+          if (!row) continue
+          totalContributions += row.yearlyPayment ?? 0
+          totalCosts += row.costForYear ?? 0
+          totalBonus += (row.bonusForYear ?? 0) + (row.wealthBonusForYear ?? 0)
+          totalTaxCredit += row.taxCreditForYear ?? 0
+          totalInterestNet += row.interestForYear ?? 0
+          totalRiskInsuranceCost += row.riskInsuranceCostForYear ?? 0
+        }
+        return {
+          totalContributions,
+          totalCosts,
+          totalBonus,
+          totalTaxCredit,
+          totalInterestNet,
+          endBalance: targetRow.endBalance ?? 0,
+          surrenderValue: targetRow.surrenderValue ?? targetRow.endBalance ?? 0,
+          totalRiskInsuranceCost,
+        }
       }
-      const esetiImmediateTotals = {
-        totalContributions: resultsEseti.totalContributions,
-        totalCosts: resultsEseti.totalCosts,
-        totalBonus: resultsEseti.totalBonus,
-        totalTaxCredit: resultsEseti.totalTaxCredit,
-        totalInterestNet: resultsEseti.totalInterestNet,
-        endBalance: resultsEseti.endBalance,
-        surrenderValue:
-          resultsEseti.yearlyBreakdown[resultsEseti.yearlyBreakdown.length - 1]?.surrenderValue ?? resultsEseti.endBalance,
-        totalRiskInsuranceCost: resultsEseti.totalRiskInsuranceCost ?? 0,
-      }
-      const esetiTaxEligibleTotals = {
-        totalContributions: resultsEsetiTaxEligible.totalContributions,
-        totalCosts: resultsEsetiTaxEligible.totalCosts,
-        totalBonus: resultsEsetiTaxEligible.totalBonus,
-        totalTaxCredit: resultsEsetiTaxEligible.totalTaxCredit,
-        totalInterestNet: resultsEsetiTaxEligible.totalInterestNet,
-        endBalance: resultsEsetiTaxEligible.endBalance,
-        surrenderValue:
-          resultsEsetiTaxEligible.yearlyBreakdown[resultsEsetiTaxEligible.yearlyBreakdown.length - 1]?.surrenderValue ??
-          resultsEsetiTaxEligible.endBalance,
-        totalRiskInsuranceCost: resultsEsetiTaxEligible.totalRiskInsuranceCost ?? 0,
-      }
+
+      const isEarlyExit = exitYear !== null && exitYear < totalYearsForPlan
+      const mainTotals = isEarlyExit
+        ? getTotalsUpToYear(results.yearlyBreakdown, results, effectiveExitYear)
+        : {
+            totalContributions: results.totalContributions,
+            totalCosts: results.totalCosts,
+            totalBonus: results.totalBonus,
+            totalTaxCredit: results.totalTaxCredit,
+            totalInterestNet: results.totalInterestNet,
+            endBalance: results.endBalance,
+            surrenderValue: results.yearlyBreakdown[results.yearlyBreakdown.length - 1]?.surrenderValue ?? results.endBalance,
+            totalRiskInsuranceCost: results.totalRiskInsuranceCost ?? 0,
+          }
+      const esetiImmediateTotals = isEarlyExit
+        ? getTotalsUpToYear(resultsEseti.yearlyBreakdown, resultsEseti, effectiveExitYear)
+        : {
+            totalContributions: resultsEseti.totalContributions,
+            totalCosts: resultsEseti.totalCosts,
+            totalBonus: resultsEseti.totalBonus,
+            totalTaxCredit: resultsEseti.totalTaxCredit,
+            totalInterestNet: resultsEseti.totalInterestNet,
+            endBalance: resultsEseti.endBalance,
+            surrenderValue:
+              resultsEseti.yearlyBreakdown[resultsEseti.yearlyBreakdown.length - 1]?.surrenderValue ?? resultsEseti.endBalance,
+            totalRiskInsuranceCost: resultsEseti.totalRiskInsuranceCost ?? 0,
+          }
+      const esetiTaxEligibleTotals = isEarlyExit
+        ? getTotalsUpToYear(resultsEsetiTaxEligible.yearlyBreakdown, resultsEsetiTaxEligible, effectiveExitYear)
+        : {
+            totalContributions: resultsEsetiTaxEligible.totalContributions,
+            totalCosts: resultsEsetiTaxEligible.totalCosts,
+            totalBonus: resultsEsetiTaxEligible.totalBonus,
+            totalTaxCredit: resultsEsetiTaxEligible.totalTaxCredit,
+            totalInterestNet: resultsEsetiTaxEligible.totalInterestNet,
+            endBalance: resultsEsetiTaxEligible.endBalance,
+            surrenderValue:
+              resultsEsetiTaxEligible.yearlyBreakdown[resultsEsetiTaxEligible.yearlyBreakdown.length - 1]?.surrenderValue ??
+              resultsEsetiTaxEligible.endBalance,
+            totalRiskInsuranceCost: resultsEsetiTaxEligible.totalRiskInsuranceCost ?? 0,
+          }
       const summaryTotals = {
         totalContributions:
-          results.totalContributions +
-          resultsEseti.totalContributions +
-          (isPremiumSelectionNy06 ? resultsEsetiTaxEligible.totalContributions : 0),
+          mainTotals.totalContributions +
+          esetiImmediateTotals.totalContributions +
+          (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.totalContributions : 0),
         totalCosts:
-          results.totalCosts + resultsEseti.totalCosts + (isPremiumSelectionNy06 ? resultsEsetiTaxEligible.totalCosts : 0),
+          mainTotals.totalCosts + esetiImmediateTotals.totalCosts + (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.totalCosts : 0),
         totalBonus:
-          results.totalBonus + resultsEseti.totalBonus + (isPremiumSelectionNy06 ? resultsEsetiTaxEligible.totalBonus : 0),
+          mainTotals.totalBonus + esetiImmediateTotals.totalBonus + (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.totalBonus : 0),
         totalTaxCredit:
-          results.totalTaxCredit +
-          resultsEseti.totalTaxCredit +
-          (isPremiumSelectionNy06 ? resultsEsetiTaxEligible.totalTaxCredit : 0),
+          mainTotals.totalTaxCredit +
+          esetiImmediateTotals.totalTaxCredit +
+          (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.totalTaxCredit : 0),
         totalInterestNet:
-          results.totalInterestNet +
-          resultsEseti.totalInterestNet +
-          (isPremiumSelectionNy06 ? resultsEsetiTaxEligible.totalInterestNet : 0),
+          mainTotals.totalInterestNet +
+          esetiImmediateTotals.totalInterestNet +
+          (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.totalInterestNet : 0),
         endBalance:
-          results.endBalance + resultsEseti.endBalance + (isPremiumSelectionNy06 ? resultsEsetiTaxEligible.endBalance : 0),
+          mainTotals.endBalance + esetiImmediateTotals.endBalance + (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.endBalance : 0),
         surrenderValue:
-          (results.yearlyBreakdown[results.yearlyBreakdown.length - 1]?.surrenderValue ?? results.endBalance) +
-          (resultsEseti.yearlyBreakdown[resultsEseti.yearlyBreakdown.length - 1]?.surrenderValue ?? resultsEseti.endBalance) +
-          (isPremiumSelectionNy06
-            ? (resultsEsetiTaxEligible.yearlyBreakdown[resultsEsetiTaxEligible.yearlyBreakdown.length - 1]?.surrenderValue ??
-              resultsEsetiTaxEligible.endBalance)
-            : 0),
+          mainTotals.surrenderValue +
+          esetiImmediateTotals.surrenderValue +
+          (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.surrenderValue : 0),
         totalRiskInsuranceCost:
-          (results.totalRiskInsuranceCost ?? 0) +
-          (resultsEseti.totalRiskInsuranceCost ?? 0) +
-          (isPremiumSelectionNy06 ? (resultsEsetiTaxEligible.totalRiskInsuranceCost ?? 0) : 0),
+          mainTotals.totalRiskInsuranceCost +
+          esetiImmediateTotals.totalRiskInsuranceCost +
+          (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.totalRiskInsuranceCost : 0),
       }
       return {
         summary: summaryTotals,
@@ -8399,7 +8458,7 @@ export function SavingsCalculator() {
         eseti_tax_eligible: esetiTaxEligibleTotals,
       }
     },
-    [results, resultsEseti, resultsEsetiTaxEligible, isPremiumSelectionNy06],
+    [results, resultsEseti, resultsEsetiTaxEligible, isPremiumSelectionNy06, exitYear, effectiveExitYear, totalYearsForPlan],
   )
   const summaryAccountLabels: Record<"summary" | "main" | "eseti", string> = {
     summary: "Összesített",
@@ -12408,6 +12467,37 @@ export function SavingsCalculator() {
                   )}
                 </div>
 
+                {/* Kilépési év csúszka */}
+                {totalYearsForPlan > 1 && (
+                  <div className="mb-4 pb-4 border-b">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Kilépés éve
+                      </span>
+                      <span className={`text-sm font-semibold tabular-nums ${exitYear !== null && exitYear < totalYearsForPlan ? "text-orange-600" : ""}`}>
+                        {exitYear !== null && exitYear < totalYearsForPlan
+                          ? `${exitYear}. év (idő előtti)`
+                          : `${totalYearsForPlan}. év (lejárat)`}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={totalYearsForPlan}
+                      value={exitYear ?? totalYearsForPlan}
+                      onChange={(e) => {
+                        const val = Number(e.target.value)
+                        setExitYear(val === totalYearsForPlan ? null : val)
+                      }}
+                      className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-orange-500"
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                      <span>1. év</span>
+                      <span>{totalYearsForPlan}. év</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-1">
                   <div className={`flex items-center justify-between rounded-lg p-3 md:p-4 ${activeSummaryTheme.metric}`}>
                     <span className="text-xs md:text-sm font-medium text-muted-foreground">Teljes befizetés</span>
@@ -13339,7 +13429,7 @@ export function SavingsCalculator() {
                         // </CHANGE>
 
                         return (
-                          <tr key={`${row.year}-${row.periodType ?? "year"}-${index}`} className="border-b hover:bg-muted/50">
+                          <tr key={`${row.year}-${row.periodType ?? "year"}-${index}`} className={`border-b hover:bg-muted/50 ${exitYear !== null && row.year === exitYear ? "bg-orange-50 dark:bg-orange-950/20 border-orange-300" : ""}`}>
                             <td className="py-2 px-3 text-center font-medium sticky left-0 z-10 bg-background/95">
                               {row.periodType === "partial" ? getYearRowLabel(row) : row.year}
                             </td>
