@@ -7691,6 +7691,7 @@ export function SavingsCalculator() {
       redemptionBaseMode: redemptionBaseMode === "total-account" ? "total" : redemptionBaseMode, // Map UI mode to engine mode
       redemptionEnabled: isRedemptionOpen,
       isTaxBonusSeparateAccount,
+      clientAccountEarnsYield: inputs.clientAccountEarnsYield,
       // </CHANGE>
       eurToHufRate: exchangeRate, // Pass the correct rate based on currency
       riskInsuranceEnabled: enableRiskInsurance,
@@ -7796,6 +7797,7 @@ export function SavingsCalculator() {
     customEntryDefinitionsMain,
     // </CHANGE>
     isTaxBonusSeparateAccount, // Added dependency
+    inputs.clientAccountEarnsYield,
     // </CHANGE>
     enableRiskInsurance,
     riskInsuranceFeePercentOfMonthlyPayment,
