@@ -12397,7 +12397,7 @@ export function SavingsCalculator() {
                   <CardTitle className="text-lg md:text-xl shrink-0">Éves bontás</CardTitle>
                   <div className="flex items-center gap-2 flex-wrap sm:justify-end">
                   {isAccountSplitOpen && !isAllianzEletprogramView && !isEsetiView && (
-                    <div className="flex items-center gap-1 border rounded-md p-1 overflow-x-auto max-w-full">
+                    <div className="flex items-center gap-1 border rounded-md p-1 flex-wrap">
                       <Button
                         type="button"
                         variant={effectiveYearlyViewMode === "total" ? "default" : "ghost"}
