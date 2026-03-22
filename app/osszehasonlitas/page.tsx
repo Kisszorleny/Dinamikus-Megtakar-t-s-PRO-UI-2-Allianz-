@@ -451,6 +451,8 @@ export default function OsszehasonlitasPage() {
   const [withdrawalByYear, setWithdrawalByYear] = useState<Record<number, number>>({})
   const [taxCreditAmountByYear, setTaxCreditAmountByYear] = useState<Record<number, number>>({})
   const [taxCreditLimitByYear, setTaxCreditLimitByYear] = useState<Record<number, number>>({})
+  // Kilépési év az összehasonlítás táblábanhoz (null = lejárat)
+  const [comparisonExitYear, setComparisonExitYear] = useState<number | null>(null)
   const getHeaderInfoHandlers = (key: string) => ({
     onMouseEnter: () => setActiveColumnInfoKey(key),
     onMouseLeave: () => setActiveColumnInfoKey(null),
@@ -868,15 +870,39 @@ export default function OsszehasonlitasPage() {
                   : baseInputs
 
           const results = calculate(productId, dailyInputs)
-          const totalContributions = results.totalContributions ?? 0
-          const endBalance = results.endBalance ?? 0
+          const isEarlyExit = comparisonExitYear !== null && comparisonExitYear < totalYearsForPlan
+          const targetIndex = isEarlyExit
+            ? Math.min(comparisonExitYear - 1, (results.yearlyBreakdown?.length ?? 1) - 1)
+            : (results.yearlyBreakdown?.length ?? 1) - 1
+          const targetRow = results.yearlyBreakdown?.[targetIndex]
           const finalYearRow = results.yearlyBreakdown?.[results.yearlyBreakdown.length - 1]
-          const withdrawableValue = finalYearRow?.surrenderValue ?? endBalance
-          const totalTaxCredit = results.totalTaxCredit ?? 0
-          const netReturn =
-            results.totalInterestNet !== undefined
+
+          let totalContributions = 0
+          let endBalance = 0
+          let withdrawableValue = 0
+          let totalTaxCredit = 0
+          let netReturn = 0
+
+          if (isEarlyExit && targetRow) {
+            // Cumulate up to exit year
+            for (let i = 0; i <= targetIndex; i++) {
+              const row = results.yearlyBreakdown?.[i]
+              if (!row) continue
+              totalContributions += row.yearlyPayment ?? 0
+              totalTaxCredit += row.taxCreditForYear ?? 0
+            }
+            endBalance = targetRow.endBalance ?? 0
+            withdrawableValue = targetRow.surrenderValue ?? endBalance
+            netReturn = endBalance - totalContributions + totalTaxCredit
+          } else {
+            totalContributions = results.totalContributions ?? 0
+            endBalance = results.endBalance ?? 0
+            withdrawableValue = finalYearRow?.surrenderValue ?? endBalance
+            totalTaxCredit = results.totalTaxCredit ?? 0
+            netReturn = results.totalInterestNet !== undefined
               ? results.totalInterestNet
               : endBalance - totalContributions + totalTaxCredit
+          }
 
           let cumulativeCosts = 0
           let cumulativeBonuses = 0
@@ -943,6 +969,7 @@ export default function OsszehasonlitasPage() {
     taxCreditAmountByYear,
     taxCreditLimitByYear,
     withdrawalByYear,
+    comparisonExitYear,
   ])
 
   if (!inputs) {
@@ -1030,7 +1057,35 @@ export default function OsszehasonlitasPage() {
             {/* Comparison Table */}
             {selectedProductsForComparison.length > 0 && (
               <>
-                <div className="mt-6 overflow-x-auto">
+                {/* Exit year slider for comparison */}
+                {totalYearsForPlan > 1 && (
+                  <div className="mt-6 mb-2 max-w-md">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-muted-foreground">Kilépés éve</span>
+                      <span className={`text-sm font-semibold tabular-nums ${comparisonExitYear !== null && comparisonExitYear < totalYearsForPlan ? "text-orange-600" : ""}`}>
+                        {comparisonExitYear !== null && comparisonExitYear < totalYearsForPlan
+                          ? `${comparisonExitYear}. év (idő előtti)`
+                          : `${totalYearsForPlan}. év (lejárat)`}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={totalYearsForPlan}
+                      value={comparisonExitYear ?? totalYearsForPlan}
+                      onChange={(e) => {
+                        const val = Number(e.target.value)
+                        setComparisonExitYear(val === totalYearsForPlan ? null : val)
+                      }}
+                      className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-orange-500"
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                      <span>1. év</span>
+                      <span>{totalYearsForPlan}. év</span>
+                    </div>
+                  </div>
+                )}
+                <div className="mt-2 overflow-x-auto">
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="border-b">
