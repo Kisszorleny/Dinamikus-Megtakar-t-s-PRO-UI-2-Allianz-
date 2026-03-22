@@ -12397,13 +12397,13 @@ export function SavingsCalculator() {
                   <CardTitle className="text-lg md:text-xl shrink-0">Éves bontás</CardTitle>
                   <div className="flex items-center gap-2 flex-wrap sm:justify-end">
                   {isAccountSplitOpen && !isAllianzEletprogramView && !isEsetiView && (
-                    <div className="flex items-center gap-1 border rounded-md p-1">
+                    <div className="flex items-center gap-1 border rounded-md p-1 overflow-x-auto max-w-full">
                       <Button
                         type="button"
                         variant={effectiveYearlyViewMode === "total" ? "default" : "ghost"}
                         size="sm"
                         onClick={() => setYearlyViewMode("total")}
-                        className="h-7 text-xs px-2"
+                        className="h-7 text-xs px-2 shrink-0"
                         disabled={isYearlyReadOnly}
                       >
                         Összesített
@@ -12412,21 +12412,21 @@ export function SavingsCalculator() {
                         type="button"
                         variant={effectiveYearlyViewMode === "client" ? "default" : "ghost"}
                         size="sm"
-                        className="text-xs"
+                        className="text-xs shrink-0"
                         onClick={() => setYearlyViewMode("client")}
                         disabled={isYearlyReadOnly}
                       >
-                        Ügyfélérték számla
+                        Ügyfélérték
                       </Button>
                       <Button
                         type="button"
                         variant={effectiveYearlyViewMode === "invested" ? "default" : "ghost"}
                         size="sm"
                         onClick={() => setYearlyViewMode("invested")}
-                        className="h-7 text-xs px-2"
+                        className="h-7 text-xs px-2 shrink-0"
                         disabled={isYearlyReadOnly}
                       >
-                        Lejárati többletdíj számla
+                        Lejárati többletdíj
                       </Button>
                       {isTaxBonusSeparateAccount && (
                         <Button
@@ -12434,10 +12434,10 @@ export function SavingsCalculator() {
                           variant={effectiveYearlyViewMode === "taxBonus" ? "default" : "ghost"}
                           size="sm"
                           onClick={() => setYearlyViewMode("taxBonus")}
-                          className="h-7 text-xs px-2"
+                          className="h-7 text-xs px-2 shrink-0"
                           disabled={isYearlyReadOnly}
                         >
-                          Adójóváírás számla
+                          Adójóváírás
                         </Button>
                       )}
                     </div>
