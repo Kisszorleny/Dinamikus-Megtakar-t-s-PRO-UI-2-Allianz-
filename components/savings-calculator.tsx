@@ -153,6 +153,8 @@ import {
   ZEN_PRO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT,
   ZEN_PRO_ACCOUNT_MAINTENANCE_TAXBONUS_START_MONTH,
   ZEN_PRO_EXTRAORDINARY_ADMIN_FEE_PERCENT,
+  ZEN_PRO_MIN_DURATION_YEARS,
+  ZEN_PRO_MAX_DURATION_YEARS,
   ZEN_PRO_NY08_PRODUCT_CODE,
   ZEN_PRO_NY14_PRODUCT_CODE,
   ZEN_PRO_NY24_PRODUCT_CODE,
@@ -164,6 +166,8 @@ import {
   ALFA_ZEN_ACCOUNT_MAINTENANCE_INVESTED_START_MONTH,
   ALFA_ZEN_ACCOUNT_MAINTENANCE_TAXBONUS_START_MONTH,
   ALFA_ZEN_EXTRAORDINARY_ADMIN_FEE_PERCENT,
+  ALFA_ZEN_MIN_DURATION_YEARS,
+  ALFA_ZEN_MAX_DURATION_YEARS,
   ALFA_ZEN_MIN_EXTRAORDINARY_PAYMENT,
   ALFA_ZEN_NY13_PRODUCT_CODE,
   ALFA_ZEN_NY23_PRODUCT_CODE,
@@ -9577,6 +9581,34 @@ export function SavingsCalculator() {
     inputs.regularPayment * (inputs.frequency === "havi" ? 12 : inputs.frequency === "negyedéves" ? 4 : inputs.frequency === "féléves" ? 2 : 1)
   const isBelowMinimumAnnualFee = minimumAnnualFeeValue !== null && actualAnnualPayment > 0 && actualAnnualPayment < minimumAnnualFeeValue
 
+  const durationConstraints: { min: number; max: number } | null =
+    selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur"
+      ? { min: ALFA_ZEN_MIN_DURATION_YEARS, max: ALFA_ZEN_MAX_DURATION_YEARS }
+      : selectedProduct === "alfa_zen_pro"
+        ? { min: ZEN_PRO_MIN_DURATION_YEARS, max: ZEN_PRO_MAX_DURATION_YEARS }
+        : selectedProduct === "alfa_fortis"
+          ? { min: fortisVariantConfig.minimumDurationYears, max: fortisVariantConfig.maximumDurationYears }
+          : selectedProduct === "alfa_jade"
+            ? { min: 15, max: 15 }
+            : selectedProduct === "alfa_jovokep"
+              ? { min: JOVOKEP_MIN_DURATION_YEARS, max: JOVOKEP_MAX_DURATION_YEARS }
+              : selectedProduct === "alfa_jovotervezo"
+                ? { min: JOVOTERVEZO_MIN_DURATION_YEARS, max: JOVOTERVEZO_MAX_DURATION_YEARS }
+                : selectedProduct === "alfa_premium_selection"
+                  ? { min: premiumSelectionVariantConfig.minimumDurationYears, max: premiumSelectionVariantConfig.maximumDurationYears }
+                  : selectedProduct === "cig_nyugdijkotvenye"
+                    ? { min: CIG_NYUGDIJKOTVENYE_MIN_DURATION_YEARS, max: 50 }
+                    : selectedProduct === "cig_esszenciae"
+                      ? { min: CIG_ESSZENCIAE_MIN_DURATION_YEARS, max: 80 }
+                      : selectedProduct === "generali_kabala"
+                        ? { min: getGeneraliKabalaU91VariantConfig(undefined, inputs.enableTaxCredit).minimumDurationYears,
+                            max: getGeneraliKabalaU91VariantConfig(undefined, inputs.enableTaxCredit).maximumDurationYears }
+                        : null
+
+  const resolvedDurationForCheck = toYearsFromDuration(durationUnit, durationValue)
+  const isDurationBelowMin = durationConstraints !== null && resolvedDurationForCheck < durationConstraints.min
+  const isDurationAboveMax = durationConstraints !== null && resolvedDurationForCheck > durationConstraints.max
+
   const minimumAnnualFeeLabel =
     selectedProduct === "alfa_exclusive_plus"
       ? `${formatNumber(360000)} Ft`
@@ -10542,6 +10574,8 @@ export function SavingsCalculator() {
                   {(
                     minimumAnnualFeeLabel ||
                     isBelowMinimumAnnualFee ||
+                    isDurationBelowMin ||
+                    isDurationAboveMax ||
                     cigEsszenciaeDurationPolicyLabel ||
                     generaliKabalaDurationLabel ||
                     generaliMylifeDurationPolicyLabel ||
@@ -10556,6 +10590,8 @@ export function SavingsCalculator() {
                     <div className={`flex flex-wrap items-center gap-3 text-xs ${isSettingsEseti ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
                       {minimumAnnualFeeLabel && <p>Minimum éves díj: {minimumAnnualFeeLabel}</p>}
                       {isBelowMinimumAnnualFee && <p className="text-red-500 font-medium">A befizetés kisebb mint a minimum éves díj</p>}
+                      {isDurationBelowMin && <p className="text-red-500 font-medium">A futamidő kisebb mint a minimum ({durationConstraints?.min} év)</p>}
+                      {isDurationAboveMax && <p className="text-red-500 font-medium">A futamidő nagyobb mint a maximum ({durationConstraints?.max} év)</p>}
                       {cigEsszenciaeDurationPolicyLabel && <p>{cigEsszenciaeDurationPolicyLabel}</p>}
                       {cigDurationPolicyLabel && <p>{cigDurationPolicyLabel}</p>}
                       {generaliKabalaDurationLabel && <p>Tartam: {generaliKabalaDurationLabel}</p>}
