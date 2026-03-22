@@ -208,12 +208,12 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
     rationale: "A rendszeres díjból 4.8%, a rendkívüli díjakból 1% admin költség kerül levonásra.",
   },
   "alfa_zen_ny13:adminFee": {
-    costTypeLabel: "Díjarányos adminisztráció",
-    rationale: "A kockázati díjjal csökkentett rendszeres díjból 2% admin költség kerül levonásra.",
+    costTypeLabel: "Díjarányos adminisztráció (ÁSZF I.4.4.1)",
+    rationale: "A kockázati díjjal csökkentett rendszeres díjból 2% adminisztrációs költség kerül levonásra minden díjfizetéskor. A költség a befizetés pillanatában, a befektetési egységek vásárlása előtt vonódik le.",
   },
   "alfa_zen_ny23:adminFee": {
-    costTypeLabel: "Díjarányos adminisztráció",
-    rationale: "A kockázati díjjal csökkentett rendszeres díjból 2% admin költség kerül levonásra (USD variáns).",
+    costTypeLabel: "Díjarányos adminisztráció (ÁSZF I.4.4.1)",
+    rationale: "A kockázati díjjal csökkentett rendszeres díjból 2% adminisztrációs költség kerül levonásra minden díjfizetéskor (USD variáns).",
   },
   "alfa_zen_pro_ny08:adminFee": {
     costTypeLabel: "Díjarányos adminisztráció",
@@ -273,12 +273,12 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
     rationale: "A számlák értékére vetített 0.145% havi költség, az ügyfélérték számlán 37. hónaptól.",
   },
   "alfa_zen_ny13:accountMaintenance": {
-    costTypeLabel: "Vagyonarányos havi költség",
-    rationale: "Alapesetben 0.165%/hó, pénzpiaci alap esetén 0.08%/hó; az ügyfélérték számlán csak 37. hónaptól terheljük.",
+    costTypeLabel: "Számlavezetési költség (ÁSZF I.4.4.2)",
+    rationale: "Havonta a számlaérték 0,165%-a (pénzpiaci alapnál 0,08%). Az Ügyfélérték számlán csak a 37. hónaptól terheljük, a Lejárati többletdíj és Adójóváírás számlákon az 1. hónaptól.",
   },
   "alfa_zen_ny23:accountMaintenance": {
-    costTypeLabel: "Vagyonarányos havi költség",
-    rationale: "Minden megtakarítási számlán egységesen 0.165%/hó, pénzpiaci alap kedvezmény nélkül.",
+    costTypeLabel: "Számlavezetési költség (ÁSZF I.4.4.2)",
+    rationale: "Havonta a számlaérték 0,165%-a minden megtakarítási számlán (USD variánsnál nincs pénzpiaci kedvezmény). Az Ügyfélérték számlán csak a 37. hónaptól.",
   },
   "alfa_zen_pro_ny08:accountMaintenance": {
     costTypeLabel: "Vagyonarányos havi költség",
@@ -344,12 +344,12 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
     rationale: "Az első 1-3 évben, a választott tartamtól függő százalékos szerződéskötési költség.",
   },
   "alfa_zen_ny13:acquisitionFee": {
-    costTypeLabel: "Tartamfüggő kezdeti költség",
-    rationale: "Az első évben 78%, a 2-3. évben tartamfüggő sávos százalék szerint terheljük a szerződéskötési költséget.",
+    costTypeLabel: "Szerződéskötési költség (ÁSZF I.4.2)",
+    rationale: "1. év: 78%. 2. év: tartamtól függő (10 évig 23%, 11 év 28%, 12 év 33%, 13 év 38%, 14 év 43%, 15+ év 48%). 3. év: 10-12 évig 13%, 13+ évig 18%. A kockázati díjjal csökkentett rendszeres díjra vetítve.",
   },
   "alfa_zen_ny23:acquisitionFee": {
-    costTypeLabel: "Tartamfüggő kezdeti költség",
-    rationale: "Az első évben 78%, a 2-3. évben tartamfüggő sávos százalék szerint terheljük a szerződéskötési költséget (USD).",
+    costTypeLabel: "Szerződéskötési költség (ÁSZF I.4.2)",
+    rationale: "1. év: 78%. 2-3. év: tartamfüggő sávos százalék. A kockázati díjjal csökkentett rendszeres díjra vetítve (USD variáns).",
   },
   "alfa_zen_pro_ny08:acquisitionFee": {
     costTypeLabel: "Tartamfüggő kezdeti költség",
@@ -476,14 +476,14 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
     rationale: "A 10. évfordulón 40%, 15+ éves tartamnál a lejárat előtti évfordulón további 100% bónusz jár.",
   },
   "alfa_zen_ny13:bonus": {
-    costTypeLabel: "Évfordulós ügyfélbónusz",
+    costTypeLabel: "Ügyfélbónusz (ÁSZF III.13, Függelék)",
     rationale:
-      "A legalacsonyabb évesített havi díj alapján jár: 10. évfordulón 50-100%, 15. évfordulón +100%, 20+ évnél a lejárat előtti évfordulón +100%.",
+      "A legalacsonyabb havi díj 12-szereséből számolódik. 10. évfordulón: 50% (10-14 év tartam) vagy 100% (15+ év). 15. évfordulón: +100%. 20+ évnél lejárat előtti évfordulón: +100%. Szüneteltetett hónapok 1%/hó-val csökkentik. Díjnemfizetés, díjmentesítés vagy visszavásárlás esetén nem jár.",
   },
   "alfa_zen_ny23:bonus": {
-    costTypeLabel: "Évfordulós ügyfélbónusz",
+    costTypeLabel: "Ügyfélbónusz (ÁSZF III.13, Függelék)",
     rationale:
-      "A legalacsonyabb évesített havi díj alapján jár: 10. évfordulón 50-100%, 15. évfordulón +100%, 20+ évnél a lejárat előtti évfordulón +100% (USD-ben).",
+      "A legalacsonyabb havi díj 12-szereséből számolódik. Ugyanazok a mérföldkövek mint az EUR variánsnál. Szüneteltetett hónapok csökkentik (USD variáns).",
   },
   "alfa_zen_pro_ny08:bonus": {
     costTypeLabel: "Tartamfüggő évfordulós ügyfélbónusz",
@@ -605,12 +605,60 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
       "A díjsáv alapján képzett havi admin költség (200/300/400 Ft) évesítve (12x) kerül levonásra ezen a soron (nyugdíj variáns).",
   },
   "alfa_zen_ny13:surrenderValue": {
-    costTypeLabel: "Lejárati többletdíj-alapú visszavásárlás",
-    rationale: "A visszavásárlási levonás az első 120 hónapban 100%, majd 121. hónaptól 15% (10 év feletti tartamnál).",
+    costTypeLabel: "Visszavásárlási költség (ÁSZF I.4.5.4, Függelék)",
+    rationale: "A Lejárati többletdíj számláról vonódik le. 1-10. évben (≤120 hó): a számla 100%-a. 11. évtől (>120 hó, 10+ éves tartamnál): 15%. Lejáratkor (futamidő végén) nincs visszavásárlási költség — a teljes egyenleg kifizetésre kerül.",
   },
   "alfa_zen_ny23:surrenderValue": {
-    costTypeLabel: "Lejárati többletdíj-alapú visszavásárlás",
-    rationale: "A visszavásárlási levonás az első 120 hónapban 100%, majd 121. hónaptól 15% (10 év feletti tartamnál, USD variáns).",
+    costTypeLabel: "Visszavásárlási költség (ÁSZF I.4.5.4, Függelék)",
+    rationale: "A Lejárati többletdíj számláról vonódik le. 1-10. évben: 100%, 11. évtől: 15%. Lejáratkor nincs visszavásárlási költség (USD variáns).",
+  },
+  "alfa_zen_ny13:withdrawal": {
+    costTypeLabel: "Részvisszavásárlás nem lehetséges (ÁSZF III.8)",
+    rationale: "A megtakarítási alapszámlák (Ügyfélérték, Lejárati többletdíj) és az Adójóváírás számla terhére részvisszavásárlás nem igényelhető. Csak az Azonnali hozzáférést biztosító rendkívüli megtakarítási számláról (eseti befizetés) lehetséges pénzkivonás.",
+  },
+  "alfa_zen_ny23:withdrawal": {
+    costTypeLabel: "Részvisszavásárlás nem lehetséges (ÁSZF III.8)",
+    rationale: "A megtakarítási alapszámlák terhére részvisszavásárlás nem igényelhető (USD variáns). Csak az eseti rendkívüli számláról lehetséges.",
+  },
+  "alfa_zen_ny13:taxCredit": {
+    costTypeLabel: "Adójóváírás (ÁSZF III.16, Szja tv.)",
+    rationale: "Nyugdíjbiztosításként a befizetések 20%-a visszaigényelhető az SZJA-ból, max. évi 130 000 Ft. A NAV jóváírás naptár szerint érkezik (június 20. körül, az előző évi befizetés után). A jóváírás az Adó-visszatérítés kezelésére szolgáló számlán kerül befektetésre.",
+  },
+  "alfa_zen_ny23:taxCredit": {
+    costTypeLabel: "Adójóváírás (ÁSZF III.16, Szja tv.)",
+    rationale: "Nyugdíjbiztosításként a befizetések 20%-a visszaigényelhető, max. évi 130 000 Ft (USD variáns). A NAV jóváírás naptár szerint érkezik.",
+  },
+  "alfa_zen_ny13:payment": {
+    costTypeLabel: "Befizetés eloszlás (ÁSZF I.3, Függelék)",
+    rationale: "A rendszeres díj a Szerződéskötési és Adminisztrációs költség levonása után az Ügyfélérték és Lejárati többletdíj számlák között oszlik el. 1. év: 80% lejárati / 20% ügyfél. 2. év: 50/50%. 3. évtől: 20% lejárati / 80% ügyfél.",
+  },
+  "alfa_zen_ny23:payment": {
+    costTypeLabel: "Befizetés eloszlás (ÁSZF I.3, Függelék)",
+    rationale: "Ugyanaz a számla-eloszlás mint az EUR variánsnál: 1. év 80/20, 2. év 50/50, 3+ év 20/80 (USD variáns).",
+  },
+  "alfa_zen_ny13:totalCost": {
+    costTypeLabel: "Összes költség (ÁSZF I.4)",
+    rationale: "Tartalmazza a Szerződéskötési költséget (I.4.2), Adminisztrációs költséget (I.4.4.1, 2%), Számlavezetési költséget (I.4.4.2, 0,165%/hó) és a Vagyonkezelési költséget (III.17, az eszközalap árfolyamába épül). A biztosítási díjjal nem arányos költségek (kötvényesítés, részvisszavásárlás) itt nem jelennek meg.",
+  },
+  "alfa_zen_ny23:totalCost": {
+    costTypeLabel: "Összes költség (ÁSZF I.4)",
+    rationale: "Tartalmazza a Szerződéskötési, Adminisztrációs és Számlavezetési költséget (USD variáns).",
+  },
+  "alfa_zen_ny13:balance": {
+    costTypeLabel: "Egyenleg (összes számla)",
+    rationale: "Az Ügyfélérték számla, Lejárati többletdíj számla és Adó-visszatérítés kezelésére szolgáló számla együttes értéke. A lejáratkor ez a teljes kifizetés alapja (ÁSZF III.6.1.1.3).",
+  },
+  "alfa_zen_ny23:balance": {
+    costTypeLabel: "Egyenleg (összes számla)",
+    rationale: "Az összes megtakarítási számla együttes értéke (USD variáns).",
+  },
+  "alfa_zen_ny13:interest": {
+    costTypeLabel: "Befektetési hozam",
+    rationale: "A választott eszközalap(ok) teljesítménye alapján számolt hozam. Minden megtakarítási számla (Ügyfélérték, Lejárati többletdíj, Adójóváírás) azonos hozamot termel a befektetési egységek árfolyamváltozásából.",
+  },
+  "alfa_zen_ny23:interest": {
+    costTypeLabel: "Befektetési hozam",
+    rationale: "A választott eszközalap(ok) teljesítménye alapján számolt hozam (USD variáns).",
   },
   "alfa_zen_pro_ny08:surrenderValue": {
     costTypeLabel: "Megtakarítási alapszámla-alapú visszavásárlás",
