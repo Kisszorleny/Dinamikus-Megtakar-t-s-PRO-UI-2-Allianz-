@@ -13490,15 +13490,8 @@ export function SavingsCalculator() {
                                             : effectiveYearlyViewMode === "taxBonus"
                                               ? 0
                                               : displayPaymentValue
-                                      return formatValue(
-                                        convertForDisplay(
-                                          allocatedPayment,
-                                          results.currency,
-                                          displayCurrency,
-                                          inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
-                                        ),
-                                        displayCurrency,
-                                      )
+                                      // formatValue already converts from results.currency to displayCurrency
+                                      return formatValue(allocatedPayment, displayCurrency)
                                     })()}
                                   </div>
                                 ) : (
@@ -13558,15 +13551,8 @@ export function SavingsCalculator() {
                                           : effectiveYearlyViewMode === "taxBonus"
                                             ? 0
                                             : totalContrib
-                                    return formatValue(
-                                      convertForDisplay(
-                                        allocatedCumulative,
-                                        results.currency,
-                                        displayCurrency,
-                                        inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
-                                      ),
-                                      displayCurrency,
-                                    )
+                                    // formatValue already converts from results.currency to displayCurrency
+                                    return formatValue(allocatedCumulative, displayCurrency)
                                   })()}
                                 </p>
                               </div>
