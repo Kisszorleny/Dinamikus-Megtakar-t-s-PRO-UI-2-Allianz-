@@ -198,14 +198,29 @@ function computeAnnualizedMinimumBasePremium(yearlyPaymentsPlan: number[], horiz
   return minMonthly * 12
 }
 
-function isAlfaZenBonusEligibleUntilYear(inputs: InputsDaily, milestoneYear: number): boolean {
+/**
+ * Count paused months and check bonus eligibility up to a milestone year.
+ * ÁSZF rules: max 6 months per pause, max 3 pauses (= 18 months total).
+ * A full year with 0 payment counts as 12 paused months.
+ * Withdrawals during a milestone period disqualify the bonus.
+ * Returns { eligible, pausedMonths } so the caller can apply the pause multiplier.
+ */
+function evaluateAlfaZenBonusEligibility(
+  inputs: InputsDaily,
+  milestoneYear: number,
+): { eligible: boolean; pausedMonths: number } {
   const yearlyPayments = inputs.yearlyPaymentsPlan ?? []
   const yearlyWithdrawals = inputs.yearlyWithdrawalsPlan ?? []
+  let pausedMonths = 0
   for (let year = 1; year <= milestoneYear; year++) {
-    if ((yearlyPayments[year] ?? 0) <= 0) return false
-    if ((yearlyWithdrawals[year] ?? 0) > 0) return false
+    if ((yearlyWithdrawals[year] ?? 0) > 0) return { eligible: false, pausedMonths }
+    if ((yearlyPayments[year] ?? 0) <= 0) {
+      pausedMonths += 12
+    }
   }
-  return true
+  // ÁSZF: max 18 months (3 × 6 months) of suspension allowed
+  if (pausedMonths > 18) return { eligible: false, pausedMonths }
+  return { eligible: true, pausedMonths }
 }
 
 export function buildAlfaZenBonusAmountByYear(
@@ -216,23 +231,33 @@ export function buildAlfaZenBonusAmountByYear(
   const safeDuration = normalizeDurationYears(durationYears)
   if (safeDuration < 10) return {}
 
-  const pausedMonths = Math.max(0, Math.round(options?.pausedMonths ?? 0))
-  const pauseMultiplier = resolveAlfaZenBonusPauseMultiplier(pausedMonths)
   const annualizedMinimum = computeAnnualizedMinimumBasePremium(inputs.yearlyPaymentsPlan ?? [], safeDuration)
   if (annualizedMinimum <= 0) return {}
 
   const bonusByYear: Record<number, number> = {}
-  if (isAlfaZenBonusEligibleUntilYear(inputs, 10)) {
+
+  const eval10 = evaluateAlfaZenBonusEligibility(inputs, 10)
+  if (eval10.eligible) {
+    const totalPaused = Math.max(eval10.pausedMonths, options?.pausedMonths ?? 0)
+    const multiplier = resolveAlfaZenBonusPauseMultiplier(totalPaused)
     const percentAtYear10 = safeDuration <= 15 ? 100 : 50
-    bonusByYear[10] = annualizedMinimum * (percentAtYear10 / 100) * pauseMultiplier
+    bonusByYear[10] = annualizedMinimum * (percentAtYear10 / 100) * multiplier
   }
-  if (safeDuration >= 15 && isAlfaZenBonusEligibleUntilYear(inputs, 15)) {
-    bonusByYear[15] = (bonusByYear[15] ?? 0) + annualizedMinimum * pauseMultiplier
+  if (safeDuration >= 15) {
+    const eval15 = evaluateAlfaZenBonusEligibility(inputs, 15)
+    if (eval15.eligible) {
+      const totalPaused = Math.max(eval15.pausedMonths, options?.pausedMonths ?? 0)
+      const multiplier = resolveAlfaZenBonusPauseMultiplier(totalPaused)
+      bonusByYear[15] = (bonusByYear[15] ?? 0) + annualizedMinimum * multiplier
+    }
   }
   if (safeDuration >= 20) {
     const finalMilestoneYear = Math.max(1, safeDuration - 1)
-    if (isAlfaZenBonusEligibleUntilYear(inputs, finalMilestoneYear)) {
-      bonusByYear[finalMilestoneYear] = (bonusByYear[finalMilestoneYear] ?? 0) + annualizedMinimum * pauseMultiplier
+    const evalFinal = evaluateAlfaZenBonusEligibility(inputs, finalMilestoneYear)
+    if (evalFinal.eligible) {
+      const totalPaused = Math.max(evalFinal.pausedMonths, options?.pausedMonths ?? 0)
+      const multiplier = resolveAlfaZenBonusPauseMultiplier(totalPaused)
+      bonusByYear[finalMilestoneYear] = (bonusByYear[finalMilestoneYear] ?? 0) + annualizedMinimum * multiplier
     }
   }
   return bonusByYear
