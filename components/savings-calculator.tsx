@@ -7867,6 +7867,7 @@ export function SavingsCalculator() {
     isFundDataReady,
     isOcrDataReady,
     yieldSourceMode,
+    taxCreditAmountByYear,
     // Removed: surplusToExtraFeeDefaultPercent
   ])
   const productId = useMemo(() => {
