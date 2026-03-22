@@ -7919,6 +7919,10 @@ export function SavingsCalculator() {
   const isPremiumSelectionNy06 =
     selectedProduct === "alfa_premium_selection" &&
     (premiumSelectionVariantConfig.variant === "ny06" || premiumSelectionVariantConfig.variant === "ny22")
+  const isAlfaZenProduct =
+    selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur" || selectedProduct === "alfa_zen_pro"
+  // Termékek ahol két rendkívüli (eseti) számla van: adójóváírásos + azonnali hozzáférésű
+  const hasDualEsetiAccounts = isPremiumSelectionNy06 || isAlfaZenProduct
   const isPremiumSelectionTr18 =
     selectedProduct === "alfa_premium_selection" &&
     (premiumSelectionVariantConfig.variant === "tr18" ||
@@ -8034,11 +8038,11 @@ export function SavingsCalculator() {
       redemptionFeeDefaultPercent:
         selectedProduct === "alfa_premium_selection" ? 0 : (dailyInputs.redemptionFeeDefaultPercent ?? 0),
       extraordinaryAccountSubtype: "immediateAccess",
-      enableTaxCredit: isPremiumSelectionNy06 ? false : dailyInputs.enableTaxCredit,
-      taxCreditRatePercent: isPremiumSelectionNy06 ? 0 : dailyInputs.taxCreditRatePercent,
-      taxCreditCapPerYear: isPremiumSelectionNy06 ? 0 : dailyInputs.taxCreditCapPerYear,
-      taxCreditAmountByYear: isPremiumSelectionNy06 ? {} : dailyInputs.taxCreditAmountByYear,
-      taxCreditYieldPercent: isPremiumSelectionNy06 ? 0 : dailyInputs.taxCreditYieldPercent,
+      enableTaxCredit: hasDualEsetiAccounts ? false : dailyInputs.enableTaxCredit,
+      taxCreditRatePercent: hasDualEsetiAccounts ? 0 : dailyInputs.taxCreditRatePercent,
+      taxCreditCapPerYear: hasDualEsetiAccounts ? 0 : dailyInputs.taxCreditCapPerYear,
+      taxCreditAmountByYear: hasDualEsetiAccounts ? {} : dailyInputs.taxCreditAmountByYear,
+      taxCreditYieldPercent: hasDualEsetiAccounts ? 0 : dailyInputs.taxCreditYieldPercent,
     }
   }, [
     dailyInputs,
@@ -8057,7 +8061,7 @@ export function SavingsCalculator() {
     inputs.currency,
     selectedFundId,
     premiumSelectionVariantConfig,
-    isPremiumSelectionNy06,
+    hasDualEsetiAccounts,
   ])
   const dailyInputsEsetiTaxEligible = useMemo<InputsDaily>(
     () => ({
@@ -8117,7 +8121,7 @@ export function SavingsCalculator() {
   const summaryYearlyBreakdown = useMemo(() => {
     const mainRows = results?.yearlyBreakdown ?? []
     const esetiRows = resultsEseti?.yearlyBreakdown ?? []
-    const esetiTaxEligibleRows = isPremiumSelectionNy06 ? (resultsEsetiTaxEligible?.yearlyBreakdown ?? []) : []
+    const esetiTaxEligibleRows = hasDualEsetiAccounts ? (resultsEsetiTaxEligible?.yearlyBreakdown ?? []) : []
     const maxLength = Math.max(mainRows.length, esetiRows.length, esetiTaxEligibleRows.length)
     const merged: any[] = []
 
@@ -8127,7 +8131,7 @@ export function SavingsCalculator() {
     }
 
     return merged
-  }, [results?.yearlyBreakdown, resultsEseti?.yearlyBreakdown, resultsEsetiTaxEligible?.yearlyBreakdown, isPremiumSelectionNy06])
+  }, [results?.yearlyBreakdown, resultsEseti?.yearlyBreakdown, resultsEsetiTaxEligible?.yearlyBreakdown, hasDualEsetiAccounts])
   const cumulativeByYearSummary = useMemo(
     () => buildCumulativeByYear(summaryYearlyBreakdown),
     [summaryYearlyBreakdown],
@@ -8143,8 +8147,8 @@ export function SavingsCalculator() {
   }, [resultsEsetiTaxEligible.yearlyBreakdown, isCorporateBond])
   const netCalculationsSummary = useMemo(() => {
     const mainAndImmediate = combineNetRows(netCalculationsMain, netCalculationsEseti)
-    return isPremiumSelectionNy06 ? combineNetRows(mainAndImmediate, netCalculationsEsetiTaxEligible) : mainAndImmediate
-  }, [netCalculationsMain, netCalculationsEseti, netCalculationsEsetiTaxEligible, isPremiumSelectionNy06])
+    return hasDualEsetiAccounts ? combineNetRows(mainAndImmediate, netCalculationsEsetiTaxEligible) : mainAndImmediate
+  }, [netCalculationsMain, netCalculationsEseti, netCalculationsEsetiTaxEligible, hasDualEsetiAccounts])
   const yearlyNetCalculations = useMemo(() => {
     if (yearlyAccountView === "eseti_tax_eligible") return netCalculationsEsetiTaxEligible
     if (yearlyAccountView === "eseti" || yearlyAccountView === "eseti_immediate_access") return netCalculationsEseti
@@ -8435,29 +8439,29 @@ export function SavingsCalculator() {
         totalContributions:
           mainTotals.totalContributions +
           esetiImmediateTotals.totalContributions +
-          (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.totalContributions : 0),
+          (hasDualEsetiAccounts ? esetiTaxEligibleTotals.totalContributions : 0),
         totalCosts:
-          mainTotals.totalCosts + esetiImmediateTotals.totalCosts + (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.totalCosts : 0),
+          mainTotals.totalCosts + esetiImmediateTotals.totalCosts + (hasDualEsetiAccounts ? esetiTaxEligibleTotals.totalCosts : 0),
         totalBonus:
-          mainTotals.totalBonus + esetiImmediateTotals.totalBonus + (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.totalBonus : 0),
+          mainTotals.totalBonus + esetiImmediateTotals.totalBonus + (hasDualEsetiAccounts ? esetiTaxEligibleTotals.totalBonus : 0),
         totalTaxCredit:
           mainTotals.totalTaxCredit +
           esetiImmediateTotals.totalTaxCredit +
-          (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.totalTaxCredit : 0),
+          (hasDualEsetiAccounts ? esetiTaxEligibleTotals.totalTaxCredit : 0),
         totalInterestNet:
           mainTotals.totalInterestNet +
           esetiImmediateTotals.totalInterestNet +
-          (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.totalInterestNet : 0),
+          (hasDualEsetiAccounts ? esetiTaxEligibleTotals.totalInterestNet : 0),
         endBalance:
-          mainTotals.endBalance + esetiImmediateTotals.endBalance + (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.endBalance : 0),
+          mainTotals.endBalance + esetiImmediateTotals.endBalance + (hasDualEsetiAccounts ? esetiTaxEligibleTotals.endBalance : 0),
         surrenderValue:
           mainTotals.surrenderValue +
           esetiImmediateTotals.surrenderValue +
-          (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.surrenderValue : 0),
+          (hasDualEsetiAccounts ? esetiTaxEligibleTotals.surrenderValue : 0),
         totalRiskInsuranceCost:
           mainTotals.totalRiskInsuranceCost +
           esetiImmediateTotals.totalRiskInsuranceCost +
-          (isPremiumSelectionNy06 ? esetiTaxEligibleTotals.totalRiskInsuranceCost : 0),
+          (hasDualEsetiAccounts ? esetiTaxEligibleTotals.totalRiskInsuranceCost : 0),
       }
       return {
         summary: summaryTotals,
@@ -8466,7 +8470,7 @@ export function SavingsCalculator() {
         eseti_tax_eligible: esetiTaxEligibleTotals,
       }
     },
-    [results, resultsEseti, resultsEsetiTaxEligible, isPremiumSelectionNy06, exitYear, effectiveExitYear, totalYearsForPlan],
+    [results, resultsEseti, resultsEsetiTaxEligible, hasDualEsetiAccounts, exitYear, effectiveExitYear, totalYearsForPlan],
   )
   const summaryAccountLabels: Record<"summary" | "main" | "eseti", string> = {
     summary: "Összesített",
@@ -8494,7 +8498,7 @@ export function SavingsCalculator() {
   const summaryAccountViewKey: "summary" | "main" | "eseti" =
     yearlyAccountView === "main" ? "main" : yearlyAccountView === "summary" ? "summary" : "eseti"
   const activeSummaryTotals =
-    isPremiumSelectionNy06 && yearlyAccountView === "eseti_tax_eligible"
+    hasDualEsetiAccounts && yearlyAccountView === "eseti_tax_eligible"
       ? summaryTotalsByAccount.eseti_tax_eligible
       : summaryTotalsByAccount[summaryAccountViewKey]
   const activeSummaryTheme = summaryThemeByAccount[summaryAccountViewKey]
@@ -9265,7 +9269,7 @@ export function SavingsCalculator() {
   const isEsetiView = yearlyAccountView === "eseti" || isEsetiTaxEligibleView || isEsetiImmediateView
   const shouldShowDesktopYearlyTable = !isMobile || isLandscapeOrientation
   const yearlyAccountSelectValue: YearlyAccountView =
-    isPremiumSelectionNy06 && (isEsetiImmediateView || isEsetiTaxEligibleView) ? "eseti" : yearlyAccountView
+    hasDualEsetiAccounts && (isEsetiImmediateView || isEsetiTaxEligibleView) ? "eseti" : yearlyAccountView
   const settingsAccountView: "main" | "eseti" = isEsetiView ? "eseti" : "main"
   const isSettingsEseti = settingsAccountView === "eseti"
   const isTaxCreditSupportedForSelectedProduct =
@@ -9304,7 +9308,7 @@ export function SavingsCalculator() {
   const shouldShowTaxCreditInYearlyTable =
     inputs.enableTaxCredit &&
     !(selectedProduct === "alfa_exclusive_plus" && effectiveYearlyViewMode !== "taxBonus") &&
-    !(isPremiumSelectionNy06 && isEsetiImmediateView)
+    !(hasDualEsetiAccounts && isEsetiImmediateView)
   const shouldShowAcquisitionInYearlyTableView =
     !(selectedProduct === "alfa_exclusive_plus" && isAccountSplitOpen && effectiveYearlyViewMode !== "total")
   const yearlyPanelProductKey = useMemo(
@@ -9857,11 +9861,11 @@ export function SavingsCalculator() {
   }, [isAccountSplitOpen, yearlyViewMode])
 
   useEffect(() => {
-    if (isPremiumSelectionNy06) return
+    if (hasDualEsetiAccounts) return
     if (yearlyAccountView === "eseti_tax_eligible" || yearlyAccountView === "eseti_immediate_access") {
       setYearlyAccountView("eseti")
     }
-  }, [isPremiumSelectionNy06, yearlyAccountView])
+  }, [hasDualEsetiAccounts, yearlyAccountView])
   const activeEsetiIndexByYear = isEsetiTaxEligibleView ? esetiIndexByYearTaxEligible : esetiIndexByYear
   const activeEsetiPaymentByYear = isEsetiTaxEligibleView ? esetiPaymentByYearTaxEligible : esetiPaymentByYear
   const activeEsetiWithdrawalByYear = isEsetiTaxEligibleView ? esetiWithdrawalByYearTaxEligible : esetiWithdrawalByYear
@@ -12302,7 +12306,7 @@ export function SavingsCalculator() {
                       const nextIndex = (currentIndex - 1 + summaryAccountsOrder.length) % summaryAccountsOrder.length
                       const nextSummaryView = summaryAccountsOrder[nextIndex]
                       if (nextSummaryView === "eseti") {
-                        setYearlyAccountView(isPremiumSelectionNy06 ? "eseti_immediate_access" : "eseti")
+                        setYearlyAccountView(hasDualEsetiAccounts ? "eseti_immediate_access" : "eseti")
                       } else {
                         setYearlyAccountView(nextSummaryView)
                       }
@@ -12321,7 +12325,7 @@ export function SavingsCalculator() {
                       const nextIndex = (currentIndex + 1) % summaryAccountsOrder.length
                       const nextSummaryView = summaryAccountsOrder[nextIndex]
                       if (nextSummaryView === "eseti") {
-                        setYearlyAccountView(isPremiumSelectionNy06 ? "eseti_immediate_access" : "eseti")
+                        setYearlyAccountView(hasDualEsetiAccounts ? "eseti_immediate_access" : "eseti")
                       } else {
                         setYearlyAccountView(nextSummaryView)
                       }
@@ -12749,7 +12753,7 @@ export function SavingsCalculator() {
                   )}
                   {/* </CHANGE> */}
 
-                  {isPremiumSelectionNy06 && isEsetiView && (
+                  {hasDualEsetiAccounts && isEsetiView && (
                     <div className="flex items-center gap-1 border rounded-md p-1">
                       <Button
                         type="button"
@@ -12777,7 +12781,7 @@ export function SavingsCalculator() {
                   <Select
                     value={yearlyAccountSelectValue}
                     onValueChange={(value) => {
-                      if (value === "eseti" && isPremiumSelectionNy06) {
+                      if (value === "eseti" && hasDualEsetiAccounts) {
                         setYearlyAccountView(isEsetiTaxEligibleView ? "eseti_tax_eligible" : "eseti_immediate_access")
                         return
                       }
