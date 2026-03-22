@@ -8504,6 +8504,16 @@ export function SavingsCalculator() {
     selectedProduct === "alfa_zen" ||
     selectedProduct === "alfa_zen_eur" ||
     selectedProduct === "alfa_zen_pro"
+  // Szüneteltetett hónapok számolása az Alfa Zen bónusz figyelmeztetéshez
+  const alfaZenPausedMonths = useMemo(() => {
+    if (!isWithdrawalDisabledForProduct) return 0
+    const payments = plan.yearlyPaymentsPlan ?? []
+    let paused = 0
+    for (let y = 1; y <= totalYearsForPlan; y++) {
+      if ((payments[y] ?? 0) <= 0) paused += 12
+    }
+    return paused
+  }, [isWithdrawalDisabledForProduct, plan.yearlyPaymentsPlan, totalYearsForPlan])
   const showSurrenderFinalBand =
     isRedemptionOpen &&
     !(isAlfaExclusivePlus && summaryAccountViewKey === "eseti") &&
@@ -12552,11 +12562,20 @@ export function SavingsCalculator() {
                     </div>
                   )}
 
-                  <div className={`flex items-center justify-between rounded-lg p-3 md:p-4 ${activeSummaryTheme.metric}`}>
-                    <span className="text-xs md:text-sm font-medium text-muted-foreground">Összes bónusz</span>
-                    <span className="text-lg md:text-xl font-bold text-chart-2 tabular-nums">
-                      {formatCurrency(getRealValue(activeSummaryTotals.totalBonus))}
-                    </span>
+                  <div className={`flex flex-col rounded-lg p-3 md:p-4 ${activeSummaryTheme.metric}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs md:text-sm font-medium text-muted-foreground">Összes bónusz</span>
+                      <span className="text-lg md:text-xl font-bold text-chart-2 tabular-nums">
+                        {formatCurrency(getRealValue(activeSummaryTotals.totalBonus))}
+                      </span>
+                    </div>
+                    {isWithdrawalDisabledForProduct && alfaZenPausedMonths > 0 && (
+                      <p className="text-xs text-orange-600 mt-1">
+                        {alfaZenPausedMonths > 18
+                          ? `${alfaZenPausedMonths} hónap szüneteltetés — meghaladja a max. 18 hónapot (ÁSZF I.12), ezért a bónusz nem jár.`
+                          : `${alfaZenPausedMonths} hónap szüneteltetés — a bónusz ${alfaZenPausedMonths}%-kal csökkentett (ÁSZF III.13.4).`}
+                      </p>
+                    )}
                   </div>
 
                   <div className={`flex items-center justify-between rounded-lg p-3 md:p-4 ${activeSummaryTheme.metric}`}>
