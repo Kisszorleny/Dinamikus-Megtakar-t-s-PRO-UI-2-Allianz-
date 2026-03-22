@@ -41,6 +41,16 @@ export function buildYearlyPlan(p: PlanInputs): BuiltPlan {
   // év1 befizetés (kézi vagy alap)
   yearlyPaymentsPlan[1] = p.paymentByYear[1] ?? baseYear1Payment
 
+  // Az indexált lánc a manuális felülírástól függetlenül fut, így ha egy évet
+  // 0-ra állítanak (szüneteltetés), a következő évek továbbra is az indexált
+  // értékből számolódnak, nem pedig a 0-ból.
+  const indexedChain = Array<number>(years + 1).fill(0)
+  indexedChain[1] = p.paymentByYear[1] ?? baseYear1Payment
+  for (let y = 2; y <= years; y++) {
+    const indexRate = (indexEffective[y] ?? baseAnnualIndexPercent) / 100
+    indexedChain[y] = indexedChain[y - 1] * (1 + indexRate)
+  }
+
   for (let y = 2; y <= years; y++) {
     const manual = p.paymentByYear[y]
     if (manual !== undefined) {
@@ -48,9 +58,7 @@ export function buildYearlyPlan(p: PlanInputs): BuiltPlan {
       continue
     }
 
-    const prevPayment = yearlyPaymentsPlan[y - 1] ?? baseYear1Payment
-    const indexRate = (indexEffective[y] ?? baseAnnualIndexPercent) / 100
-    yearlyPaymentsPlan[y] = prevPayment * (1 + indexRate)
+    yearlyPaymentsPlan[y] = indexedChain[y]
   }
 
   return { indexEffective, yearlyPaymentsPlan, yearlyWithdrawalsPlan }

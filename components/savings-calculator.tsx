@@ -5859,6 +5859,9 @@ export function SavingsCalculator() {
           redemptionBaseMode: "surplus-only",
           redemptionFeeByYear: redemptionFeeConfig,
           redemptionFeeDefaultPercent: 0,
+          paidUpMaintenanceFeeMonthlyAmount: 0,
+          paidUpMaintenanceFeeMonthlyPercent: 0,
+          clientAccountEarnsYield: true,
           isAccountSplitOpen: true,
           isTaxBonusSeparateAccount: true,
         }))
@@ -12423,7 +12426,7 @@ export function SavingsCalculator() {
                         className="h-7 text-xs px-2"
                         disabled={isYearlyReadOnly}
                       >
-                        Többletdíj számla
+                        Lejárati többletdíj számla
                       </Button>
                       {isTaxBonusSeparateAccount && (
                         <Button

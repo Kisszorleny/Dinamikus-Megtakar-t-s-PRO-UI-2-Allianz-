@@ -1,6 +1,7 @@
 import type { Currency, InputsDaily } from "../calculate-results-daily"
 
 export type AlfaZenVariant = "ny13" | "ny23"
+export type AlfaZenAppendix = "A" | "B"
 
 export const ALFA_ZEN_NY13_PRODUCT_CODE = "NY13"
 export const ALFA_ZEN_NY23_PRODUCT_CODE = "NY23"
@@ -29,7 +30,7 @@ export const ALFA_ZEN_TAX_CREDIT_CAP_HUF = 130_000
 
 export const ALFA_ZEN_STRICT_UNSPECIFIED_RULES = true
 export const ALFA_ZEN_ENABLE_PROVISIONAL_INITIAL_COST_CURVE = true
-export const ALFA_ZEN_ENABLE_BONUS_PAUSE_MULTIPLIER = false
+export const ALFA_ZEN_ENABLE_BONUS_PAUSE_MULTIPLIER = true
 export const ALFA_ZEN_ENABLE_POLICY_ISSUANCE_CANCELLATION_FEE = false
 
 export interface AlfaZenVariantConfig {
@@ -37,6 +38,7 @@ export interface AlfaZenVariantConfig {
   code: "NY13" | "NY23"
   currency: "EUR" | "USD"
   applyMoneyMarketMaintenanceDiscount: boolean
+  appendix: AlfaZenAppendix
 }
 
 const NY13_CONFIG: AlfaZenVariantConfig = {
@@ -44,6 +46,7 @@ const NY13_CONFIG: AlfaZenVariantConfig = {
   code: ALFA_ZEN_NY13_PRODUCT_CODE,
   currency: "EUR",
   applyMoneyMarketMaintenanceDiscount: true,
+  appendix: "B",
 }
 
 const NY23_CONFIG: AlfaZenVariantConfig = {
@@ -51,6 +54,7 @@ const NY23_CONFIG: AlfaZenVariantConfig = {
   code: ALFA_ZEN_NY23_PRODUCT_CODE,
   currency: "USD",
   applyMoneyMarketMaintenanceDiscount: false,
+  appendix: "B",
 }
 
 type InitialCostRange = {
@@ -61,10 +65,10 @@ type InitialCostRange = {
 
 const ALFA_ZEN_PROVISIONAL_INITIAL_COST_RANGES: InitialCostRange[] = [
   { maxDurationYears: 10, year2Percent: 23, year3Percent: 13 },
-  { maxDurationYears: 11, year2Percent: 28, year3Percent: 14 },
-  { maxDurationYears: 12, year2Percent: 33, year3Percent: 15 },
-  { maxDurationYears: 13, year2Percent: 38, year3Percent: 16 },
-  { maxDurationYears: 14, year2Percent: 43, year3Percent: 17 },
+  { maxDurationYears: 11, year2Percent: 28, year3Percent: 13 },
+  { maxDurationYears: 12, year2Percent: 33, year3Percent: 13 },
+  { maxDurationYears: 13, year2Percent: 38, year3Percent: 18 },
+  { maxDurationYears: 14, year2Percent: 43, year3Percent: 18 },
   { maxDurationYears: Number.POSITIVE_INFINITY, year2Percent: 48, year3Percent: 18 },
 ]
 
@@ -98,11 +102,15 @@ export function estimateAlfaZenDurationYears(inputs: InputsDaily): number {
   return normalizeDurationYears(Math.ceil(inputs.durationValue / 365))
 }
 
-export function resolveAlfaZenMinimumAnnualPayment(durationYears: number): number {
+export function resolveAlfaZenMinimumAnnualPayment(
+  durationYears: number,
+  appendix: AlfaZenAppendix = "B",
+): number {
   const safeDuration = normalizeDurationYears(durationYears)
   if (safeDuration < 10) return 1_800
-  if (safeDuration <= 15) return 1_200
-  if (safeDuration <= 20) return 900
+  if (safeDuration < 15) return 1_200
+  if (appendix === "A") return 900
+  if (safeDuration < 20) return 900
   return 600
 }
 
@@ -173,9 +181,8 @@ export function resolveAlfaZenTaxCreditCapPerYear(
 function resolveAlfaZenBonusPauseMultiplier(pausedMonths: number): number {
   if (!ALFA_ZEN_ENABLE_BONUS_PAUSE_MULTIPLIER) return 1
   if (pausedMonths <= 0) return 1
-  if (pausedMonths === 3) return 0.97
-  // TODO(ALFA_ZEN): replace fallback when insurer pause multiplier table is provided.
-  return Math.max(0, 1 - pausedMonths / 100)
+  if (pausedMonths > 18) return 0.82
+  return 1 - pausedMonths * 0.01
 }
 
 function computeAnnualizedMinimumBasePremium(yearlyPaymentsPlan: number[], horizonYears: number): number {
