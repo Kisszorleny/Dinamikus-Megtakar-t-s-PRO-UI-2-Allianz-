@@ -12576,9 +12576,7 @@ export function SavingsCalculator() {
                   {showSurrenderFinalBand && (
                     <div
                       className={`flex items-center justify-between rounded-lg border border-primary/25 p-3 md:p-4 ${activeSummaryTheme.metric} cursor-help`}
-                      title={isWithdrawalDisabledForProduct
-                        ? "A Lejárati többletdíj számláról levonásra kerülő visszavásárlási költség: 1-10. évben 100%, 11. évtől 15%. Lejáratkor nincs visszavásárlási költség. A megtakarítási alapszámlák terhére részvisszavásárlás nem igényelhető (ÁSZF III.8)."
-                        : "A szerződés idő előtti megszüntetésekor kifizetésre kerülő összeg a visszavásárlási költség levonása után."}
+                      {...getYearlyHeaderInfoHandlers("surrenderValue")}
                     >
                       <span className="text-xs md:text-sm font-medium text-muted-foreground">
                         Visszavásárlási érték
