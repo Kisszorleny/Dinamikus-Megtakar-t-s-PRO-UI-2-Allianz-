@@ -1177,6 +1177,7 @@ function MobileYearCard({
   shouldApplyTaxCreditPenalty,
   isTaxBonusSeparateAccount, // Added prop
   showSurrenderAsPrimary,
+  isWithdrawalDisabled,
 }: {
   row: any
   planIndex: Record<number, number>
@@ -1223,6 +1224,7 @@ function MobileYearCard({
   shouldApplyTaxCreditPenalty?: boolean
   isTaxBonusSeparateAccount?: boolean // Added prop
   showSurrenderAsPrimary?: boolean
+  isWithdrawalDisabled?: boolean
 }) {
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -1462,12 +1464,12 @@ function MobileYearCard({
       </div>
 
       <div className={`${enableTaxCredit ? MOBILE_LAYOUT.yearlySecondaryGrid : "grid gap-3 grid-cols-1"} ${isPartialReadOnly ? "opacity-60" : ""}`}>
-        <div className="space-y-1">
+        <div className={`space-y-1 ${isWithdrawalDisabled ? "opacity-40" : ""}`} title={isWithdrawalDisabled ? "Ennél a terméknél nincs lehetőség részvisszavásárlásra (ÁSZF III.8)" : undefined}>
           <Label className="text-xs text-muted-foreground">Pénzkivonás</Label>
           <Input
             type="text"
             inputMode="numeric"
-            disabled={isRowReadOnly}
+            disabled={isRowReadOnly || isWithdrawalDisabled}
             value={
               editingFields[`withdrawal-${row.year}`]
                 ? String(
@@ -8494,6 +8496,11 @@ export function SavingsCalculator() {
       : summaryTotalsByAccount[summaryAccountViewKey]
   const activeSummaryTheme = summaryThemeByAccount[summaryAccountViewKey]
   const isAlfaExclusivePlus = selectedProduct === "alfa_exclusive_plus"
+  // Alfa Zen: ÁSZF III.8 - részvisszavásárlás a megtakarítási alapszámlák terhére nem igényelhető
+  const isWithdrawalDisabledForProduct =
+    selectedProduct === "alfa_zen" ||
+    selectedProduct === "alfa_zen_eur" ||
+    selectedProduct === "alfa_zen_pro"
   const showSurrenderFinalBand =
     isRedemptionOpen &&
     !(isAlfaExclusivePlus && summaryAccountViewKey === "eseti") &&
@@ -12843,6 +12850,7 @@ export function SavingsCalculator() {
                       shouldApplyTaxCreditPenalty={shouldApplyTaxCreditPenalty}
                       isTaxBonusSeparateAccount={isTaxBonusSeparateAccount}
                       showSurrenderAsPrimary={isAlfaExclusivePlus && !isEsetiView}
+                      isWithdrawalDisabled={isWithdrawalDisabledForProduct && !isEsetiView}
                       getRealValueForDays={getRealValueForDays}
                       realValueElapsedDays={realValueElapsedDaysByIndex[index] ?? 0}
                       // </CHANGE>
@@ -13107,7 +13115,11 @@ export function SavingsCalculator() {
                         {shouldShowTaxCreditInYearlyTable && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28" {...getYearlyHeaderInfoHandlers("taxCredit")}>Adójóv.</th>
                         )}
-                        <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28" {...getYearlyHeaderInfoHandlers("withdrawal")}>Kivonás</th>
+                        <th
+                          className={`py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28 ${isWithdrawalDisabledForProduct && !isEsetiView ? "opacity-40" : ""}`}
+                          {...getYearlyHeaderInfoHandlers("withdrawal")}
+                          title={isWithdrawalDisabledForProduct && !isEsetiView ? "Ennél a terméknél nincs lehetőség részvisszavásárlásra (ÁSZF III.8)" : undefined}
+                        >Kivonás</th>
                         {isAlfaExclusivePlus && !isEsetiView && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-32 min-w-32" {...getYearlyHeaderInfoHandlers("balance")}>
                             {enableNetting ? "Nettó egyenleg" : "Egyenleg"}
@@ -14387,12 +14399,15 @@ export function SavingsCalculator() {
                               </td>
                             )}
 
-                            <td className="py-2 px-3 text-right align-top w-28 min-w-28">
+                            <td
+                              className={`py-2 px-3 text-right align-top w-28 min-w-28 ${isWithdrawalDisabledForProduct && !isEsetiView ? "opacity-40" : ""}`}
+                              title={isWithdrawalDisabledForProduct && !isEsetiView ? "Ennél a terméknél nincs lehetőség részvisszavásárlásra (ÁSZF III.8)" : undefined}
+                            >
                               <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                 <Input
                                   type="text"
                                   inputMode="numeric"
-                                  disabled={isPartialRow}
+                                  disabled={isPartialRow || (isWithdrawalDisabledForProduct && !isEsetiView)}
                                   value={
                                     editingFields[`withdrawal-${row.year}`]
                                       ? String(
