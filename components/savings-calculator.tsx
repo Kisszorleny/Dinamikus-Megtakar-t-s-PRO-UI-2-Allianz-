@@ -1414,12 +1414,12 @@ function MobileYearCard({
       {/* Always visible: editable fields */}
       <div className={`${isYearlyReadOnly ? "grid grid-cols-1" : MOBILE_LAYOUT.yearlyEditableGrid} ${isRowReadOnly ? "opacity-60 pointer-events-none" : ""}`}>
         {!isYearlyReadOnly && (
-          <div className="space-y-1">
+          <div className={`space-y-1 ${effectiveYearlyViewMode !== "total" ? "opacity-50" : ""}`}>
             <Label className="text-xs text-muted-foreground">Indexálás (%)</Label>
             <Input
               type="text"
               inputMode="numeric"
-              disabled={isRowReadOnly}
+              disabled={isRowReadOnly || effectiveYearlyViewMode !== "total"}
               value={
                 editingFields[`index-${row.year}`]
                   ? String(effectiveCurrentIndex)
@@ -1435,12 +1435,12 @@ function MobileYearCard({
             />
           </div>
         )}
-        <div className="space-y-1">
+        <div className={`space-y-1 ${effectiveYearlyViewMode !== "total" ? "opacity-50" : ""}`}>
           <Label className="text-xs text-muted-foreground">Befizetés / év</Label>
           <Input
             type="text"
             inputMode="numeric"
-            disabled={isRowReadOnly}
+            disabled={isRowReadOnly || effectiveYearlyViewMode !== "total"}
             value={
               editingFields[`payment-${row.year}`]
                 ? String(
@@ -2300,7 +2300,7 @@ export function SavingsCalculator() {
     keepYearlyPayment: boolean
   }>(() => {
     const defaults = {
-      regularPayment: 20000,
+      regularPayment: 0,
       frequency: "éves" as PaymentFrequency,
       annualYieldPercent: 12,
       annualIndexPercent: 0,
@@ -2310,7 +2310,9 @@ export function SavingsCalculator() {
       const stored = sessionStorage.getItem("calculator-esetiBaseInputs")
       if (stored) {
         try {
-          return { ...defaults, ...(JSON.parse(stored) as Partial<typeof defaults>) }
+          const parsed = JSON.parse(stored) as Partial<typeof defaults>
+          // Az eseti regularPayment mindig 0-ról indul — a user szabadon írja be
+          return { ...defaults, ...parsed, regularPayment: 0 }
         } catch (e) {
           console.error("[v0] Failed to parse stored esetiBaseInputs:", e)
         }
@@ -8393,7 +8395,8 @@ export function SavingsCalculator() {
             totalTaxCredit: results.totalTaxCredit,
             totalInterestNet: results.totalInterestNet,
             endBalance: results.endBalance,
-            surrenderValue: results.yearlyBreakdown[results.yearlyBreakdown.length - 1]?.surrenderValue ?? results.endBalance,
+            // Lejáratkor nincs visszavásárlási díj — a teljes egyenleg kifizetésre kerül
+            surrenderValue: results.endBalance,
             totalRiskInsuranceCost: results.totalRiskInsuranceCost ?? 0,
           }
       const esetiImmediateTotals = isEarlyExit
@@ -8405,8 +8408,8 @@ export function SavingsCalculator() {
             totalTaxCredit: resultsEseti.totalTaxCredit,
             totalInterestNet: resultsEseti.totalInterestNet,
             endBalance: resultsEseti.endBalance,
-            surrenderValue:
-              resultsEseti.yearlyBreakdown[resultsEseti.yearlyBreakdown.length - 1]?.surrenderValue ?? resultsEseti.endBalance,
+            // Lejáratkor nincs visszavásárlási díj
+            surrenderValue: resultsEseti.endBalance,
             totalRiskInsuranceCost: resultsEseti.totalRiskInsuranceCost ?? 0,
           }
       const esetiTaxEligibleTotals = isEarlyExit
@@ -8418,8 +8421,8 @@ export function SavingsCalculator() {
             totalTaxCredit: resultsEsetiTaxEligible.totalTaxCredit,
             totalInterestNet: resultsEsetiTaxEligible.totalInterestNet,
             endBalance: resultsEsetiTaxEligible.endBalance,
+            // Lejáratkor nincs visszavásárlási díj
             surrenderValue:
-              resultsEsetiTaxEligible.yearlyBreakdown[resultsEsetiTaxEligible.yearlyBreakdown.length - 1]?.surrenderValue ??
               resultsEsetiTaxEligible.endBalance,
             totalRiskInsuranceCost: resultsEsetiTaxEligible.totalRiskInsuranceCost ?? 0,
           }
@@ -8981,6 +8984,8 @@ export function SavingsCalculator() {
   const shouldShowWealthBonusPercentColumn =
     !!selectedProduct &&
     selectedProduct !== "allianz_bonusz_eletprogram" &&
+    selectedProduct !== "alfa_zen" &&
+    selectedProduct !== "alfa_zen_pro" &&
     selectedProduct !== "alfa_fortis" &&
     selectedProduct !== "alfa_jade" &&
     selectedProduct !== "alfa_jovotervezo" &&
@@ -10061,7 +10066,7 @@ export function SavingsCalculator() {
                 <CardContent className="space-y-4 md:space-y-5">
                   <div className={SETTINGS_UI.formGroup}>
                     {/* Compact row 1: frequency / payment / currency / index */}
-                    <div className={`${MOBILE_LAYOUT.settingsRow1} ${isSettingsEseti ? "opacity-60" : ""}`}>
+                    <div className={`${MOBILE_LAYOUT.settingsRow1} ${isSettingsEseti ? "hidden" : ""}`}>
                       <div className={MOBILE_LAYOUT.settingsField}>
                         <Label htmlFor="frequency" className={SETTINGS_UI.label}>
                           Fiz. gyak.
@@ -13448,12 +13453,12 @@ export function SavingsCalculator() {
                             </td>
 
                             {!isYearlyReadOnly && (
-                              <td className="py-2 px-3 text-right align-top">
+                              <td className={`py-2 px-3 text-right align-top ${effectiveYearlyViewMode !== "total" ? "opacity-50" : ""}`}>
                                 <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                   <Input
                                     type="text"
                                     inputMode="numeric"
-                                    disabled={isPartialRow}
+                                    disabled={isPartialRow || effectiveYearlyViewMode !== "total"}
                                     value={
                                       editingFields[`index-${row.year}`] ? String(currentIndex) : formatNumber(currentIndex)
                                     }
@@ -13470,49 +13475,99 @@ export function SavingsCalculator() {
                               </td>
                             )}
 
-                            <td className="py-2 px-3 text-right align-top">
+                            <td className={`py-2 px-3 text-right align-top ${effectiveYearlyViewMode !== "total" ? "opacity-50" : ""}`}>
                               <div className="flex flex-col items-end gap-1 min-h-[44px]">
-                                <Input
-                                  type="text"
-                                  inputMode="numeric"
-                                  disabled={isPartialRow}
-                                  value={
-                                    editingFields[`payment-${row.year}`]
-                                      ? String(
-                                          Math.round(
-                                            convertForDisplay(
-                                              displayPaymentValue,
-                                              results.currency,
-                                              displayCurrency,
-                                              inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
+                                {effectiveYearlyViewMode !== "total" ? (
+                                  // Per-számla nézet: az adott számlára allokált összeget mutatjuk szürkén
+                                  <div className="flex items-center justify-end h-8 text-right tabular-nums text-muted-foreground">
+                                    {(() => {
+                                      const investedPct = (investedShareByYear[row.year] ?? inputs.investedShareDefaultPercent ?? 100) / 100
+                                      const allocatedPayment =
+                                        effectiveYearlyViewMode === "invested"
+                                          ? displayPaymentValue * investedPct
+                                          : effectiveYearlyViewMode === "client"
+                                            ? displayPaymentValue * (1 - investedPct)
+                                            : effectiveYearlyViewMode === "taxBonus"
+                                              ? 0
+                                              : displayPaymentValue
+                                      return formatValue(
+                                        convertForDisplay(
+                                          allocatedPayment,
+                                          results.currency,
+                                          displayCurrency,
+                                          inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
+                                        ),
+                                        displayCurrency,
+                                      )
+                                    })()}
+                                  </div>
+                                ) : (
+                                  <Input
+                                    type="text"
+                                    inputMode="numeric"
+                                    disabled={isPartialRow}
+                                    value={
+                                      editingFields[`payment-${row.year}`]
+                                        ? String(
+                                            Math.round(
+                                              convertForDisplay(
+                                                displayPaymentValue,
+                                                results.currency,
+                                                displayCurrency,
+                                                inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
+                                              ),
                                             ),
-                                          ),
-                                        )
-                                      : formatNumber(
-                                          Math.round(
-                                            convertForDisplay(
-                                              displayPaymentValue,
-                                              results.currency,
-                                              displayCurrency,
-                                              inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
+                                          )
+                                        : formatNumber(
+                                            Math.round(
+                                              convertForDisplay(
+                                                displayPaymentValue,
+                                                results.currency,
+                                                displayCurrency,
+                                                inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
+                                              ),
                                             ),
-                                          ),
-                                        )
-                                  }
-                                  onFocus={() => setFieldEditing(`payment-${row.year}`, true)}
-                                  onBlur={() => setFieldEditing(`payment-${row.year}`, false)}
-                                  onChange={(e) => {
-                                    if (e.target.value.trim() === "") {
-                                      updatePaymentForView(row.year, 0)
-                                      return
+                                          )
                                     }
-                                    const parsed = parseNumber(e.target.value)
-                                    if (!isNaN(parsed)) updatePaymentForView(row.year, parsed)
-                                  }}
-                                  className={`w-full h-8 text-right tabular-nums ${isPaymentModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
-                                />
+                                    onFocus={() => setFieldEditing(`payment-${row.year}`, true)}
+                                    onBlur={() => setFieldEditing(`payment-${row.year}`, false)}
+                                    onChange={(e) => {
+                                      if (e.target.value.trim() === "") {
+                                        updatePaymentForView(row.year, 0)
+                                        return
+                                      }
+                                      const parsed = parseNumber(e.target.value)
+                                      if (!isNaN(parsed)) updatePaymentForView(row.year, parsed)
+                                    }}
+                                    className={`w-full h-8 text-right tabular-nums ${isPaymentModified ? "bg-amber-50 dark:bg-amber-950/20 border-amber-300" : ""}`}
+                                  />
+                                )}
                                 <p className="text-xs text-muted-foreground tabular-nums">
-                                  {formatValue(applyRealValueForYear(sourceRow.totalContributions), displayCurrency)}
+                                  {(() => {
+                                    if (effectiveYearlyViewMode === "total") {
+                                      return formatValue(applyRealValueForYear(sourceRow.totalContributions), displayCurrency)
+                                    }
+                                    // Per-számla kumulatív befizetés
+                                    const totalContrib = sourceRow.totalContributions ?? 0
+                                    const investedPct = (investedShareByYear[row.year] ?? inputs.investedShareDefaultPercent ?? 100) / 100
+                                    const allocatedCumulative =
+                                      effectiveYearlyViewMode === "invested"
+                                        ? totalContrib * investedPct
+                                        : effectiveYearlyViewMode === "client"
+                                          ? totalContrib * (1 - investedPct)
+                                          : effectiveYearlyViewMode === "taxBonus"
+                                            ? 0
+                                            : totalContrib
+                                    return formatValue(
+                                      convertForDisplay(
+                                        allocatedCumulative,
+                                        results.currency,
+                                        displayCurrency,
+                                        inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
+                                      ),
+                                      displayCurrency,
+                                    )
+                                  })()}
                                 </p>
                               </div>
                             </td>

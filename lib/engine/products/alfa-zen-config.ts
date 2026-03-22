@@ -140,8 +140,7 @@ export function buildAlfaZenRedemptionSchedule(durationYears: number): Record<nu
   const out: Record<number, number> = {}
   const after120MonthsPercent = safeDuration <= 10 ? 100 : 15
   for (let year = 1; year <= safeDuration; year++) {
-    // Lejáratkor (utolsó év) nincs visszavásárlási díj — teljes egyenleg kifizetésre kerül
-    out[year] = year === safeDuration ? 0 : year <= 10 ? 100 : after120MonthsPercent
+    out[year] = year <= 10 ? 100 : after120MonthsPercent
   }
   return out
 }
