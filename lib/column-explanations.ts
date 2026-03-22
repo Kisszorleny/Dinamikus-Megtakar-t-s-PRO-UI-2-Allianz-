@@ -124,6 +124,7 @@ export const COLUMN_EXPLANATIONS: Record<string, ColumnExplanation> = {
   bonusAmount: {
     title: "Bónusz (Ft)",
     summary: "Az adott időszakban jóváírt bónusz összege.",
+    detail: "Az ügyfélbónusz az Ügyfélérték számlán kerül jóváírásra a szerződés készpénzértékét növelve. A mérföldkő-évfordulókon (pl. 10., 15., 20. év) kerül jóváírásra, a legalacsonyabb havi díj 12-szeresének a Függelékben meghatározott százalékaként.",
   },
   taxCredit: {
     title: "Adójóváírás",
