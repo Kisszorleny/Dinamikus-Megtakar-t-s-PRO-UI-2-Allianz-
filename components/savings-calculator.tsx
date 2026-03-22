@@ -9652,9 +9652,14 @@ export function SavingsCalculator() {
                       ? (inputs.currency === "EUR" ? 840 : 144000)
                       : null
 
-  const actualAnnualPayment =
-    inputs.regularPayment * (inputs.frequency === "havi" ? 12 : inputs.frequency === "negyedéves" ? 4 : inputs.frequency === "féléves" ? 2 : 1)
+  const frequencyMultiplier = inputs.frequency === "havi" ? 12 : inputs.frequency === "negyedéves" ? 4 : inputs.frequency === "féléves" ? 2 : 1
+  const actualAnnualPayment = inputs.keepYearlyPayment
+    ? inputs.regularPayment * 12
+    : inputs.regularPayment * frequencyMultiplier
   const isBelowMinimumAnnualFee = minimumAnnualFeeValue !== null && actualAnnualPayment > 0 && actualAnnualPayment < minimumAnnualFeeValue
+  // A minimum díj kijelzése a fizetési gyakoriságban
+  const frequencyLabel = inputs.frequency === "havi" ? "havi" : inputs.frequency === "negyedéves" ? "negyedéves" : inputs.frequency === "féléves" ? "féléves" : "éves"
+  const minimumPeriodicFeeValue = minimumAnnualFeeValue !== null ? minimumAnnualFeeValue / frequencyMultiplier : null
 
   const durationConstraints: { min: number; max: number } | null =
     selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur"
@@ -10708,8 +10713,14 @@ export function SavingsCalculator() {
                     isSettingsEseti
                   ) && (
                     <div className={`flex flex-wrap items-center gap-3 text-xs ${isSettingsEseti ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
-                      {minimumAnnualFeeLabel && <p>Minimum éves díj: {minimumAnnualFeeLabel}</p>}
-                      {isBelowMinimumAnnualFee && <p className="text-red-500 font-medium">A befizetés kisebb mint a minimum éves díj</p>}
+                      {minimumAnnualFeeLabel && minimumPeriodicFeeValue !== null && (
+                        <p>Minimum {frequencyLabel} díj: {(() => {
+                          // Extract currency suffix from the annual label
+                          const currSuffix = minimumAnnualFeeLabel.replace(/[\d\s.,]+/g, "").trim()
+                          return `${formatNumber(Math.ceil(minimumPeriodicFeeValue))} ${currSuffix}`
+                        })()}</p>
+                      )}
+                      {isBelowMinimumAnnualFee && <p className="text-red-500 font-medium">A befizetés kisebb mint a minimum {frequencyLabel} díj</p>}
                       {isDurationBelowMin && <p className="text-red-500 font-medium">A futamidő kisebb mint a minimum ({durationConstraints?.min} év)</p>}
                       {isDurationAboveMax && <p className="text-red-500 font-medium">A futamidő nagyobb mint a maximum ({durationConstraints?.max} év)</p>}
                       {cigEsszenciaeDurationPolicyLabel && <p>{cigEsszenciaeDurationPolicyLabel}</p>}
