@@ -13623,7 +13623,9 @@ export function SavingsCalculator() {
                                         editingFields[`adminFee-${row.year}`]
                                           ? adminFeeInputByYear[row.year] ?? ""
                                           : isAllianzMainView
-                                            ? formatNumber(Math.round(adminFeeAmountDisplay))
+                                            ? adminFeeAmountDisplay % 1 === 0
+                                              ? formatNumber(adminFeeAmountDisplay)
+                                              : adminFeeAmountDisplay.toLocaleString("hu-HU", { maximumFractionDigits: 1 }).replace(/\u00A0/g, " ")
                                             : adminFeePercentDisplay
                                                 .toLocaleString("hu-HU", { maximumFractionDigits: 2 })
                                                 .replace(/\u00A0/g, " ")
@@ -13633,7 +13635,7 @@ export function SavingsCalculator() {
                                         setAdminFeeInputByYear((prev) => ({
                                           ...prev,
                                           [row.year]: String(
-                                            isAllianzMainView ? Math.round(adminFeeAmountDisplay) : adminFeePercentDisplay,
+                                            isAllianzMainView ? adminFeeAmountDisplay : adminFeePercentDisplay,
                                           ),
                                         }))
                                       }}
