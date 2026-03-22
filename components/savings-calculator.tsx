@@ -3336,7 +3336,43 @@ export function SavingsCalculator() {
 
   useEffect(() => {
     if (!allowedInputCurrencies.includes(inputs.currency)) {
-      setInputs((prev) => ({ ...prev, currency: allowedInputCurrencies[0] }))
+      const newCurrency = allowedInputCurrencies[0]
+      const previousCurrency = inputs.currency
+      setInputs((prev) => {
+        const eurRate = prev.eurToHufRate || 400
+        const usdRate = prev.usdToHufRate || 380
+        const convert = (amount: number) => {
+          if (previousCurrency === newCurrency) return amount
+          if (previousCurrency === "HUF" && newCurrency === "EUR") return amount / eurRate
+          if (previousCurrency === "EUR" && newCurrency === "HUF") return amount * eurRate
+          if (previousCurrency === "HUF" && newCurrency === "USD") return amount / usdRate
+          if (previousCurrency === "USD" && newCurrency === "HUF") return amount * usdRate
+          if (previousCurrency === "EUR" && newCurrency === "USD") return (amount * eurRate) / usdRate
+          if (previousCurrency === "USD" && newCurrency === "EUR") return (amount * usdRate) / eurRate
+          return amount
+        }
+        return {
+          ...prev,
+          currency: newCurrency,
+          regularPayment: Math.round(convert(prev.regularPayment) * 100) / 100,
+        }
+      })
+      setPaymentByYear((prev) => {
+        const converted: Record<number, number> = {}
+        const eurRate = inputs.eurToHufRate || 400
+        const usdRate = inputs.usdToHufRate || 380
+        for (const [year, amount] of Object.entries(prev)) {
+          let val = amount as number
+          if (previousCurrency === "HUF" && newCurrency === "EUR") val = val / eurRate
+          else if (previousCurrency === "EUR" && newCurrency === "HUF") val = val * eurRate
+          else if (previousCurrency === "HUF" && newCurrency === "USD") val = val / usdRate
+          else if (previousCurrency === "USD" && newCurrency === "HUF") val = val * usdRate
+          else if (previousCurrency === "EUR" && newCurrency === "USD") val = (val * eurRate) / usdRate
+          else if (previousCurrency === "USD" && newCurrency === "EUR") val = (val * usdRate) / eurRate
+          converted[Number(year)] = Math.round(val * 100) / 100
+        }
+        return converted
+      })
     }
   }, [allowedInputCurrencies, inputs.currency])
 
@@ -9516,6 +9552,31 @@ export function SavingsCalculator() {
     return `${formatNumber(minimumExtraordinaryPayment)} ${suffix}`
   }, [selectedProduct, inputs.frequency, inputs.keepYearlyPayment, inputs.regularPayment, inputs.currency])
 
+  const minimumAnnualFeeValue: number | null =
+    selectedProduct === "alfa_exclusive_plus"
+      ? 360000
+      : selectedProduct === "alfa_fortis"
+        ? fortisVariantConfig.minAnnualPayment
+        : selectedProduct === "alfa_jade"
+          ? jadeVariantConfig.minAnnualPayment
+          : selectedProduct === "alfa_jovokep"
+            ? JOVOKEP_MIN_ANNUAL_PAYMENT
+            : selectedProduct === "alfa_jovotervezo"
+              ? JOVOTERVEZO_MIN_ANNUAL_PAYMENT
+              : selectedProduct === "alfa_premium_selection"
+                ? premiumSelectionVariantConfig.minAnnualPayment
+                : selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur"
+                  ? resolveAlfaZenMinimumAnnualPayment(toYearsFromDuration(durationUnit, durationValue))
+                  : selectedProduct === "alfa_zen_pro"
+                    ? resolveZenProMinimumAnnualPayment(toYearsFromDuration(durationUnit, durationValue), getZenProVariantConfig(undefined, inputs.currency))
+                    : isAllianzEletprogramView
+                      ? (inputs.currency === "EUR" ? 840 : 144000)
+                      : null
+
+  const actualAnnualPayment =
+    inputs.regularPayment * (inputs.frequency === "havi" ? 12 : inputs.frequency === "negyedéves" ? 4 : inputs.frequency === "féléves" ? 2 : 1)
+  const isBelowMinimumAnnualFee = minimumAnnualFeeValue !== null && actualAnnualPayment > 0 && actualAnnualPayment < minimumAnnualFeeValue
+
   const minimumAnnualFeeLabel =
     selectedProduct === "alfa_exclusive_plus"
       ? `${formatNumber(360000)} Ft`
@@ -10480,6 +10541,7 @@ export function SavingsCalculator() {
 
                   {(
                     minimumAnnualFeeLabel ||
+                    isBelowMinimumAnnualFee ||
                     cigEsszenciaeDurationPolicyLabel ||
                     generaliKabalaDurationLabel ||
                     generaliMylifeDurationPolicyLabel ||
@@ -10493,6 +10555,7 @@ export function SavingsCalculator() {
                   ) && (
                     <div className={`flex flex-wrap items-center gap-3 text-xs ${isSettingsEseti ? "text-muted-foreground/70" : "text-muted-foreground"}`}>
                       {minimumAnnualFeeLabel && <p>Minimum éves díj: {minimumAnnualFeeLabel}</p>}
+                      {isBelowMinimumAnnualFee && <p className="text-red-500 font-medium">A befizetés kisebb mint a minimum éves díj</p>}
                       {cigEsszenciaeDurationPolicyLabel && <p>{cigEsszenciaeDurationPolicyLabel}</p>}
                       {cigDurationPolicyLabel && <p>{cigDurationPolicyLabel}</p>}
                       {generaliKabalaDurationLabel && <p>Tartam: {generaliKabalaDurationLabel}</p>}
