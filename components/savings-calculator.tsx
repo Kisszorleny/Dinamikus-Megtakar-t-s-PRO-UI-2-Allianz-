@@ -13170,8 +13170,15 @@ export function SavingsCalculator() {
                           displayCurrency,
                           inputs.currency === "USD" ? inputs.usdToHufRate : inputs.eurToHufRate,
                         )
+                        // Az input a TERVEZETT (megkeresett) adójóváírást mutatja, nem a jóváírt (posted) összeget
+                        // Naptár szerinti jóváírásnál a posted összeg 1 évvel késik, ami zavaró az inputban
+                        const plannedTaxCreditForRow = taxCreditAmountByYear[row.year] ??
+                          Math.min(
+                            (row.yearlyPayment ?? 0) * (inputs.taxCreditRatePercent ?? 0) / 100,
+                            inputs.taxCreditCapPerYear ?? Number.POSITIVE_INFINITY,
+                          )
                         const effectiveTaxCreditAmountForRow = Math.min(
-                          taxCreditAmountByYear[row.year] ?? row.taxCreditForYear,
+                          plannedTaxCreditForRow,
                           remainingTaxCreditCapForYear,
                         )
 
