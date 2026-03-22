@@ -1071,18 +1071,17 @@ export default function OsszehasonlitasPage() {
                     <input
                       type="range"
                       min={1}
-                      max={65}
+                      max={totalYearsForPlan}
                       value={comparisonExitYear ?? totalYearsForPlan}
                       onChange={(e) => {
                         const val = Number(e.target.value)
-                        setComparisonExitYear(val >= totalYearsForPlan ? null : val)
+                        setComparisonExitYear(val === totalYearsForPlan ? null : val)
                       }}
                       className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-orange-500"
                     />
                     <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
                       <span>1. év</span>
-                      <span className="font-medium">{totalYearsForPlan}. év (lejárat)</span>
-                      <span>65. év</span>
+                      <span>{totalYearsForPlan}. év</span>
                     </div>
                   </div>
                 )}
