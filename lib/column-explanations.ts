@@ -283,17 +283,15 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
   },
   "alfa_zen_pro_ny08:accountMaintenance": {
     costTypeLabel: "Vagyonarányos havi költség",
-    rationale: "A megtakarítási számlákon 0.165%/hó; a fő megtakarítási alapszámlán 37. hónaptól, a többi számlán az 1. hónaptól.",
+    rationale: "A megtakarítási számlákon 0,165%/hó a 37. hónaptól. A díjmentes időszaki díj számlán 0%.",
   },
   "alfa_zen_pro_ny14:accountMaintenance": {
     costTypeLabel: "Vagyonarányos havi költség",
-    rationale:
-      "A megtakarítási számlákon 0.165%/hó; a fő megtakarítási alapszámlán 37. hónaptól, a többi számlán az 1. hónaptól (EUR variáns).",
+    rationale: "A megtakarítási számlákon 0,165%/hó a 37. hónaptól (EUR variáns). A díjmentes időszaki díj számlán 0%.",
   },
   "alfa_zen_pro_ny24:accountMaintenance": {
     costTypeLabel: "Vagyonarányos havi költség",
-    rationale:
-      "A megtakarítási számlákon 0.165%/hó; a fő megtakarítási alapszámlán 37. hónaptól, a többi számlán az 1. hónaptól (USD variáns).",
+    rationale: "A megtakarítási számlákon 0,165%/hó a 37. hónaptól (USD variáns). A díjmentes időszaki díj számlán 0%.",
   },
   "generali_kabala_u91_life:accountMaintenance": {
     costTypeLabel: "Vagyonarányos havi költség",
@@ -489,17 +487,17 @@ const PRODUCT_COLUMN_TYPE_EXPLANATIONS: Record<string, ProductColumnTypeExplanat
   "alfa_zen_pro_ny08:bonus": {
     costTypeLabel: "Tartamfüggő évfordulós ügyfélbónusz",
     rationale:
-      "A legalacsonyabb havi teljes díj évesített (x12) bázisán, tartamfüggő 7/8/9/10. évfordulós és lejárat előtti utolsó évfordulós jóváírásokkal.",
+      "A legalacsonyabb havi teljes díj évesített (x12) bázisán, tartamfüggő 7/8/9/10. évfordulós és lejárat előtti utolsó évfordulós jóváírásokkal. Szüneteltetés esetén havi 1% csökkentés (max 18 hó).",
   },
   "alfa_zen_pro_ny14:bonus": {
     costTypeLabel: "Tartamfüggő évfordulós ügyfélbónusz",
     rationale:
-      "10-14 éves tartamnál egyösszegű 90% bónusz jár (7/8/9. évfordulón), 15-19 évnél 115% + 35%, 20+ évnél 70%+70%+70% (EUR).",
+      "10-14 éves tartamnál egyösszegű 90% bónusz jár (7/8/9. évfordulón), 15-19 évnél 115% + 35%, 20+ évnél 70%+70%+70% (EUR). Szüneteltetés esetén havi 1% csökkentés (max 18 hó).",
   },
   "alfa_zen_pro_ny24:bonus": {
     costTypeLabel: "Tartamfüggő évfordulós ügyfélbónusz",
     rationale:
-      "10-14 éves tartamnál egyösszegű 90% bónusz jár (7/8/9. évfordulón), 15-19 évnél 115% + 35%, 20+ évnél 70%+70%+70% (USD).",
+      "10-14 éves tartamnál egyösszegű 90% bónusz jár (7/8/9. évfordulón), 15-19 évnél 115% + 35%, 20+ évnél 70%+70%+70% (USD). Szüneteltetés esetén havi 1% csökkentés (max 18 hó).",
   },
   "generali_kabala_u91_life:bonus": {
     costTypeLabel: "Többszintű hűség- és díjarányos bónusz",

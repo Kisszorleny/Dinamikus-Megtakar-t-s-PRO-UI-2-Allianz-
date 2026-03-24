@@ -3254,7 +3254,8 @@ export function SavingsCalculator() {
         { value: "client", label: "Ügyfélérték" },
         { value: "invested", label: "Többletdíj" },
       ]
-      if (isTaxBonusSeparateAccount) {
+      const isZenProduct = selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur" || selectedProduct === "alfa_zen_pro"
+      if (isTaxBonusSeparateAccount && !isZenProduct) {
         splitOptions.push({ value: "taxBonus", label: "Adójóváírási számla" })
       }
       return splitOptions
@@ -7921,8 +7922,14 @@ export function SavingsCalculator() {
     (premiumSelectionVariantConfig.variant === "ny06" || premiumSelectionVariantConfig.variant === "ny22")
   const isAlfaZenProduct =
     selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur" || selectedProduct === "alfa_zen_pro"
+  // Alfa Zen Pro: nincs Ügyfélérték/Lejárati szétválasztás, egyetlen "Megtakarítási alapszámla" van
+  const isAlfaZenPro = selectedProduct === "alfa_zen_pro"
+  const isExclusivePluszNyugdij =
+    selectedProduct === "alfa_exclusive_plus" && engineProductVariant === "alfa_exclusive_plus_ny05"
+  const isRelaxPlusz = selectedProduct === "alfa_relax_plusz"
   // Termékek ahol két rendkívüli (eseti) számla van: adójóváírásos + azonnali hozzáférésű
-  const hasDualEsetiAccounts = isPremiumSelectionNy06 || isAlfaZenProduct
+  // Minden nyugdíjbiztosítás (TKMny) rendelkezik kettős rendkívüli számlával az ÁSZF szerint
+  const hasDualEsetiAccounts = isPremiumSelectionNy06 || isAlfaZenProduct || isExclusivePluszNyugdij || isRelaxPlusz
   const isPremiumSelectionTr18 =
     selectedProduct === "alfa_premium_selection" &&
     (premiumSelectionVariantConfig.variant === "tr18" ||
@@ -8010,6 +8017,8 @@ export function SavingsCalculator() {
                   ? 0.145
                 : selectedProduct === "alfa_zen_pro"
                   ? ZEN_PRO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT
+                : selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur"
+                  ? 0.165
                 : selectedProduct === "generali_kabala"
                   ? resolveGeneraliKabalaU91AccountMaintenanceMonthlyPercent(selectedFundId)
                 : selectedProduct === "alfa_premium_selection"
@@ -8395,17 +8404,26 @@ export function SavingsCalculator() {
       }
 
       const isEarlyExit = exitYear !== null && exitYear < totalYearsForPlan
+      // Alfa Zen: a fő számla taxBonus-a a rendkívüli adójóváírásos számlához tartozik
+      const lastMainRow = results.yearlyBreakdown?.[results.yearlyBreakdown.length - 1]
+      const mainTaxBonusBalance = isAlfaZenProduct ? numeric(lastMainRow?.endingTaxBonusValue) : 0
+      const mainTaxBonusTotalInterest = isAlfaZenProduct
+        ? (results.yearlyBreakdown ?? []).reduce((sum: number, r: any) => sum + numeric(r.taxBonus?.interestForYear), 0)
+        : 0
+      const mainTaxBonusTotalCost = isAlfaZenProduct
+        ? (results.yearlyBreakdown ?? []).reduce((sum: number, r: any) => sum + numeric(r.taxBonus?.costForYear), 0)
+        : 0
       const mainTotals = isEarlyExit
         ? getTotalsUpToYear(results.yearlyBreakdown, results, effectiveExitYear)
         : {
             totalContributions: results.totalContributions,
-            totalCosts: results.totalCosts,
+            totalCosts: results.totalCosts - mainTaxBonusTotalCost,
             totalBonus: results.totalBonus,
-            totalTaxCredit: results.totalTaxCredit,
-            totalInterestNet: results.totalInterestNet,
-            endBalance: results.endBalance,
+            totalTaxCredit: isAlfaZenProduct ? 0 : results.totalTaxCredit,
+            totalInterestNet: results.totalInterestNet - mainTaxBonusTotalInterest,
+            endBalance: results.endBalance - mainTaxBonusBalance,
             // Lejáratkor nincs visszavásárlási díj — a teljes egyenleg kifizetésre kerül
-            surrenderValue: results.endBalance,
+            surrenderValue: results.endBalance - mainTaxBonusBalance,
             totalRiskInsuranceCost: results.totalRiskInsuranceCost ?? 0,
           }
       const esetiImmediateTotals = isEarlyExit
@@ -8425,14 +8443,14 @@ export function SavingsCalculator() {
         ? getTotalsUpToYear(resultsEsetiTaxEligible.yearlyBreakdown, resultsEsetiTaxEligible, effectiveExitYear)
         : {
             totalContributions: resultsEsetiTaxEligible.totalContributions,
-            totalCosts: resultsEsetiTaxEligible.totalCosts,
+            totalCosts: resultsEsetiTaxEligible.totalCosts + mainTaxBonusTotalCost,
             totalBonus: resultsEsetiTaxEligible.totalBonus,
-            totalTaxCredit: resultsEsetiTaxEligible.totalTaxCredit,
-            totalInterestNet: resultsEsetiTaxEligible.totalInterestNet,
-            endBalance: resultsEsetiTaxEligible.endBalance,
+            totalTaxCredit: resultsEsetiTaxEligible.totalTaxCredit + (isAlfaZenProduct ? results.totalTaxCredit : 0),
+            totalInterestNet: resultsEsetiTaxEligible.totalInterestNet + mainTaxBonusTotalInterest,
+            endBalance: resultsEsetiTaxEligible.endBalance + mainTaxBonusBalance,
             // Lejáratkor nincs visszavásárlási díj
             surrenderValue:
-              resultsEsetiTaxEligible.endBalance,
+              resultsEsetiTaxEligible.endBalance + mainTaxBonusBalance,
             totalRiskInsuranceCost: resultsEsetiTaxEligible.totalRiskInsuranceCost ?? 0,
           }
       const summaryTotals = {
@@ -8475,7 +8493,7 @@ export function SavingsCalculator() {
   const summaryAccountLabels: Record<"summary" | "main" | "eseti", string> = {
     summary: "Összesített",
     main: "Fő",
-    eseti: "Eseti",
+    eseti: isAlfaZenProduct ? "Rendkívüli" : "Eseti",
   }
   const summaryThemeByAccount: Record<"summary" | "main" | "eseti", { card: string; metric: string; final: string }> = {
     summary: {
@@ -8504,10 +8522,11 @@ export function SavingsCalculator() {
   const activeSummaryTheme = summaryThemeByAccount[summaryAccountViewKey]
   const isAlfaExclusivePlus = selectedProduct === "alfa_exclusive_plus"
   // Alfa Zen: ÁSZF III.8 - részvisszavásárlás a megtakarítási alapszámlák terhére nem igényelhető
+  // Alfa Zen Pro: részvisszavásárlás ENGEDÉLYEZETT (2 500 Ft / 10 EUR fix díjjal)
   const isWithdrawalDisabledForProduct =
     selectedProduct === "alfa_zen" ||
-    selectedProduct === "alfa_zen_eur" ||
-    selectedProduct === "alfa_zen_pro"
+    selectedProduct === "alfa_zen_eur"
+  // isWithdrawalDisabledForCurrentView — definiálva lentebb, ahol isEsetiView elérhető
   // Szüneteltetett hónapok számolása az Alfa Zen bónusz figyelmeztetéshez
   const alfaZenPausedMonths = useMemo(() => {
     if (!isWithdrawalDisabledForProduct) return 0
@@ -8932,9 +8951,47 @@ export function SavingsCalculator() {
         yearlyBreakdown: summaryYearlyBreakdown,
       }
     }
-    if (yearlyAccountView === "eseti_tax_eligible") return resultsEsetiTaxEligible
-    return yearlyAccountView === "eseti" || yearlyAccountView === "eseti_immediate_access" ? resultsEseti : results
-  }, [yearlyAccountView, results, resultsEseti, resultsEsetiTaxEligible, summaryYearlyBreakdown])
+    if (yearlyAccountView === "eseti_tax_eligible") {
+      // Alfa Zen: a fő számla adójóváírása (taxBonus) a rendkívüli adójóváírásos számlához tartozik (ÁSZF)
+      if (isAlfaZenProduct && results?.yearlyBreakdown) {
+        const mergedRows = (resultsEsetiTaxEligible?.yearlyBreakdown ?? []).map((esetiRow: any, i: number) => {
+          const mainRow = results.yearlyBreakdown[i]
+          const mainTaxBonus = mainRow?.taxBonus
+          if (!mainTaxBonus) return esetiRow
+          return {
+            ...esetiRow,
+            endBalance: numeric(esetiRow.endBalance) + numeric(mainTaxBonus.endBalance),
+            interestForYear: numeric(esetiRow.interestForYear) + numeric(mainTaxBonus.interestForYear),
+            costForYear: numeric(esetiRow.costForYear) + numeric(mainTaxBonus.costForYear),
+            accountMaintenanceCostForYear: numeric(esetiRow.accountMaintenanceCostForYear) + numeric(mainTaxBonus.costForYear ?? 0),
+            taxCreditForYear: numeric(esetiRow.taxCreditForYear) + numeric(mainRow.taxCreditForYear),
+          }
+        })
+        return { ...resultsEsetiTaxEligible, yearlyBreakdown: mergedRows }
+      }
+      return resultsEsetiTaxEligible
+    }
+    if (yearlyAccountView === "eseti" || yearlyAccountView === "eseti_immediate_access") return resultsEseti
+    // Alfa Zen: a fő nézetből kivesszük a taxBonus-t (az a rendkívüli adójóváírásos számlához tartozik)
+    if (isAlfaZenProduct && results?.yearlyBreakdown) {
+      const adjustedRows = results.yearlyBreakdown.map((row: any) => {
+        const taxBonusBalance = numeric(row.endingTaxBonusValue)
+        const taxBonusInterest = numeric(row.taxBonus?.interestForYear)
+        const taxBonusCost = numeric(row.taxBonus?.costForYear)
+        const taxCredit = numeric(row.taxCreditForYear)
+        return {
+          ...row,
+          endBalance: numeric(row.endBalance) - taxBonusBalance,
+          endingTaxBonusValue: 0,
+          interestForYear: numeric(row.interestForYear) - taxBonusInterest,
+          costForYear: numeric(row.costForYear) - taxBonusCost,
+          taxCreditForYear: 0,
+        }
+      })
+      return { ...results, yearlyBreakdown: adjustedRows }
+    }
+    return results
+  }, [yearlyAccountView, results, resultsEseti, resultsEsetiTaxEligible, summaryYearlyBreakdown, isAlfaZenProduct])
   const effectiveYearlyViewModeForColumns =
     yearlyAccountView === "main" && isAccountSplitOpen ? yearlyViewMode : "total"
   const getViewMetric = useCallback(
@@ -9004,7 +9061,7 @@ export function SavingsCalculator() {
     () => (adjustedResults?.yearlyBreakdown ?? []).some((row) => getViewMetric(row, "bonus") > 0),
     [adjustedResults?.yearlyBreakdown, getViewMetric],
   )
-  const effectiveShowBonusColumns = showBonusColumns
+  const effectiveShowBonusColumnsBase = showBonusColumns
   const shouldShowWealthBonusPercentColumn =
     !!selectedProduct &&
     selectedProduct !== "allianz_bonusz_eletprogram" &&
@@ -9271,6 +9328,13 @@ export function SavingsCalculator() {
   const yearlyAccountSelectValue: YearlyAccountView =
     hasDualEsetiAccounts && (isEsetiImmediateView || isEsetiTaxEligibleView) ? "eseti" : yearlyAccountView
   const settingsAccountView: "main" | "eseti" = isEsetiView ? "eseti" : "main"
+  // Az adójóváírásos rendkívüli számlán nincs kivonás lehetőség (ÁSZF I.3.3.1.2)
+  const isWithdrawalDisabledForCurrentView =
+    (isWithdrawalDisabledForProduct && !isEsetiView) ||
+    (isEsetiView && yearlyAccountView === "eseti_tax_eligible")
+  // Az eseti (rendkívüli) számlákon nincs bónusz — Alfa Zen, Exclusive Plus, Relax Plusz ÁSZF
+  const hideEsetiBonusColumns = isEsetiView && (isAlfaZenProduct || isExclusivePluszNyugdij || isRelaxPlusz)
+  const effectiveShowBonusColumns = effectiveShowBonusColumnsBase && !hideEsetiBonusColumns
   const isSettingsEseti = settingsAccountView === "eseti"
   const isTaxCreditSupportedForSelectedProduct =
     selectedProduct !== "alfa_fortis" &&
@@ -9308,7 +9372,9 @@ export function SavingsCalculator() {
   const shouldShowTaxCreditInYearlyTable =
     inputs.enableTaxCredit &&
     !(selectedProduct === "alfa_exclusive_plus" && effectiveYearlyViewMode !== "taxBonus") &&
-    !(hasDualEsetiAccounts && isEsetiImmediateView)
+    !(hasDualEsetiAccounts && isEsetiImmediateView) &&
+    // Alfa Zen: adójóváírás csak a rendkívüli adójóváírásos számlán szerkeszthető (ÁSZF)
+    !(isAlfaZenProduct && !isEsetiView)
   const shouldShowAcquisitionInYearlyTableView =
     !(selectedProduct === "alfa_exclusive_plus" && isAccountSplitOpen && effectiveYearlyViewMode !== "total")
   const yearlyPanelProductKey = useMemo(
@@ -9359,8 +9425,8 @@ export function SavingsCalculator() {
     showBonusBreakdown && (!!selectedProduct || customBonusYearlyColumns.length > 0)
   const customColumnExplanations = useMemo(() => {
     const accountLabelByKey: Record<CustomEntryAccount, string> = {
-      client: "Ügyfélérték",
-      invested: "Többletdíj",
+      client: isAlfaZenPro ? "Megtakarítási alapszámla" : "Ügyfélérték",
+      invested: isAlfaZenPro ? "Megtakarítási alapszámla" : "Többletdíj",
       taxBonus: "Adójóváírási számla",
       main: "Fő",
       eseti: "Eseti",
@@ -10061,7 +10127,7 @@ export function SavingsCalculator() {
                   <CardTitle className={SETTINGS_UI.title}>
                     <span>Alapbeállítások</span>
                     {isSettingsEseti ? (
-                      <span className={SETTINGS_UI.titleSuffix}>- Eseti</span>
+                      <span className={SETTINGS_UI.titleSuffix}>- {isAlfaZenProduct ? "Rendkívüli" : "Eseti"}</span>
                     ) : null}
                   </CardTitle>
                   <div className="flex items-center gap-1">
@@ -12705,7 +12771,7 @@ export function SavingsCalculator() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <CardTitle className="text-lg md:text-xl shrink-0">Éves bontás</CardTitle>
                   <div className="flex items-center gap-2 flex-wrap sm:justify-end">
-                  {isAccountSplitOpen && !isAllianzEletprogramView && !isEsetiView && (
+                  {isAccountSplitOpen && !isAllianzEletprogramView && !isEsetiView && !isAlfaZenPro && (
                     <div className="flex items-center gap-1 border rounded-md p-1 flex-wrap">
                       <Button
                         type="button"
@@ -12717,27 +12783,42 @@ export function SavingsCalculator() {
                       >
                         Összesített
                       </Button>
-                      <Button
-                        type="button"
-                        variant={effectiveYearlyViewMode === "client" ? "default" : "ghost"}
-                        size="sm"
-                        className="text-xs shrink-0"
-                        onClick={() => setYearlyViewMode("client")}
-                        disabled={isYearlyReadOnly}
-                      >
-                        Ügyfélérték
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={effectiveYearlyViewMode === "invested" ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => setYearlyViewMode("invested")}
-                        className="h-7 text-xs px-2 shrink-0"
-                        disabled={isYearlyReadOnly}
-                      >
-                        Lejárati többletdíj
-                      </Button>
-                      {isTaxBonusSeparateAccount && (
+                      {isAlfaZenPro ? (
+                        <Button
+                          type="button"
+                          variant={effectiveYearlyViewMode === "invested" ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => setYearlyViewMode("invested")}
+                          className="h-7 text-xs px-2 shrink-0"
+                          disabled={isYearlyReadOnly}
+                        >
+                          Megtakarítási alapszámla
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            type="button"
+                            variant={effectiveYearlyViewMode === "client" ? "default" : "ghost"}
+                            size="sm"
+                            className="text-xs shrink-0"
+                            onClick={() => setYearlyViewMode("client")}
+                            disabled={isYearlyReadOnly}
+                          >
+                            Ügyfélérték
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={effectiveYearlyViewMode === "invested" ? "default" : "ghost"}
+                            size="sm"
+                            onClick={() => setYearlyViewMode("invested")}
+                            className="h-7 text-xs px-2 shrink-0"
+                            disabled={isYearlyReadOnly}
+                          >
+                            Lejárati többletdíj
+                          </Button>
+                        </>
+                      )}
+                      {isTaxBonusSeparateAccount && !isAlfaZenProduct && (
                         <Button
                           type="button"
                           variant={effectiveYearlyViewMode === "taxBonus" ? "default" : "ghost"}
@@ -12763,7 +12844,7 @@ export function SavingsCalculator() {
                         onClick={() => setYearlyAccountView("eseti_immediate_access")}
                         disabled={isYearlyReadOnly}
                       >
-                        Eseti azonnali
+                        {isAlfaZenProduct ? "Rendkívüli azonnali" : "Eseti azonnali"}
                       </Button>
                       <Button
                         type="button"
@@ -12773,7 +12854,7 @@ export function SavingsCalculator() {
                         onClick={() => setYearlyAccountView("eseti_tax_eligible")}
                         disabled={isYearlyReadOnly}
                       >
-                        Eseti adójóváírásos
+                        {isAlfaZenProduct ? "Rendkívüli adójóváírásos" : "Eseti adójóváírásos"}
                       </Button>
                     </div>
                   )}
@@ -12794,7 +12875,7 @@ export function SavingsCalculator() {
                     <SelectContent>
                       <SelectItem value="summary">Összesített</SelectItem>
                       <SelectItem value="main">Fő</SelectItem>
-                      <SelectItem value="eseti">Eseti</SelectItem>
+                      <SelectItem value="eseti">{isAlfaZenProduct ? "Rendkívüli" : "Eseti"}</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -12879,7 +12960,7 @@ export function SavingsCalculator() {
                       shouldApplyTaxCreditPenalty={shouldApplyTaxCreditPenalty}
                       isTaxBonusSeparateAccount={isTaxBonusSeparateAccount}
                       showSurrenderAsPrimary={isAlfaExclusivePlus && !isEsetiView}
-                      isWithdrawalDisabled={isWithdrawalDisabledForProduct && !isEsetiView}
+                      isWithdrawalDisabled={isWithdrawalDisabledForCurrentView}
                       getRealValueForDays={getRealValueForDays}
                       realValueElapsedDays={realValueElapsedDaysByIndex[index] ?? 0}
                       // </CHANGE>
@@ -13145,9 +13226,9 @@ export function SavingsCalculator() {
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28" {...getYearlyHeaderInfoHandlers("taxCredit")}>Adójóv.</th>
                         )}
                         <th
-                          className={`py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28 ${isWithdrawalDisabledForProduct && !isEsetiView ? "opacity-40" : ""}`}
+                          className={`py-3 px-3 text-right font-medium whitespace-nowrap w-28 min-w-28 ${isWithdrawalDisabledForCurrentView ? "opacity-40" : ""}`}
                           {...getYearlyHeaderInfoHandlers("withdrawal")}
-                          title={isWithdrawalDisabledForProduct && !isEsetiView ? "Ennél a terméknél nincs lehetőség részvisszavásárlásra (ÁSZF III.8)" : undefined}
+                          title={isWithdrawalDisabledForCurrentView ? (yearlyAccountView === "eseti_tax_eligible" ? "Az adójóváírásos rendkívüli számláról nem igényelhető részvisszavásárlás (ÁSZF I.3.3.1.2)" : "Ennél a terméknél nincs lehetőség részvisszavásárlásra (ÁSZF III.8)") : undefined}
                         >Kivonás</th>
                         {isAlfaExclusivePlus && !isEsetiView && (
                           <th className="py-3 px-3 text-right font-medium whitespace-nowrap w-32 min-w-32" {...getYearlyHeaderInfoHandlers("balance")}>
@@ -13198,9 +13279,14 @@ export function SavingsCalculator() {
                         )
                         // Az input a TERVEZETT (megkeresett) adójóváírást mutatja, nem a jóváírt (posted) összeget
                         // Naptár szerinti jóváírásnál a posted összeg 1 évvel késik, ami zavaró az inputban
+                        const mainRowForTaxCredit = results?.yearlyBreakdown?.[index]
+                        // Alfa Zen rendkívüli adójóváírásos: a rendszeres díjból járó adójóváírás is ide tartozik
+                        const baseTaxCreditPayment = isAlfaZenProduct && isEsetiTaxEligibleView
+                          ? (mainRowForTaxCredit?.yearlyPayment ?? 0) + (row.yearlyPayment ?? 0)
+                          : (row.yearlyPayment ?? 0)
                         const plannedTaxCreditForRow = taxCreditAmountByYear[row.year] ??
                           Math.min(
-                            (row.yearlyPayment ?? 0) * (inputs.taxCreditRatePercent ?? 0) / 100,
+                            baseTaxCreditPayment * (inputs.taxCreditRatePercent ?? 0) / 100,
                             inputs.taxCreditCapPerYear ?? Number.POSITIVE_INFINITY,
                           )
                         const effectiveTaxCreditAmountForRow = Math.min(
@@ -13208,8 +13294,8 @@ export function SavingsCalculator() {
                           remainingTaxCreditCapForYear,
                         )
 
-                        const isIndexModified = (isEsetiView ? esetiIndexByYear : indexByYear)[row.year] !== undefined
-                        const isPaymentModified = (isEsetiView ? esetiPaymentByYear : paymentByYear)[row.year] !== undefined
+                        const isIndexModified = (isEsetiTaxEligibleView ? esetiIndexByYearTaxEligible : isEsetiView ? esetiIndexByYear : indexByYear)[row.year] !== undefined
+                        const isPaymentModified = (isEsetiTaxEligibleView ? esetiPaymentByYearTaxEligible : isEsetiView ? esetiPaymentByYear : paymentByYear)[row.year] !== undefined
                         const isWithdrawalModified = activeWithdrawalByYear[row.year] !== undefined
                         const isTaxCreditLimited = currentTaxCreditLimit !== undefined
 
@@ -13237,8 +13323,11 @@ export function SavingsCalculator() {
                         const baselineAdminFeePercent =
                           productPresetBaseline.adminFeePercentByYear[row.year] ?? productPresetBaseline.adminFeePercentOfPayment
                         const isAlfaExclusivePlusEsetiView = selectedProduct === "alfa_exclusive_plus" && isEsetiView
+                        const isAlfaZenEsetiView = (selectedProduct === "alfa_zen" || selectedProduct === "alfa_zen_eur") && isEsetiView
                         const baselineAccountMaintenancePercent = isAlfaExclusivePlusEsetiView
                           ? 0.145
+                          : isAlfaZenEsetiView
+                            ? 0.165
                           : (productPresetBaseline.accountMaintenancePercentByYear[row.year] ??
                             productPresetBaseline.accountMaintenanceMonthlyPercent)
                         const baselineAcquisitionPercent =
@@ -13290,13 +13379,14 @@ export function SavingsCalculator() {
                           : adminFeeDisplay
                         const adminFeePercentDefault = baselineAdminFeePercent
                         const isAdminFeePercentModified = Math.abs(adminFeePercentDisplay - adminFeePercentDefault) > 1e-9
-                        const accountMaintenanceDisplay = isAlfaExclusivePlusEsetiView
+                        const isEsetiWithAccountMaintenance = isAlfaExclusivePlusEsetiView || isAlfaZenEsetiView
+                        const accountMaintenanceDisplay = isEsetiWithAccountMaintenance
                           ? (sourceRow.accountMaintenanceCostForYear ?? 0)
                           : isEsetiView
                             ? 0
                             : (sourceRow.accountMaintenanceCostForYear ?? 0)
-                        const accountMaintenancePercentDisplay = isAlfaExclusivePlusEsetiView
-                          ? 0.145
+                        const accountMaintenancePercentDisplay = isEsetiWithAccountMaintenance
+                          ? baselineAccountMaintenancePercent
                           : isEsetiView
                             ? 0
                           : (accountMaintenancePercentByYear[row.year] ??
@@ -13433,7 +13523,7 @@ export function SavingsCalculator() {
                           }
 
                           if (isEsetiView) {
-                            const esetiAccountMaintenanceCost = isAlfaExclusivePlusEsetiView
+                            const esetiAccountMaintenanceCost = isEsetiWithAccountMaintenance
                               ? (valueRow.accountMaintenanceCostForYear ?? 0)
                               : 0
                             const esetiAssetCost = isAllianzEsetiView ? (valueRow.assetBasedCostForYear ?? 0) : 0
@@ -13744,7 +13834,7 @@ export function SavingsCalculator() {
                                   <p className="text-xs text-muted-foreground tabular-nums">
                                     {formatValue(
                                       applyRealValueForYear(
-                                        isEsetiView && !isAlfaExclusivePlusEsetiView ? 0 : accountMaintenanceDisplay,
+                                        isEsetiView && !isEsetiWithAccountMaintenance ? 0 : accountMaintenanceDisplay,
                                       ),
                                       displayCurrency,
                                     )}
@@ -14438,14 +14528,14 @@ export function SavingsCalculator() {
                             )}
 
                             <td
-                              className={`py-2 px-3 text-right align-top w-28 min-w-28 ${isWithdrawalDisabledForProduct && !isEsetiView ? "opacity-40" : ""}`}
-                              title={isWithdrawalDisabledForProduct && !isEsetiView ? "Ennél a terméknél nincs lehetőség részvisszavásárlásra (ÁSZF III.8)" : undefined}
+                              className={`py-2 px-3 text-right align-top w-28 min-w-28 ${isWithdrawalDisabledForCurrentView ? "opacity-40" : ""}`}
+                              title={isWithdrawalDisabledForCurrentView ? (yearlyAccountView === "eseti_tax_eligible" ? "Az adójóváírásos rendkívüli számláról nem igényelhető részvisszavásárlás (ÁSZF I.3.3.1.2)" : "Ennél a terméknél nincs lehetőség részvisszavásárlásra (ÁSZF III.8)") : undefined}
                             >
                               <div className="flex flex-col items-end gap-1 min-h-[44px]">
                                 <Input
                                   type="text"
                                   inputMode="numeric"
-                                  disabled={isPartialRow || (isWithdrawalDisabledForProduct && !isEsetiView)}
+                                  disabled={isPartialRow || (isWithdrawalDisabledForCurrentView)}
                                   value={
                                     editingFields[`withdrawal-${row.year}`]
                                       ? String(

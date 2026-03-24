@@ -32,8 +32,9 @@ export const ZEN_PRO_REGULAR_ADMIN_FEE_PERCENT = 4
 export const ZEN_PRO_EXTRAORDINARY_ADMIN_FEE_PERCENT = 2
 export const ZEN_PRO_ACCOUNT_MAINTENANCE_MONTHLY_PERCENT = 0.165
 export const ZEN_PRO_ACCOUNT_MAINTENANCE_CLIENT_START_MONTH = 37
-export const ZEN_PRO_ACCOUNT_MAINTENANCE_INVESTED_START_MONTH = 1
-export const ZEN_PRO_ACCOUNT_MAINTENANCE_TAXBONUS_START_MONTH = 1
+// ÁSZF: számlavezetési díj a 37. hónaptól minden számlán (kivéve díjmentes időszaki díj számla)
+export const ZEN_PRO_ACCOUNT_MAINTENANCE_INVESTED_START_MONTH = 37
+export const ZEN_PRO_ACCOUNT_MAINTENANCE_TAXBONUS_START_MONTH = 37
 
 export const ZEN_PRO_NY08_PARTIAL_SURRENDER_FIXED_FEE = 2_500
 export const ZEN_PRO_NY14_PARTIAL_SURRENDER_FIXED_FEE = 10
@@ -62,7 +63,7 @@ export const ZEN_PRO_NY24_PAID_UP_MAINTENANCE_MONTHLY_CAP = 5
 export const ZEN_PRO_PAID_UP_MAINTENANCE_START_MONTH = 1
 
 export const ZEN_PRO_STRICT_UNSPECIFIED_RULES = true
-export const ZEN_PRO_ENABLE_BONUS_PAUSE_MULTIPLIER = false
+export const ZEN_PRO_ENABLE_BONUS_PAUSE_MULTIPLIER = true
 export const ZEN_PRO_ENABLE_POLICY_ISSUANCE_CANCELLATION_FEE = false
 
 const ZEN_PRO_NY08_CONFIG: ZenProVariantConfig = {
@@ -203,8 +204,9 @@ function resolveZenProBonusMilestones(
 function resolveZenProBonusPauseMultiplier(pausedMonths: number): number {
   if (!ZEN_PRO_ENABLE_BONUS_PAUSE_MULTIPLIER) return 1
   if (pausedMonths <= 0) return 1
-  // TODO(NY08): Replace with insurer-provided pause multiplier table.
-  return Math.max(0, 1 - pausedMonths / 100)
+  // ÁSZF: szüneteltetett hónaponként 0,01 csökkentés, max 18 hónap (= 0,82x)
+  if (pausedMonths > 18) return 0.82
+  return 1 - pausedMonths * 0.01
 }
 
 function computeAnnualizedMinimumBasePremium(
@@ -227,7 +229,8 @@ function isZenProBonusEligibleUntilYear(inputs: InputsDaily, milestoneYear: numb
   const yearlyPayments = inputs.yearlyPaymentsPlan ?? []
   const yearlyWithdrawals = inputs.yearlyWithdrawalsPlan ?? []
   for (let year = 1; year <= milestoneYear; year++) {
-    if ((yearlyPayments[year] ?? 0) <= 0) return false
+    // Szüneteltetés (0 befizetés) NEM zárja ki a bónuszt — a pause multiplier csökkenti
+    // Csak a kivonás (részvisszavásárlás) zárja ki
     if ((yearlyWithdrawals[year] ?? 0) > 0) return false
   }
   return true
