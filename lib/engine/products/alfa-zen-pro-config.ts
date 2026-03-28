@@ -180,7 +180,7 @@ export function buildZenProRedemptionSchedule(durationYears: number): Record<num
   return out
 }
 
-function resolveZenProBonusMilestones(
+export function resolveZenProBonusMilestones(
   durationYears: number,
   variant: ZenProVariant,
 ): Array<{ year: number; percent: number }> {
@@ -255,6 +255,19 @@ export function buildZenProBonusAmountByYear(
     const annualizedBase = computeAnnualizedMinimumBasePremium(inputs.yearlyPaymentsPlan ?? [], milestone.year)
     if (annualizedBase <= 0) continue
     out[milestone.year] = (out[milestone.year] ?? 0) + annualizedBase * (milestone.percent / 100) * pauseMultiplier
+  }
+  return out
+}
+
+/** Returns a map of year → bonus percent for display purposes (e.g., {7: 30, 9: 50}) */
+export function buildZenProBonusPercentByYear(
+  durationYears: number,
+  variant: ZenProVariant,
+): Record<number, number> {
+  const milestones = resolveZenProBonusMilestones(durationYears, variant)
+  const out: Record<number, number> = {}
+  for (const m of milestones) {
+    out[m.year] = (out[m.year] ?? 0) + m.percent
   }
   return out
 }

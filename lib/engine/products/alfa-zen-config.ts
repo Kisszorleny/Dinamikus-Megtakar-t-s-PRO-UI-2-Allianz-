@@ -223,6 +223,23 @@ function evaluateAlfaZenBonusEligibility(
   return { eligible: true, pausedMonths }
 }
 
+/** Returns a map of year → bonus percent for display purposes */
+export function buildAlfaZenBonusPercentByYear(durationYears: number): Record<number, number> {
+  const safeDuration = normalizeDurationYears(durationYears)
+  if (safeDuration < 10) return {}
+  const out: Record<number, number> = {}
+  const percentAtYear10 = safeDuration <= 15 ? 100 : 50
+  out[10] = percentAtYear10
+  if (safeDuration >= 15) {
+    out[15] = (out[15] ?? 0) + 100
+  }
+  if (safeDuration >= 20) {
+    const finalMilestoneYear = Math.max(1, safeDuration - 1)
+    out[finalMilestoneYear] = (out[finalMilestoneYear] ?? 0) + 100
+  }
+  return out
+}
+
 export function buildAlfaZenBonusAmountByYear(
   inputs: InputsDaily,
   durationYears: number,

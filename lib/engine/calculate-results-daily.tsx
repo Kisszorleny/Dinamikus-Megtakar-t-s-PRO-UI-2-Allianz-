@@ -217,6 +217,9 @@ export interface YearRow {
     interestForYear: number
     costForYear: number
     assetBasedCostForYear: number
+    accountMaintenanceCostForYear?: number
+    adminCostForYear?: number
+    upfrontCostForYear?: number
     plusCostForYear: number
     bonusForYear: number
     wealthBonusForYear: number
@@ -227,6 +230,9 @@ export interface YearRow {
     interestForYear: number
     costForYear: number
     assetBasedCostForYear: number
+    accountMaintenanceCostForYear?: number
+    adminCostForYear?: number
+    upfrontCostForYear?: number
     plusCostForYear: number
     bonusForYear: number
     wealthBonusForYear: number
@@ -237,6 +243,9 @@ export interface YearRow {
     interestForYear: number
     costForYear: number
     assetBasedCostForYear: number
+    accountMaintenanceCostForYear?: number
+    adminCostForYear?: number
+    upfrontCostForYear?: number
     plusCostForYear: number
     bonusForYear: number
     wealthBonusForYear: number
@@ -629,6 +638,15 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
   let upfrontCostThisYear = 0
   let adminCostThisYear = 0
   let accountMaintenanceCostThisYear = 0
+  let clientAccountMaintenanceCostThisYear = 0
+  let investedAccountMaintenanceCostThisYear = 0
+  let taxBonusAccountMaintenanceCostThisYear = 0
+  let clientAdminCostThisYear = 0
+  let investedAdminCostThisYear = 0
+  let taxBonusAdminCostThisYear = 0
+  let clientUpfrontCostThisYear = 0
+  let investedUpfrontCostThisYear = 0
+  let taxBonusUpfrontCostThisYear = 0
   let managementFeeCostThisYear = 0
   let bonusThisYear = 0
   let wealthBonusThisYear = 0
@@ -1229,6 +1247,14 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       payThisYear += totalContributionForEvent
       upfrontCostThisYear += upfrontCost
       adminCostThisYear += adminFeeCost + extraordinaryAdminFeeCost
+      {
+        const investedSharePercent = getInvestedSharePercent(currentYear) / 100
+        const totalAdmin = adminFeeCost + extraordinaryAdminFeeCost
+        clientAdminCostThisYear += totalAdmin * (1 - investedSharePercent)
+        investedAdminCostThisYear += totalAdmin * investedSharePercent
+        clientUpfrontCostThisYear += upfrontCost * (1 - investedSharePercent)
+        investedUpfrontCostThisYear += upfrontCost * investedSharePercent
+      }
       paymentThisMonth += totalContributionForEvent
       upfrontCostThisMonth += upfrontCost
       adminFeeCostThisMonth += adminFeeCost + extraordinaryAdminFeeCost
@@ -1565,6 +1591,9 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
             totalCosts += accountMaintenanceFee
             costThisYear += accountMaintenanceFee
             accountMaintenanceCostThisYear += accountMaintenanceFee
+            clientAccountMaintenanceCostThisYear += clientFee
+            investedAccountMaintenanceCostThisYear += investedFee
+            taxBonusAccountMaintenanceCostThisYear += taxBonusFee
             adminFeeCostThisMonth += accountMaintenanceFee
             costThisMonth += accountMaintenanceFee
             clientCostThisYear += clientFee
@@ -1595,6 +1624,9 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
             clientCostThisYear += accountMaintenanceFee * clientRatio
             investedCostThisYear += accountMaintenanceFee * investedRatio
             taxBonusCostThisYear += accountMaintenanceFee * taxBonusRatio
+            clientAccountMaintenanceCostThisYear += accountMaintenanceFee * clientRatio
+            investedAccountMaintenanceCostThisYear += accountMaintenanceFee * investedRatio
+            taxBonusAccountMaintenanceCostThisYear += accountMaintenanceFee * taxBonusRatio
             const reductionFactor = (totalValue - accountMaintenanceFee) / totalValue
             investedUnits *= reductionFactor
             clientUnits *= reductionFactor
@@ -2125,6 +2157,9 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           interestForYear: clientInterestThisYear,
           costForYear: clientCostThisYear,
           assetBasedCostForYear: clientAssetCostThisYear,
+          accountMaintenanceCostForYear: clientAccountMaintenanceCostThisYear,
+          adminCostForYear: clientAdminCostThisYear,
+          upfrontCostForYear: clientUpfrontCostThisYear,
           plusCostForYear: clientPlusCostThisYear,
           bonusForYear: clientBonusThisYear,
           wealthBonusForYear: clientWealthBonusThisYear,
@@ -2135,6 +2170,9 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           interestForYear: investedInterestThisYear,
           costForYear: investedCostThisYear,
           assetBasedCostForYear: investedAssetCostThisYear,
+          accountMaintenanceCostForYear: investedAccountMaintenanceCostThisYear,
+          adminCostForYear: investedAdminCostThisYear,
+          upfrontCostForYear: investedUpfrontCostThisYear,
           plusCostForYear: investedPlusCostThisYear,
           bonusForYear: investedBonusThisYear,
           wealthBonusForYear: investedWealthBonusThisYear,
@@ -2145,6 +2183,9 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
           interestForYear: taxBonusInterestThisYear,
           costForYear: taxBonusCostThisYear,
           assetBasedCostForYear: taxBonusAssetCostThisYear,
+          accountMaintenanceCostForYear: taxBonusAccountMaintenanceCostThisYear,
+          adminCostForYear: taxBonusAdminCostThisYear,
+          upfrontCostForYear: taxBonusUpfrontCostThisYear,
           plusCostForYear: taxBonusPlusCostThisYear,
           bonusForYear: taxBonusBonusThisYear,
           wealthBonusForYear: taxBonusWealthBonusThisYear,
@@ -2163,6 +2204,15 @@ export function calculateResultsDaily(inputs: InputsDaily): ResultsDaily {
       upfrontCostThisYear = 0
       adminCostThisYear = 0
       accountMaintenanceCostThisYear = 0
+      clientAccountMaintenanceCostThisYear = 0
+      investedAccountMaintenanceCostThisYear = 0
+      taxBonusAccountMaintenanceCostThisYear = 0
+      clientAdminCostThisYear = 0
+      investedAdminCostThisYear = 0
+      taxBonusAdminCostThisYear = 0
+      clientUpfrontCostThisYear = 0
+      investedUpfrontCostThisYear = 0
+      taxBonusUpfrontCostThisYear = 0
       managementFeeCostThisYear = 0
       assetCostThisYear = 0
       bonusThisYear = 0
